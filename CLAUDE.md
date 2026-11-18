@@ -30,7 +30,7 @@ packages/               (a criar)  regras puras compartilhadas, ex.: cálculo de
 |---|---|
 | API e workers | Node.js LTS + **TypeScript (strict) + Fastify 5**, validação com **Zod** |
 | Banco | **PostgreSQL**, dois bancos lógicos: `arp` (fiscal, só cresce) e `app` (operacional) |
-| Acesso ao banco | **Drizzle** no `app`; **SQL puro** no `rep-core` (a transação do NSR precisa de controle total) |
+| Acesso ao banco | **Drizzle** no `app` (traduz o banco em português para o código em inglês); **SQL puro** no `rep-core` (a transação do NSR precisa de controle total) |
 | Arquivos | **S3** (ou compatível): comprovantes, AFD/AEJ, atestados, fotos temporárias, backups |
 | Fila | BullMQ sobre Valkey; **outbox no Postgres é a fonte da verdade**, a fila só transporta |
 | Portais | Next.js + Tailwind + shadcn/ui; login com Better Auth |
@@ -43,7 +43,7 @@ packages/               (a criar)  regras puras compartilhadas, ex.: cálculo de
 ## Arquitetura em dez linhas
 
 1. O **aparelho** assina e guarda cada batida antes de enviar (primeiro outbox).
-2. A **api-coletor** identifica o rosto no `face-engine` e grava na tabela `intake`; só o **rep-core** escreve no banco `arp`.
+2. A **api-coletor** identifica o rosto no `face-engine` e grava na tabela `entradas`; só o **rep-core** escreve no banco `arp`.
 3. O **rep-core** atribui NSR e hash em uma transação com `FOR UPDATE` por estabelecimento e grava eventos no `outbox`.
 4. **Jobs** consomem o outbox: PDF do comprovante, cálculo da jornada (PTRP), QR oficial, espelho, selo diário.
 5. O **api-portal** (Fastify) serve os portais de RH, gestor e funcionário. As funcionalidades de RH são, em geral, **módulos novos nele + tabelas no banco `app`**.
@@ -57,72 +57,79 @@ packages/               (a criar)  regras puras compartilhadas, ex.: cálculo de
 
 **Da Portaria 671 (arts. 74, 82 e 98):**
 - O sistema **nunca bloqueia uma marcação**. Duplicidade, horário e cerca geográfica só **sinalizam**.
-- **Nenhuma tela nem endpoint edita ou apaga uma marcação.** O RH acrescenta (justificativa, abono, pré-assinalação do intervalo) ou marca como indevida, em tabelas próprias do `app`.
+- **Nenhuma tela nem endpoint edita ou apaga uma marcação.** O RH acrescenta (justificativa, abono, pré-assinalação do intervalo) ou marca como indevida, em tabelas próprias do `app` (`marcacoes_tratadas`, `abonos`).
 - Sem marcação automática e sem exigir autorização prévia para hora extra.
-- Só o `rep-core` escreve no `arp`. Os demais serviços leem com papel somente leitura. `registros`/`records` aceitam só INSERT (trigger recusa UPDATE e DELETE).
+- Só o `rep-core` escreve no `arp`. Os demais serviços leem com papel somente leitura. `registros` e `evidencias` aceitam só INSERT (trigger recusa UPDATE e DELETE).
 
 **Multi-tenant:**
-- Toda tabela de negócio tem `tenant_id`, e **toda query filtra por ele**, sem exceção. Repositórios exigem `tenantId` como parâmetro; o tipo impede esquecer.
-- O `tenant_id` vem da sessão, **nunca** do corpo da requisição.
+- Toda tabela de negócio tem `conta_id` (o tenant), e **toda query filtra por ele**, sem exceção. Repositórios exigem `tenantId` como parâmetro; o tipo impede esquecer.
+- O `tenantId` vem da sessão, **nunca** do corpo da requisição.
 
 **Dados sensíveis (LGPD):**
 - Biometria e **dado de saúde** (atestado, CID, texto de OCR) são sensíveis: cifrados em coluna, acesso auditado, nunca em log.
 - **CID só para o RH.** Gestor vê "afastado", sem diagnóstico.
-- Nenhum segredo entra em `before_state`/`after_state` da auditoria. Veja `docs/conventions/security-lgpd.md`.
+- Nenhum segredo entra em `estado_antes`/`estado_depois` da auditoria. Veja `docs/conventions/security-lgpd.md`.
 
 **Engine:** `workers=1` é obrigatório (cache em memória sem TTL). `BENCH_ENDPOINTS` **nunca** em produção. `InvalidTag` GCM jamais é silenciado.
 
 ## Convenções (resumo; versão completa em `docs/conventions/`)
 
-**Idioma.** Identificadores (tabelas, colunas, código, rotas, chaves JSON, eventos, filas) em **inglês**. Siglas da Portaria e do domínio ficam como são: `cpf`, `cnpj`, `nsr`, `afd`, `aej`, `dsr`, `cid`, `crm`, `inpi`. Documentação, comentários que explicam regra legal e mensagens ao usuário em **pt-BR**. Mapa de termos: `docs/conventions/database.md` §12.
+**Idioma: o banco é em português; o código é em inglês.**
+- **Banco** (`database.md`): tabelas, colunas, constraints, índices e **valores de enumeração** em português, `snake_case`, **sem acento nem cedilha**: `colaboradores.data_admissao`, `status = 'pendente'`.
+- **Código, rotas, chaves de JSON, eventos, filas e jobs** em inglês: `employee.admissionDate`, `/employees`, `recalculate-day`. O **Drizzle traduz** num só lugar (`apps/api/src/db/schema/`), pelas regras de `database.md` §12. Valores de enumeração **não** se traduzem: `"status": "pendente"` do banco ao JSON.
+- Siglas ficam como são: `cpf`, `cnpj`, `nsr`, `afd`, `aej`, `dsr`, `cid`, `crm`, `inpi`, `uf`, `ip`, `hash`, `id`, `status`.
+- O serviço Python (`face-engine`) mantém o contrato em inglês herdado da Visage (`tenant_id`, `person_id`).
+- Documentação, comentários que explicam regra legal e mensagens ao usuário em pt-BR.
 
 **Colunas do banco: uma regra por conceito.**
 
 | Conceito | Padrão | Exemplo |
 |---|---|---|
 | Chave primária | `id BIGINT GENERATED ALWAYS AS IDENTITY` | |
-| ID exposto fora (QR, link) | `public_id UUID NOT NULL DEFAULT gen_random_uuid()`, UNIQUE | |
-| Tenant | `tenant_id BIGINT NOT NULL REFERENCES tenants(id)`, logo após `id` | |
-| Chave estrangeira | `<tabela_no_singular>_id`; por papel: `manager_id`, `parent_id` | `employee_id` |
-| Instante | `<verbo_no_passado>_at TIMESTAMPTZ` | `approved_at` |
-| Dia (sem hora) | `<substantivo>_date DATE` | `work_date`, `admission_date` |
-| Hora do dia | `<substantivo>_time TIME` (relógio local do estabelecimento) | `start_time` |
-| Vigência | `start_date NOT NULL` + `end_date NULL` (NULL = em aberto, inclusivo) + exclusion constraint | |
-| Duração | `<nome>_minutes INTEGER`. Nunca horas decimais | `worked_minutes` |
-| Dinheiro | `<nome>_amount NUMERIC(12,2)` (BRL). Nunca FLOAT | `salary_amount` |
-| Taxa | `<nome>_rate NUMERIC(6,4)` (0.5000 = 50%) | `overtime_rate` |
-| Booleano | `is_*` / `has_*`, `NOT NULL DEFAULT` | `is_active` |
-| Status | `status TEXT NOT NULL` + `CHECK`; valores `snake_case` em inglês | `pending` |
-| Discriminador | `kind TEXT` + `CHECK`. Não usar `type` | `kind = 'add_punch'` |
-| Ator da ação | `<verbo_no_passado>_by_id BIGINT REFERENCES users(id)` | `decided_by_id` |
-| Motivo | `reason` (quem pede) · `decision_note` (quem decide) | |
-| Arquivo no S3 | `<nome>_key` (chave do objeto, nunca URL) + `_sha256`, `_mime`, `_size_bytes` | `file_key` |
-| Cifrado | `<nome>_enc BYTEA` | `cid_code_enc` |
+| ID exposto fora (QR, link) | `id_publico UUID NOT NULL DEFAULT gen_random_uuid()`, UNIQUE | |
+| Conta (tenant) | `conta_id BIGINT NOT NULL REFERENCES contas(id)`, logo após `id` | |
+| Chave estrangeira | `<tabela_no_singular>_id`; por papel: `gestor_id`, `pai_id` | `colaborador_id` |
+| Instante | `<particípio>_em TIMESTAMPTZ` | `aprovado_em`, `criado_em` |
+| Dia (sem hora) | `data_<substantivo> DATE` | `data_trabalho`, `data_admissao` |
+| Hora do dia | `hora_<substantivo> TIME` (relógio local do estabelecimento) | `hora_inicio` |
+| Vigência | `data_inicio NOT NULL` + `data_fim NULL` (NULL = em aberto, inclusivo) + exclusion constraint | |
+| Duração | `minutos_<o_que> INTEGER`. Nunca horas decimais | `minutos_trabalhados` |
+| Dias / meses | `dias_<o_que>` / `meses_<o_que> INTEGER` | `dias_ciclo` |
+| Dinheiro | `valor_<o_que> NUMERIC(12,2)` (BRL). Nunca FLOAT | `valor_salario` |
+| Taxa | `taxa_<o_que> NUMERIC(6,4)` (0.5000 = 50%) | `taxa_hora_extra` |
+| Booleano | `eh_<estado>` / `tem_<coisa>`, `NOT NULL DEFAULT` | `eh_ativo`, `tem_assinatura` |
+| Status | `status TEXT NOT NULL` + `CHECK`; valores `snake_case` em português | `pendente`, `aprovado` |
+| Discriminador | `tipo TEXT` + `CHECK` (`tipo_ator`, `tipo_alvo` se houver mais de um) | `tipo = 'incluir_marcacao'` |
+| Ator da ação | `<particípio>_por_id BIGINT REFERENCES usuarios(id)` | `decidido_por_id` |
+| Motivo | `motivo` (quem pede) · `nota_decisao` (quem decide) | |
+| Arquivo no S3 | `<nome>_chave` (chave do objeto, nunca URL) + `_sha256`, `_mime`, `_tamanho_bytes` | `arquivo_chave` |
+| Cifrado | `<nome>_cifrado BYTEA` | `cid_cifrado` |
 | Hash / índice cego | `<nome>_hash BYTEA` | `cpf_hash` |
-| JSON | `JSONB`, nomeado pelo conteúdo | `findings`, `params` |
-| Escore | `<nome>_score` (`REAL` biometria; `SMALLINT` 0–100 para risco) | `risk_score` |
-| CPF / CNPJ | `cpf CHAR(11)` / `cnpj CHAR(14)`, só dígitos. Empregador: `document_type` + `document` | |
-| Auditoria da linha | `created_at`, `updated_at` (trigger), `created_by_id`. Tabelas só-INSERT não têm `updated_at` | |
+| JSON | `JSONB`, nomeado pelo conteúdo | `achados`, `parametros` |
+| Escore | `nota_<o_que>` (`REAL` biometria; `SMALLINT` 0–100 para risco) | `nota_risco` |
+| CPF / CNPJ | `cpf CHAR(11)` / `cnpj CHAR(14)`, só dígitos. Empregador: `tipo_documento` + `documento` | |
+| Estorno (ledger) | `estorno_de_id` | |
+| Auditoria da linha | `criado_em`, `atualizado_em` (trigger), `criado_por_id`. Tabelas só-INSERT não têm `atualizado_em` | |
 
-**Nomes de objetos:** tabelas no plural `snake_case`; `pk_`, `fk_`, `uq_`, `ck_`, `ex_`, `idx_` como prefixo de constraints e índices. **Sem soft delete:** use `status`, `end_date` ou `is_active`. Registros de ledger (`*_entries`) só recebem INSERT; correção é um lançamento de estorno.
+**Nomes de objetos:** tabelas no plural; ledger `lancamentos_*`, histórico `historico_*`, catálogo `tipos_*`; `pk_`, `fk_`, `uq_`, `ck_`, `ex_`, `idx_` como prefixo de constraints e índices. **Sem soft delete:** use `status`, `data_fim` ou `eh_ativo`. Ledger só recebe INSERT; correção é um lançamento de estorno. **Papéis:** `super_admin`, `rh`, `gestor`, `colaborador`.
 
 **API (Fastify):**
-- Rotas sob `/portal` (nginx), `kebab-case`, plural. Ações como `POST /recurso/:id/approve`. `PATCH` para alteração parcial.
+- Rotas sob `/portal` (nginx), `kebab-case`, plural, em inglês. Ações como `POST /recurso/:id/approve`. `PATCH` para alteração parcial.
 - JSON em `camelCase`. Sucesso `{ data }`; listas `{ data, meta: { page, pageSize, total } }`. Erro `{ error, code }` com `code` em `UPPER_SNAKE` e `error` em pt-BR.
 - Camadas: **rota (fina) → service → repository**. Service é classe com dependências injetadas, sem singleton global. Cálculo de jornada em **funções puras**, testáveis por tabela.
 - Todo schema Zod de resposta **remove** campos que não devem sair (cifrados, hashes).
-- Hora: nunca `new Date()` direto; injete `Clock`. Dia de trabalho (`work_date`) é calculado no fuso do estabelecimento.
+- Hora: nunca `new Date()` direto; injete `Clock`. Dia de trabalho (`data_trabalho`) é calculado no fuso do estabelecimento.
 - Logs com Pino, JSON. Nunca `console.log`. Sem CPF completo, sem dado de saúde, sem embedding.
 
 **Commits:** português, no estilo do histórico: `Área: o que mudou` (ex.: `Bench: limitar N ao teto de 1 MB`).
 
 ## Receita: adicionar uma funcionalidade (o caso mais comum)
 
-1. **Migration** da tabela (`drizzle-kit generate`), seguindo `docs/conventions/database.md`. Nunca edite migration já aplicada.
-2. **Schema Drizzle** em `apps/api/src/db/schema/`.
+1. **Migration** da tabela (`drizzle-kit generate`), seguindo `docs/conventions/database.md`: nomes em português, colunas pelo quadro acima. Nunca edite migration já aplicada.
+2. **Schema Drizzle** em `apps/api/src/db/schema/`: nome da coluna em português, propriedade em inglês (`database.md` §12). Termo novo entra no glossário no mesmo PR.
 3. **Módulo** em `apps/api/src/modules/<nome>/`: `schemas.ts` (Zod), `repository.ts`, `service.ts`, `routes.ts`, `events.ts`, `rules/` (puro, se houver cálculo).
 4. **Autorização** por papel e por escopo (gestor só vê a própria equipe).
-5. **Auditoria:** registre o evento (`<domínio>.<verbo>`) com `before`/`after`.
+5. **Auditoria:** registre o evento (`<domínio>.<verbo>`, em inglês) com `before`/`after`.
 6. **Evento/job** se o resultado muda a apuração: publique `recalculate-day` (ex-`calcular_jornada`) via outbox.
 7. **Testes:** regra pura (Vitest, por tabela) + rota (integração com Postgres real).
 8. **Docs:** atualize a seção do módulo em `docs/architecture/04-funcionalidades-rh.md`.
@@ -159,4 +166,4 @@ python bench.py init | set-url | check | capture | enroll | gen | micro | seq | 
 - **[A CONFIRMAR]** marca interpretação ainda não validada (regra trabalhista, escolha técnica). **Não invente regra legal**: marque e pergunte.
 - Não mexa em `../visage`. Não commite `.env`, `bench/.secrets.json`, `bench/data`, `bench/frames` nem `bench/results` (rostos e chaves).
 - Mudança de arquitetura (novo componente, outro banco, outra fila) pede conversa antes. Funcionalidade nova dentro do padrão acima, não.
-- Documentos `01`, `02` e `03` descrevem a arquitetura vigente e usam nomes em português nas tabelas do ARP. O mapa para os identificadores em inglês está em `docs/conventions/database.md` §12.
+- Os documentos `01`, `02` e `03` descrevem a arquitetura vigente e já usam português nas tabelas do ARP. A convenção do Genus põe tudo no plural e padroniza colunas (`marcado_em` no lugar de `dh_marcacao`); o mapa está em `docs/conventions/database.md` §12.

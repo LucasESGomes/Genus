@@ -38,11 +38,18 @@ apps/api/src/
     index.ts           plugin Fastify do módulo
   jobs/                workers BullMQ; um arquivo por fila
   lib/                 db, s3, queue, outbox, crypto, clock, audit-events, redact
-  db/schema/           Drizzle, um arquivo por domínio
+  db/schema/           Drizzle, um arquivo por domínio (aqui o banco em português vira código em inglês)
   db/seeds/            dados iniciais idempotentes
 packages/
   timekeeping-rules/   regras puras de jornada (usadas pela API e pelos workers)
 ```
+
+### 2.1 Banco em português, código em inglês
+
+- O **banco** é em português (`colaboradores.data_admissao`); o **código** é em inglês (`employee.admissionDate`). **Só o Drizzle traduz**: o schema em `db/schema/` mapeia cada coluna (nome em português) para uma propriedade (inglês), pelas regras de `database.md` §12. Fora dele, ninguém escreve nome de coluna em português.
+- **Valores de enumeração não se traduzem.** `status` vale `'pendente'` no banco, no código (`type Status = 'pendente' | 'aprovado' | ...`) e no JSON. Papéis: `super_admin`, `rh`, `gestor`, `colaborador`.
+- Rotas, chaves de JSON, eventos (`employee.terminated`), filas e jobs (`recalculate-day`) ficam em inglês.
+- SQL escrito à mão (no `rep-core`, em migrations do `arp` e em relatórios) usa os nomes em português do banco.
 
 ## 3. Camadas e injeção
 
@@ -56,7 +63,7 @@ packages/
 // modules/adjustments/routes.ts  (ilustrativo)
 export const adjustmentRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post('/adjustment-requests/:id/approve', {
-    preHandler: [app.authorize('admin', 'manager')],
+    preHandler: [app.authorize('rh', 'gestor')],
     schema: {
       params: z.object({ id: idSchema }),
       body: z.object({ decisionNote: z.string().max(500).optional() }),
@@ -88,14 +95,14 @@ export class AdjustmentService {
 
 - O plugin `request-context` monta `req.ctx` = `{ tenantId, userId, employeeId?, role, sessionId, teamScope }` **a partir da sessão**. `tenantId` jamais vem do corpo, da query ou de header do cliente.
 - O mesmo contexto vai para o `AsyncLocalStorage`, e a auditoria lê o ator de lá.
-- **Papéis:** `super_admin` (operação do Genus) · `admin` (RH do cliente) · `manager` (gestor) · `employee` (colaborador). Quem é `manager` e `employee` ao mesmo tempo tem os dois escopos.
-- `app.authorize(...roles)` barra por papel. **Escopo de equipe** (`teamScope`) barra por dado: o gestor só enxerga colaboradores com `manager_id = ctx.employeeId` **[A DECIDIR]** se herda a hierarquia abaixo ou só diretos.
+- **Papéis** (`usuarios.papel`): `super_admin` (operação do Genus) · `rh` (RH do cliente) · `gestor` · `colaborador`. Quem é `gestor` e `colaborador` ao mesmo tempo tem os dois escopos.
+- `app.authorize(...roles)` barra por papel. **Escopo de equipe** (`teamScope`) barra por dado: o gestor só enxerga colaboradores com `gestor_id = ctx.employeeId` **[A DECIDIR]** se herda a hierarquia abaixo ou só diretos.
 - Rotas do funcionário ficam em `/me/*` e **ignoram qualquer `employeeId` recebido**: usam `ctx.employeeId`.
 
 ## 5. Validação e serialização
 
 - Todo `params`, `query`, `body` e **`response`** tem schema Zod.
-- O schema de **resposta** é um DTO explícito: ele **remove** o que não deve sair (colunas `_enc`, `_hash`, `tenant_id`, `created_by_id` quando irrelevante). Nunca devolva a linha do banco.
+- O schema de **resposta** é um DTO explícito: ele **remove** o que não deve sair (colunas `_cifrado`, `_hash`, `conta_id`, `criado_por_id` quando irrelevante). Nunca devolva a linha do banco.
 - IDs `BIGINT` trafegam como `number`. IDs públicos são UUID (string).
 - Datas em JSON: `DATE` como `"2026-11-25"`; instante como ISO 8601 UTC (`"2026-11-25T11:00:00.000Z"`); hora do dia como `"HH:MM"`; duração como inteiro em minutos (`workedMinutes`).
 
@@ -108,7 +115,7 @@ export class AdjustmentService {
 | Verbos | `GET` lê · `POST` cria · `PATCH` altera parcialmente · `DELETE` só onde a regra permite apagar (raro; ver abaixo) |
 | Ações | `POST /recurso/:id/approve`, `/reject`, `/cancel`, `/close`, `/reopen`. Ação é verbo no fim do caminho |
 | Registro legal | Não tem `DELETE`. Muda de estado (`canceled`, `terminated`, `reversed`) |
-| JSON | `camelCase` |
+| JSON | Chaves em `camelCase` inglês; **valores de enumeração em português** (`"status": "pendente"`) |
 | Sucesso | `{ "data": ... }` |
 | Lista | `{ "data": [...], "meta": { "page": 1, "pageSize": 50, "total": 120 } }`. Query: `page`, `pageSize` (máx. 200), `sort=campo` ou `-campo`, filtros por nome do campo |
 | Erro | `{ "error": "Mensagem em pt-BR", "code": "UPPER_SNAKE", "details"?: [...] }` |
@@ -121,7 +128,7 @@ Erros do domínio são `AppError(code, httpStatus, message)`; o handler global c
 ## 7. Tempo e fusos
 
 - Nunca `new Date()` ou `Date.now()` em service: injete `Clock` (`clock.now()`), para testar virada de dia e de período.
-- **Dia de trabalho:** `workDateOf(instant, establishment.timezone)`. Um turno noturno que termina às 05:00 pertence ao `work_date` em que **começou**.
+- **Dia de trabalho:** `workDateOf(instant, establishment.timezone)`. Um turno noturno que termina às 05:00 pertence ao `data_trabalho` em que **começou**.
 - O banco guarda UTC. A conversão para o relógio local acontece nas regras, usando o fuso do estabelecimento (`America/Sao_Paulo` é só o default).
 - Hora legal: servidores sincronizam com o Observatório Nacional (`02` §7). Não use o relógio do aparelho como verdade.
 
@@ -144,7 +151,7 @@ Erros do domínio são `AppError(code, httpStatus, message)`; o handler global c
 
 - O cliente pede `POST /<recurso>/uploads` e recebe uma **URL assinada de PUT** (vida de 5 min, tamanho e `Content-Type` fixados). Depois confirma com `POST /<recurso>/:id/complete`; a API confere tamanho e SHA-256 do objeto.
 - Servir arquivo: URL assinada de **GET** com vida curta, e o acesso gera evento de auditoria.
-- Chave do objeto: `tenants/{tenantId}/{dominio}/{yyyy}/{uuid}`. Nunca use o nome original do arquivo na chave.
+- Chave do objeto: `contas/{contaId}/{dominio}/{aaaa}/{uuid}` (ex.: `contas/42/atestados/2026/…`). Nunca use o nome original do arquivo na chave.
 
 ## 11. Logs
 
@@ -166,7 +173,7 @@ Todo módulo novo tem pelo menos um teste de **isolamento de tenant** e um de **
 
 ## 13. Lista de verificação antes de abrir PR
 
-- [ ] Toda query filtra `tenant_id` (repository exige).
+- [ ] Toda query filtra `conta_id` (repository exige `tenantId`).
 - [ ] Nomes e tipos de coluna seguem `database.md` §4.
 - [ ] Resposta passa por DTO; nenhum campo cifrado ou interno vaza.
 - [ ] Ação sensível registra auditoria (inclusive leitura de dado de saúde).

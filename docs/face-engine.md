@@ -30,7 +30,7 @@ Status devolvidos: `identified`, `not_identified`, `liveness_failed`, `no_face_d
 
 ## 3. Endpoints
 
-Todos exigem `X-API-Key` (exceto `/health`). Sem a chave, HTTP 401.
+Todos exigem `X-API-Key` (exceto `/health`). Sem a chave, HTTP 401. O contrato desta engine é **em inglês**, herdado da Visage (`tenant_id`, `person_id`, `candidates`); o backend traduz de `conta_id` e `pessoa_facial_id` ao chamá-la.
 
 | Método e rota | Função |
 |---|---|
