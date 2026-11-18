@@ -1,0 +1,4 @@
+httpx==0.28.1
+numpy>=2.3
+cryptography>=45
+opencv-python==5.0.0.93
