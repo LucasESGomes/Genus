@@ -1,0 +1,68 @@
+# Infraestrutura local e de homologação do Genus (Compose v2).
+# Uso: docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+# O perfil "dev" publica a porta da engine em 127.0.0.1. Sem ele, a engine fica só na rede interna.
+name: genus
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Defina POSTGRES_USER em infra/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD em infra/.env}
+      # Senhas dos papéis do banco arp, lidas pelo script de init (só na primeira subida do volume).
+      ARP_OWNER_PASSWORD: ${ARP_OWNER_PASSWORD:?Defina ARP_OWNER_PASSWORD em infra/.env}
+      ARP_COLLECTOR_PASSWORD: ${ARP_COLLECTOR_PASSWORD:?Defina ARP_COLLECTOR_PASSWORD em infra/.env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  face-engine:
+    build: ../services/face-engine
+    restart: unless-stopped
+    environment:
+      MASTER_KEY: ${MASTER_KEY:?Defina MASTER_KEY (64 hex) em infra/.env}
+      ENGINE_API_KEY: ${ENGINE_API_KEY:?Defina ENGINE_API_KEY em infra/.env}
+      # Nunca true fora de benchmark.
+      BENCH_ENDPOINTS: "false"
+      SAVE_AUDIT_FRAMES: "false"
+      # 1 vCPU por engine: sem paralelismo interno.
+      ENGINE_THREAD_POOL_SIZE: "1"
+      ONNX_INTRA_OP_THREADS: "1"
+      CV2_NUM_THREADS: "1"
+    cpus: 1.0
+    volumes:
+      - engine-models:/app/models
+      - insightface:/root/.insightface
+    # Sem "ports": a engine só é alcançada pela rede interna do Compose.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,sys,urllib.request; sys.exit(0 if json.load(urllib.request.urlopen('http://localhost:8001/health')).get('status')=='ok' else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # A primeira subida baixa os modelos ONNX; tempo de tolerância maior.
+      start_period: 300s
+
+  # Só no perfil "dev": publica a porta da engine em 127.0.0.1 para testes locais.
+  # Subir com: docker compose -f infra/docker-compose.yml --profile dev up -d
+  face-engine-port:
+    image: alpine/socat:1.8.0.3
+    profiles: ["dev"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ENGINE_PORT:-8001}:8001"
+    command: tcp-listen:8001,fork,reuseaddr tcp-connect:face-engine:8001
+    depends_on:
+      - face-engine
+
+volumes:
+  pgdata:
+  engine-models:
+  insightface:
