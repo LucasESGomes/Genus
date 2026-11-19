@@ -4,8 +4,12 @@
 name: genus
 
 services:
+  # Um único Postgres com os DOIS bancos lógicos: `arp` (fiscal, REP-P: batidas, NSR)
+  # e `app` (operacional: portais de RH). Eles se separam por banco e por papel
+  # (arp_owner, arp_collector), não por container (02-arquitetura.md §4.5, Tier 1).
   postgres:
     image: postgres:17.6-alpine
+    container_name: genus-postgres-arp-app
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?Defina POSTGRES_USER em infra/.env}
@@ -26,6 +30,8 @@ services:
 
   face-engine:
     build: ../services/face-engine
+    image: genus-face-engine
+    container_name: genus-face-engine
     restart: unless-stopped
     environment:
       MASTER_KEY: ${MASTER_KEY:?Defina MASTER_KEY (64 hex) em infra/.env}
@@ -54,6 +60,7 @@ services:
   # Subir com: docker compose -f infra/docker-compose.yml --profile dev up -d
   face-engine-port:
     image: alpine/socat:1.8.0.3
+    container_name: genus-face-engine-porta-dev
     profiles: ["dev"]
     restart: unless-stopped
     ports:
@@ -63,6 +70,10 @@ services:
       - face-engine
 
 volumes:
+  # Nomes fixos, para ficar claro no `docker volume ls`.
   pgdata:
+    name: genus-postgres-arp-app-dados
   engine-models:
+    name: genus-face-engine-modelos
   insightface:
+    name: genus-face-engine-insightface

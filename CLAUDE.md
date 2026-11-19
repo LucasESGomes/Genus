@@ -173,7 +173,7 @@ python bench.py init | set-url | check | capture | enroll | gen | micro | seq | 
 # API do coletor (da raiz do repositório). Node 24 (.nvmrc), pnpm 10 e Docker. Passo a passo: docs/desenvolvimento.md
 pnpm install
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d postgres   # com a engine: acrescente --profile dev
-pnpm db:migrate:arp                  # exige ARP_MIGRATION_DATABASE_URL
+pnpm db:migrate:arp [-- --env prod]  # lê ARP_MIGRATION_DATABASE_URL de apps/collector-api/.env.<ambiente>
 pnpm dev                             # api com apps/collector-api/.env.dev
 pnpm dev:enroll-fake                 # galeria fictícia a partir de dev-data/faces/
 pnpm -r typecheck && pnpm -r lint && pnpm -r test   # o teste exige Docker (Testcontainers)

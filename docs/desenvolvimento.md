@@ -55,9 +55,19 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up -d postgres
 docker compose -f infra/docker-compose.yml --env-file infra/.env --profile dev up -d
 ```
 
+Containers e volumes (`docker ps`, `docker volume ls`):
+
+| Container | O que é |
+|---|---|
+| `genus-postgres-arp-app` | Um único Postgres com os **dois** bancos: `arp` (fiscal, REP-P: batidas) e `app` (operacional, portais de RH). Eles se separam por banco e por papel, não por container. Dados no volume `genus-postgres-arp-app-dados` |
+| `genus-face-engine` | Motor facial. Só na rede interna do Compose. Modelos no volume `genus-face-engine-modelos` |
+| `genus-face-engine-porta-dev` | Só no perfil `dev`: publica a engine em `127.0.0.1:8001` |
+
+Para abrir um dos bancos: `docker exec -it genus-postgres-arp-app psql -U <POSTGRES_USER> -d arp` (ou `-d app`).
+
 Pontos de atenção:
 
-- O script `infra/postgres/init` cria os papéis `arp_owner` e `arp_collector` e os bancos `arp` e `app`. Ele roda **só na primeira subida** do volume `pgdata`. Se trocar uma senha depois, o volume precisa ser recriado (`docker compose ... down -v`). Isso apaga os dados locais.
+- O script `infra/postgres/init` cria os papéis `arp_owner` e `arp_collector` e os bancos `arp` e `app`. Ele roda **só na primeira subida** do volume `genus-postgres-arp-app-dados`. Se trocar uma senha depois, o volume precisa ser recriado (`docker compose ... down -v`). Isso apaga os dados locais. Sintoma de senha trocada sem recriar o volume: a migration falha com "senha recusada (28P01)".
 - A primeira subida da engine baixa os modelos ONNX. Pode levar alguns minutos. O healthcheck tem tolerância de 300 s.
 - Verifique a engine com `curl http://127.0.0.1:8001/health`. O esperado é `"status": "ok"`. Veja também `docs/face-engine.md` §3.
 
@@ -65,10 +75,13 @@ Pontos de atenção:
 
 ```bash
 pnpm install
-pnpm db:migrate:arp
+pnpm db:migrate:arp                      # dev: lê apps/collector-api/.env.dev
+pnpm db:migrate:arp -- --env homolog     # lê apps/collector-api/.env.homolog
+pnpm db:migrate:arp -- --env prod        # lê apps/collector-api/.env.prod
+pnpm db:migrate:arp -- --env-file <arq>  # arquivo explícito
 ```
 
-O comando usa `ARP_MIGRATION_DATABASE_URL` do ambiente. Ele precisa estar exportada no shell, porque o comando não lê `.env.dev`. Use o papel `arp_owner`. Nunca use `arp_collector` para migrar.
+O comando lê `ARP_MIGRATION_DATABASE_URL` do arquivo do ambiente escolhido (padrão: `APP_ENV` do shell ou `dev`). Se a variável estiver exportada no shell, ela vence o arquivo. A URL usa o papel `arp_owner` e a porta `POSTGRES_PORT` do `infra/.env`. Nunca use `arp_collector` para migrar. O comando mostra de qual arquivo leu a URL, sem imprimir o valor.
 
 A migration aplicada não muda mais. Nova alteração de banco vira uma nova migration.
 
