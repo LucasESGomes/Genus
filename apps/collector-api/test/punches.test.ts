@@ -358,12 +358,15 @@ describe('erros que NÃO viram fallback', () => {
     expect(critical.length).toBeGreaterThan(0);
   });
 
-  it('engine fora do contrato (401): 500 INTERNAL_ERROR', async () => {
+  it('engine fora do contrato (401, 400 de imagem): 200 fallback_required, nada gravado', async () => {
     const a = await start();
-    stub.setBehavior({ httpStatus: 401 });
-    const res = await postPunch(a);
-    expect(res.statusCode).toBe(500);
-    expect(res.json().code).toBe('INTERNAL_ERROR');
+    for (const httpStatus of [401, 400] as const) {
+      stub.setBehavior({ httpStatus });
+      const res = await postPunch(a);
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data).toMatchObject({ outcome: 'fallback_required', reason: 'engine_unavailable' });
+    }
+    expect(await rows()).toHaveLength(0);
   });
 
   it('erro de banco: 500 INTERNAL_ERROR sem vazar SQL', async () => {

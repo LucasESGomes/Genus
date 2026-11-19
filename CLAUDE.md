@@ -8,20 +8,27 @@ O motor facial vem da **Visage** (produto irmão, em `../visage`). A Visage **n�
 
 - **Pronto, segundo o quadro de funcionalidades:** reconhecimento facial e coleta offline.
 - **MVP do painel de RH: entrega em 25/11/2026** (módulos roxos). **Fase 2** = módulos azuis. Lista completa e plano de cada módulo: `docs/architecture/04-funcionalidades-rh.md`.
-- **Neste repositório hoje:** `services/face-engine`, `bench/` e `docs/`. A API do portal, os portais web e o app do coletor **ainda não existem aqui**. A estrutura-alvo está abaixo.
+- **Neste repositório hoje:** `services/face-engine`, `bench/`, `docs/` e a api do coletor em `apps/collector-api` (primeira entrega: reconhece o rosto entre candidatos fictícios e grava a batida em `arp.entradas` como `pendente`; sem fila, rep-core, NSR nem hash ainda). A API do portal, os portais web e o app do coletor **ainda não existem aqui**. A estrutura-alvo está abaixo.
 
 ## Mapa do repositório
 
 ```
 services/face-engine/   Motor facial (Python). Cópia de REP-P/engine @ d80c5dd, que veio de visage/face_engine
 bench/                  Benchmark de capacidade da engine (scripts; dados, chaves e resultados ficam fora do git)
+apps/collector-api/     API do coletor (Fastify). Existe: primeira entrega, POST /coletor/batidas (ver docs/SPEC-primeira-entrega.md)
+packages/shared/        Contratos Zod, Clock, logger e cripto, compartilhados entre os apps. Existe
+db/arp/                 Migrations SQL do banco arp (fiscal) e o executor (pnpm db:migrate:arp)
+infra/                  Compose local: Postgres (bancos arp e app) e face-engine
+postman/                Coleção e ambientes da API. Ver docs/conventions/api-testing.md
 docs/
   architecture/         01 contexto e Portaria · 02 arquitetura · 03 funcionalidades e modos · 04 funcionalidades de RH · diagramas
-  conventions/          database.md · backend.md · security-lgpd.md
+  conventions/          database.md · backend.md · security-lgpd.md · api-testing.md
   face-engine.md        Contrato, configuração e lacunas do motor
   benchmark.md          Metodologia, números e o que eles decidem
-apps/                   (a criar)  api/ (Fastify) · portal/ (Next.js) · mobile/ (Expo)
-packages/               (a criar)  regras puras compartilhadas, ex.: cálculo de jornada
+  desenvolvimento.md    Como rodar o projeto localmente (primeira vez, testes, Postman, benchmark)
+  SPEC-primeira-entrega.md  Decisões da primeira entrega da api do coletor
+apps/                   collector-api/ já existe (acima). (a criar) api/ (Fastify) · portal/ (Next.js) · mobile/ (Expo)
+packages/               shared/ já existe (acima). (a criar) regras puras compartilhadas, ex.: cálculo de jornada
 ```
 
 ## Stack
@@ -133,6 +140,7 @@ packages/               (a criar)  regras puras compartilhadas, ex.: cálculo de
 6. **Evento/job** se o resultado muda a apuração: publique `recalculate-day` (ex-`calcular_jornada`) via outbox.
 7. **Testes:** regra pura (Vitest, por tabela) + rota (integração com Postgres real).
 8. **Docs:** atualize a seção do módulo em `docs/architecture/04-funcionalidades-rh.md`.
+9. **Postman:** requests e testes do endpoint novo entram no mesmo PR (`docs/conventions/api-testing.md`).
 
 ## Engine e benchmark (o que já foi medido)
 
@@ -159,6 +167,18 @@ py -3 -m pytest                       # tier puro (padrão); -m integration cont
 
 # Benchmark (de dentro de bench/); passo a passo em bench/README.md
 python bench.py init | set-url | check | capture | enroll | gen | micro | seq | conc | burst | report
+```
+
+```bash
+# API do coletor (da raiz do repositório). Node 24 (.nvmrc), pnpm 10 e Docker. Passo a passo: docs/desenvolvimento.md
+pnpm install
+docker compose -f infra/docker-compose.yml --env-file infra/.env up -d postgres   # com a engine: acrescente --profile dev
+pnpm db:migrate:arp                  # exige ARP_MIGRATION_DATABASE_URL
+pnpm dev                             # api com apps/collector-api/.env.dev
+pnpm dev:enroll-fake                 # galeria fictícia a partir de dev-data/faces/
+pnpm -r typecheck && pnpm -r lint && pnpm -r test   # o teste exige Docker (Testcontainers)
+pnpm postman:test                    # Newman; -- --real-engine usa a engine real
+pnpm bench:punch -- --n 50 --concurrency 4 [--image caminho]
 ```
 
 ## Como trabalhar neste repositório

@@ -9,7 +9,6 @@
 import {
   ENGINE_MAX_CANDIDATES,
   EngineIntegrityError,
-  EngineProtocolError,
   engineHealthResponseSchema,
   engineRecognizeResponseSchema,
   type EngineRecognizeStatus,
@@ -133,11 +132,13 @@ export class HttpEngineClient implements EngineClient {
       );
 
       if (res.status >= 500) return fallback('engine_unavailable');
-      if (res.status !== 200) return this.rejectNon200(res.status, bodyText, req);
+      if (res.status !== 200) return fallback(this.rejectNon200(res.status, bodyText, req));
 
       const parsed = engineRecognizeResponseSchema.safeParse(safeJson(bodyText));
       if (!parsed.success) {
-        throw new EngineProtocolError('Resposta da engine fora do contrato', 200);
+        // Fora do contrato: a marcação não pode ser bloqueada; o aparelho segue pelo PIN.
+        this.logger.error({ httpStatus: 200, traceId: req.traceId }, 'engine: resposta 200 fora do contrato');
+        return fallback('engine_unavailable');
       }
       const body = parsed.data;
       timing.processingMs = body.processing_ms;
@@ -152,7 +153,9 @@ export class HttpEngineClient implements EngineClient {
         !Number.isFinite(employeeId) ||
         !req.candidates.some((c) => c.employeeId === employeeId)
       ) {
-        throw new EngineProtocolError('Engine identificou pessoa fora da lista de candidatos', 200);
+        // Nunca registrar pessoa que não estava na lista enviada; o aparelho segue pelo PIN.
+        this.logger.error({ traceId: req.traceId }, 'engine: identificou pessoa fora da lista de candidatos');
+        return fallback('engine_unavailable');
       }
       return {
         kind: 'identified',
@@ -167,21 +170,34 @@ export class HttpEngineClient implements EngineClient {
     }
   }
 
-  private rejectNon200(status: number, bodyText: string, req: RecognizeRequest): never {
+  /**
+   * Resposta não 200 e não 5xx. Integridade criptográfica (422 InvalidTag, ou
+   * 400 de DEK) LANÇA e nunca vira "não identificado". Qualquer outra (400 de
+   * imagem não decodificável, 401 de chave errada, 413/429 de proxy) é logada
+   * como erro e vira fallback: o sistema nunca bloqueia a marcação.
+   * O `detail` da engine não vai ao log (pode conter texto de exceção).
+   */
+  private rejectNon200(status: number, bodyText: string, req: RecognizeRequest): FallbackReason {
     const detail = extractDetail(bodyText);
     if (status === 422 || (status === 400 && detail.startsWith(DEK_ERROR_PREFIX))) {
-      // Nunca silenciar: embedding adulterado ou DEK/MASTER_KEY incompatível.
       this.logger.error(
-        { severity: 'critical', httpStatus: status, tenantId: req.tenantId, traceId: req.traceId, candidates: req.candidates.length, detail: detail.slice(0, 120) },
+        {
+          severity: 'critical',
+          httpStatus: status,
+          tenantId: req.tenantId,
+          traceId: req.traceId,
+          candidates: req.candidates.length,
+          kind: status === 422 ? 'embedding_invalid_tag' : 'dek_decrypt_failed',
+        },
         'engine: falha de integridade criptográfica (InvalidTag / DEK)',
       );
       throw new EngineIntegrityError(`Engine rejeitou a criptografia (HTTP ${status})`);
     }
     this.logger.error(
-      { httpStatus: status, traceId: req.traceId, detail: detail.slice(0, 120) },
-      'engine: resposta fora do contrato',
+      { httpStatus: status, traceId: req.traceId, severity: status === 401 || status === 403 ? 'high' : 'medium' },
+      'engine: resposta fora do contrato; seguindo com fallback',
     );
-    throw new EngineProtocolError(`Engine respondeu HTTP ${status} fora do contrato`, status);
+    return 'engine_unavailable';
   }
 
   private async fetchHealth(): Promise<HealthState> {

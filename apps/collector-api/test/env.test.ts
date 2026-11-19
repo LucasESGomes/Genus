@@ -51,6 +51,11 @@ describe('loadEnv', () => {
     expect(env.serviceKeys).toEqual(['a', 'b']);
   });
 
+  it('placeholder TROQUE_ dos arquivos de exemplo é recusado em qualquer ambiente', () => {
+    expect(() => loadEnv(base({ COLLECTOR_SERVICE_KEYS: 'TROQUE_CHAVE_SERVICO_ATUAL' }))).toThrow(EnvError);
+    expect(() => loadEnv(base({ ENGINE_API_KEY: 'TROQUE_ENGINE_API_KEY' }))).toThrow(/ENGINE_API_KEY/);
+  });
+
   it('prod com FAKE_CANDIDATES_ENABLED=true lança', () => {
     expect(() => loadEnv(prod({ FAKE_CANDIDATES_ENABLED: 'true' }))).toThrow(EnvError);
   });

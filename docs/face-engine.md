@@ -24,9 +24,9 @@ O histórico do Git do `REP-P` **não** veio junto; este repositório começa li
 5. **Resolução dos candidatos:** busca no cache, decifra o que faltar, insere no cache.
 6. **Comparação vetorizada** (NumPy): distância euclidiana contra todos os candidatos. `confidence = max(0, 1 − distância/1,5)`.
 
-Limiares padrão: `RECOGNITION_THRESHOLD = 1.10` (distância; menor é mais parecido) e `LIVENESS_THRESHOLD = 0.85`. Ambos podem ser sobrescritos por requisição (`thresholds`).
+Limiares padrão: `RECOGNITION_THRESHOLD = 1.10` (distância; menor é mais parecido) e `LIVENESS_THRESHOLD = 0.85`. Cada requisição pode sobrescrevê-los com campos soltos (`recognition_threshold`, `liveness_threshold`, ver §3).
 
-Status devolvidos: `identified`, `not_identified`, `liveness_failed`, `no_face_detected`, `multiple_faces_detected`.
+Status devolvidos: `identified`, `face_not_recognized`, `liveness_failed`, `no_face_detected`, `multiple_faces_detected`. O nome `not_identified` ainda aparece na descrição do schema (`app/api/schemas.py`) e no nome do frame de auditoria, mas **não** é o status devolvido.
 
 ## 3. Endpoints
 
@@ -34,7 +34,7 @@ Todos exigem `X-API-Key` (exceto `/health`). Sem a chave, HTTP 401. O contrato d
 
 | Método e rota | Função |
 |---|---|
-| `GET /health` | Estado dos modelos carregados |
+| `GET /health` | Estado dos modelos carregados: `ok` ou `degraded` |
 | `POST /recognize` | Detecta, valida vivacidade e compara o rosto com os **candidatos enviados** |
 | `POST /embeddings/register` | Gera o embedding de uma pessoa a partir de até 5 imagens (média renormalizada) e devolve cifrado |
 | `DELETE /embeddings/{tenant_id}/{person_id}` | Invalida o embedding em cache (pessoa removida ou recadastrada) |
@@ -45,9 +45,28 @@ Todos exigem `X-API-Key` (exceto `/health`). Sem a chave, HTTP 401. O contrato d
 | `POST /calibrate/liveness` · `POST /calibrate/recognition` | Ferramentas de calibração de limiares |
 | `GET /bench/stats` · `POST /bench/reset` · `POST /bench/micro` | **Só com `BENCH_ENDPOINTS=true`.** Nunca em produção |
 
-**`POST /recognize` (multipart):** `tenant_id`, `tenant_dek` (`{dek_ct, dek_iv, dek_tag, key_version}`), `candidates` (lista de `{person_id, embedding_iv, embedding_tag, embedding_ct, key_version}`, em hex), `thresholds` opcional, `image`. `person_id` aceita inteiro ou texto.
+**`POST /recognize` (multipart):** os dados vêm em campos soltos. Não existe objeto `tenant_dek` nem `thresholds`.
+
+| Campo | Obrigatório | Observação |
+|---|---|---|
+| `tenant_id` | sim | Tenant (conta) da requisição |
+| `image` | sim | Arquivo de imagem |
+| `candidates` | sim | **String** com JSON: lista de `{person_id, embedding_iv, embedding_tag, embedding_ct, key_version}`, em hex |
+| `dek_ct`, `dek_iv`, `dek_tag` | não | DEK do tenant cifrada, em hex. Se omitidos, usa a DEK em cache do tenant |
+| `dek_key_version` | não | Versão da `MASTER_KEY` usada na DEK. Padrão `1` |
+| `trace_id` | não | Id de correlação, só para diagnóstico |
+| `recognition_threshold`, `liveness_threshold`, `liveness_v1_weight`, `liveness_v2_weight`, `hsv_saturation_max`, `hsv_saturation_std_min`, `detection_score_min` | não | Sobrescrevem os limiares padrão só nesta requisição |
+
+`person_id` aceita inteiro ou texto.
 
 **Resposta:** `status`, `person_id`, `confidence`, `liveness_score` (mais os escores brutos V1/V2 e HSV), `processing_ms` e `timings_ms` por etapa.
+
+**Erros de `/recognize`:**
+
+| HTTP | Quando |
+|---|---|
+| 400 | Imagem inválida; `candidates` que não é JSON; DEK que não decifra (`Erro ao descriptografar DEK`); DEK ausente e sem cache para o tenant |
+| 422 | Embedding adulterado (`InvalidTag`) ou erro ao decifrar embedding |
 
 ## 4. Configuração (variáveis de ambiente)
 
@@ -70,7 +89,7 @@ As variáveis `OMP/OPENBLAS/MKL/NUMEXPR_NUM_THREADS` ficam no `Dockerfile` (defa
 
 ## 5. Criptografia
 
-Envelope encryption: a `MASTER_KEY` (KEK) decifra a DEK do tenant, que vem na requisição e fica em cache por 1 h, **só em RAM**. A DEK decifra os embeddings (AES-256-GCM, 12 B de IV, 16 B de tag). Embedding em claro nunca toca disco. **`InvalidTag` vira HTTP 422 e nunca é silenciado.** Detalhes em `docs/conventions/security-lgpd.md`; documento do serviço: `services/face-engine/docs/DEK_PER_TENANT.md`.
+Envelope encryption: a `MASTER_KEY` (KEK) decifra a DEK do tenant, que vem na requisição e fica em cache por 1 h, **só em RAM**. A DEK decifra os embeddings (AES-256-GCM, 12 B de IV, 16 B de tag). Embedding em claro nunca toca disco. **`InvalidTag` vira HTTP 422 e nunca é silenciado.** Erros de integridade não são silenciados: embedding adulterado volta **422** e DEK que não decifra volta **400** (ver §3). O cliente (`apps/collector-api`) trata os dois como falha de integridade, nunca como "não identificado". Detalhes em `docs/conventions/security-lgpd.md`; documento do serviço: `services/face-engine/docs/DEK_PER_TENANT.md`.
 
 ## 6. Restrições operacionais
 
@@ -100,7 +119,9 @@ Em `services/face-engine/`:
 
 - `docs/PERFORMANCE.md`, `DEK_PER_TENANT.md`, `DEPLOYMENT.md`, `API_ENDPOINTS_POSTMAN.md`, `MULTIPLE_FACES_DETECTION.md`: **vigentes**.
 - `README.md`, `setup.sh`, `setup.bat`: **defasados.** Descrevem a estrutura antiga (`main.py` na raiz), citam `AES_KEY` e o modelo único `minifas.onnx`. O código atual usa `app.main:app`, `MASTER_KEY` e dois modelos (V1 e V2). Não os use; siga a §9.
-- `.env.example`: o valor de `MASTER_KEY` é fictício e **não é hexadecimal válido**. Gere uma chave real.
+- `.env.example`: o valor de `MASTER_KEY` é um placeholder `TROQUE_...` inválido **de propósito**. O motor valida a chave no start e não sobe com ele. Gere uma chave real de 64 hex e não a versione. Passo a passo em `docs/desenvolvimento.md`.
+
+**Sem os modelos de liveness**, o motor sobe com liveness desligado (o log de start mostra o aviso) e `GET /health` devolve `degraded`. O healthcheck do compose exige `ok`, e a api do coletor responde `fallback_required` com `engine_degraded` (`docs/SPEC-primeira-entrega.md` §2).
 
 ## 9. Rodar e testar
 

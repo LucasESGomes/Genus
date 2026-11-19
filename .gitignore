@@ -53,3 +53,6 @@ dev-data/
 # Coleções do Postman locais e saída do Newman
 postman/*.local.json
 newman/
+
+# Imagem sintética > 1 MB gerada pelo runner do Postman
+postman/fixtures/too-large.jpg

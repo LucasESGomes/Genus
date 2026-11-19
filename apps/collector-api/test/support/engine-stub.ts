@@ -52,7 +52,18 @@ function emptyCalls(): StubCalls {
   return { recognize: 0, health: 0, register: 0, maxConcurrent: 0, lastTraceId: null, lastTenantId: null, lastCandidateCount: null, lastImageBytes: null };
 }
 
-export async function startEngineStub(opts: { apiKey: string; masterKeyHex: string }): Promise<EngineStub> {
+export interface EngineStubOptions {
+  apiKey: string;
+  masterKeyHex: string;
+  /**
+   * Expõe `POST /__control/behavior` (corpo = StubBehavior), `POST /__control/health`
+   * (`{ state }`) e `POST /__control/delay` (`{ ms }`). Só para o runner do Postman:
+   * a engine real não tem esses endpoints.
+   */
+  exposeControl?: boolean;
+}
+
+export async function startEngineStub(opts: EngineStubOptions): Promise<EngineStub> {
   const app = Fastify({ logger: false, forceCloseConnections: true });
   await app.register(multipart, { limits: { fieldSize: 16 * 1024 * 1024, fileSize: 16 * 1024 * 1024 } });
 
@@ -61,6 +72,22 @@ export async function startEngineStub(opts: { apiKey: string; masterKeyHex: stri
   let healthState: 'ok' | 'degraded' = 'ok';
   const calls = emptyCalls();
   let concurrent = 0;
+
+  if (opts.exposeControl) {
+    app.post('/__control/behavior', async (req) => {
+      behavior = req.body as StubBehavior;
+      return { ok: true };
+    });
+    app.post('/__control/health', async (req) => {
+      const state = (req.body as { state?: string } | null)?.state;
+      healthState = state === 'degraded' ? 'degraded' : 'ok';
+      return { ok: true };
+    });
+    app.post('/__control/delay', async (req) => {
+      delayMs = Number((req.body as { ms?: number } | null)?.ms ?? 0);
+      return { ok: true };
+    });
+  }
 
   app.get('/health', async () => {
     calls.health++;

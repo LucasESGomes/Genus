@@ -114,6 +114,13 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
   }
   const raw = parsed.data;
 
+  // Placeholder dos arquivos .env*.example copiado sem editar: recusa em qualquer ambiente
+  // (as chaves dos exemplos são públicas).
+  const placeholders = Object.entries(input)
+    .filter(([, value]) => value.includes('TROQUE'))
+    .map(([variable]) => ({ variable, message: 'ainda tem o placeholder TROQUE_ do arquivo de exemplo' }));
+  if (placeholders.length > 0) throw new EnvError(placeholders);
+
   if (raw.APP_ENV === 'prod') {
     const problems: { variable: string; message: string }[] = [];
     if (raw.FAKE_CANDIDATES_ENABLED) {

@@ -1,0 +1,1434 @@
+{
+  "info": {
+    "name": "Genus - API do Coletor",
+    "description": "Coleção da api do coletor (`POST /coletor/batidas`, `GET /health`, `GET /health/ready`).\n\n**Como usar**\n1. Escolha o environment (dev, homolog ou prod) e preencha `serviceKey` (secret; nunca commitar). Para trocar de ambiente basta trocar o environment.\n2. `deviceSequence` e `capturedAt` são gerados automaticamente a cada request (pre-request da coleção).\n3. As imagens ficam em `postman/fixtures/` (sintéticas, sem rosto). Rode `node postman/fixtures/generate.mjs` para gerar `too-large.jpg`. No Postman, aponte a Working Directory para `postman/fixtures`.\n4. Para rodar via linha de comando: `pnpm postman:test` (sobe stub da engine e a api local) ou `pnpm postman:test -- --real-engine`.\n\n**Modos dos testes de batida:** com `stubControlUrl` (runner local) os testes são estritos; sem ele (engine real) aceitam `registered` ou `fallback_required` e validam o schema.\n\nRegras: o sistema nunca bloqueia marcação; fallback é 200 `fallback_required`; duplicidade e hora divergente são warnings.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-Service-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{serviceKey}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "deviceSequence",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "seqCounter",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "firstSequence",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "firstReceiptId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "capturedAt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "capturedAtPast",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// deviceSequence: crescente e único entre execuções (ms desde a época * 1000 + contador).",
+          "const counter = (Number(pm.collectionVariables.get('seqCounter')) || 0) + 1;",
+          "pm.collectionVariables.set('seqCounter', String(counter));",
+          "pm.collectionVariables.set('deviceSequence', String(Date.now() * 1000 + (counter % 1000)));",
+          "pm.collectionVariables.set('capturedAt', new Date().toISOString());",
+          "pm.collectionVariables.set('capturedAtPast', new Date(Date.now() - 5 * 60 * 1000).toISOString());"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const isPunch = pm.request.url.getPath().endsWith('/coletor/batidas');",
+          "pm.test('Corpo é JSON', () => pm.expect(() => pm.response.json()).to.not.throw());",
+          "// 401 é recusado antes da rota, por isso não traz Server-Timing.",
+          "if (isPunch && pm.response.code !== 401) {",
+          "  pm.test('Header Server-Timing presente', () => pm.expect(pm.response.headers.has('Server-Timing')).to.eql(true));",
+          "}",
+          "const maxMs = Number(pm.environment.get('maxResponseMs')) || 2000;",
+          "pm.test('Tempo de resposta abaixo de ' + maxMs + ' ms', () => pm.expect(pm.response.responseTime).to.be.below(maxMs));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "description": "Sondas de saúde. Não exigem chave de serviço.",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Estado do processo e das dependências (banco e engine). Sempre 200 enquanto o processo responde; o campo `status` indica o pior estado entre as dependências (`ok`, `degraded`, `down`). Não exige chave."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"data\"],\"properties\":{\"data\":{\"type\":\"object\",\"required\":[\"status\",\"checks\"],\"properties\":{\"status\":{\"enum\":[\"ok\",\"degraded\",\"down\"]},\"checks\":{\"type\":\"object\",\"required\":[\"api\",\"database\",\"engine\"],\"properties\":{\"api\":{\"const\":\"ok\"},\"database\":{\"enum\":[\"ok\",\"degraded\",\"down\"]},\"engine\":{\"enum\":[\"ok\",\"degraded\",\"down\"]}}}}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));",
+                  "pm.test('Processo e banco ok', () => { const c = pm.response.json().data.checks; pm.expect(c.api).to.eql('ok'); pm.expect(c.database).to.eql('ok'); });"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"status\": \"ok\",\n    \"checks\": {\n      \"api\": \"ok\",\n      \"database\": \"ok\",\n      \"engine\": \"ok\"\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /health/ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/health/ready",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Prontidão para receber tráfego: 200 se o Postgres responde; 503 caso contrário. A engine NÃO entra no ready (sem ela a API ainda responde `fallback_required`). Não exige chave."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"data\"],\"properties\":{\"data\":{\"type\":\"object\",\"required\":[\"ready\"],\"properties\":{\"ready\":{\"type\":\"boolean\"}}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));",
+                  "pm.test('ready é true', () => pm.expect(pm.response.json().data.ready).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 Pronta",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health/ready",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health",
+                    "ready"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"ready\": true\n  }\n}"
+            },
+            {
+              "name": "503 Banco fora",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/health/ready",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "health",
+                    "ready"
+                  ]
+                }
+              },
+              "status": "Service Unavailable",
+              "code": 503,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"ready\": false\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Punches",
+      "description": "POST /coletor/batidas. Regra: o sistema NUNCA bloqueia uma marcação; falha de reconhecimento vira 200 `fallback_required`; duplicidade e hora divergente são warnings e a batida é registrada.\n\nModos de execução: com `stubControlUrl` definido (runner local `pnpm postman:test`, stub da engine) os testes são ESTRITOS e o pre-request ajusta o resultado do stub. Sem `stubControlUrl` (engine real), os testes de batida aceitam `registered` OU `fallback_required` e validam o schema do que vier.",
+      "item": [
+        {
+          "name": "1. Batida registrada",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "synthetic.png"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "{{deviceSequence}}",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "{{capturedAt}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "Envia imagem + `deviceSequence` + `capturedAt`. Estrito (stub `identified`): espera `registered` com `receiptId` UUID. Engine real: aceita `registered` ou `fallback_required` (uma imagem sem rosto cai em `fallback_required/no_face`). Guarda `receiptId` e a sequência em variáveis para o teste de idempotência (3)."
+          },
+          "response": [
+            {
+              "name": "200 Registrada",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                },
+                {
+                  "key": "Server-Timing",
+                  "value": "validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"receiptId\": \"3f1c2b9a-6a52-4d52-9f55-1d1f1e0c7a10\",\n    \"outcome\": \"registered\",\n    \"markedAt\": \"2026-11-18T12:00:00.000Z\",\n    \"warnings\": []\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('firstSequence', pm.collectionVariables.get('deviceSequence'));",
+                  "pm.collectionVariables.set('firstReceiptId', '');",
+                  "// Controle opcional do stub da engine (so existe no runner local: stubControlUrl definido).",
+                  "const stubUrl = pm.variables.get('stubControlUrl');",
+                  "if (stubUrl) {",
+                  "  pm.sendRequest({",
+                  "    url: stubUrl + '/__control/behavior', method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json' },",
+                  "    body: { mode: 'raw', raw: JSON.stringify({\"status\":\"identified\"}) },",
+                  "  }, (err) => { if (err) { console.error('Falha ao ajustar o stub da engine'); } });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Modo estrito (stubControlUrl definido, stub da engine controlado pelo runner) ou tolerante (engine real).",
+                  "const strict = !!pm.variables.get('stubControlUrl');",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"data\"],\"additionalProperties\":false,\"properties\":{\"data\":{\"oneOf\":[{\"type\":\"object\",\"required\":[\"receiptId\",\"outcome\",\"markedAt\",\"warnings\"],\"additionalProperties\":false,\"properties\":{\"receiptId\":{\"type\":\"string\",\"pattern\":\"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$\"},\"outcome\":{\"const\":\"registered\"},\"markedAt\":{\"type\":\"string\",\"pattern\":\"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(\\\\.\\\\d+)?(Z|[+-]\\\\d{2}:\\\\d{2})$\"},\"warnings\":{\"type\":\"array\",\"items\":{\"enum\":[\"clock_divergence\",\"possible_duplicate\"]}}}},{\"type\":\"object\",\"required\":[\"outcome\",\"reason\",\"warnings\"],\"additionalProperties\":false,\"properties\":{\"outcome\":{\"const\":\"fallback_required\"},\"reason\":{\"enum\":[\"not_recognized\",\"liveness_failed\",\"no_face\",\"multiple_faces\",\"engine_unavailable\",\"engine_degraded\",\"too_many_candidates\"]},\"warnings\":{\"type\":\"array\",\"items\":{\"enum\":[\"clock_divergence\",\"possible_duplicate\"]}}}}]},\"meta\":{\"type\":\"object\",\"required\":[\"timings\"],\"properties\":{\"timings\":{\"type\":\"object\",\"required\":[\"validate\",\"total\"],\"properties\":{\"validate\":{\"type\":\"number\"},\"candidates\":{\"type\":[\"number\",\"null\"]},\"engineRoundTrip\":{\"type\":[\"number\",\"null\"]},\"engineProcessing\":{\"type\":[\"number\",\"null\"]},\"engineStages\":{\"type\":[\"object\",\"null\"],\"additionalProperties\":{\"type\":\"number\"}},\"dbInsert\":{\"type\":[\"number\",\"null\"]},\"total\":{\"type\":\"number\"}}}}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));",
+                  "const punch = pm.response.json().data;",
+                  "pm.test(strict ? 'Batida registrada' : 'registered ou fallback_required', () => {",
+                  "  if (strict) pm.expect(punch.outcome).to.eql('registered');",
+                  "  else pm.expect(['registered', 'fallback_required']).to.include(punch.outcome);",
+                  "});",
+                  "if (punch.outcome === 'registered') pm.collectionVariables.set('firstReceiptId', punch.receiptId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Fallback exigido",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "synthetic.png"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "{{deviceSequence}}",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "{{capturedAt}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "Rosto não reconhecido: a API responde 200 `fallback_required` (o aparelho segue pelo PIN). Nunca é erro. Estrito (stub `face_not_recognized`): `reason = not_recognized`. Engine real: qualquer `reason` válido do contrato."
+          },
+          "response": [
+            {
+              "name": "200 Fallback",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                },
+                {
+                  "key": "Server-Timing",
+                  "value": "validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"outcome\": \"fallback_required\",\n    \"reason\": \"not_recognized\",\n    \"warnings\": []\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Controle opcional do stub da engine (so existe no runner local: stubControlUrl definido).",
+                  "const stubUrl = pm.variables.get('stubControlUrl');",
+                  "if (stubUrl) {",
+                  "  pm.sendRequest({",
+                  "    url: stubUrl + '/__control/behavior', method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json' },",
+                  "    body: { mode: 'raw', raw: JSON.stringify({\"status\":\"face_not_recognized\"}) },",
+                  "  }, (err) => { if (err) { console.error('Falha ao ajustar o stub da engine'); } });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Modo estrito (stubControlUrl definido, stub da engine controlado pelo runner) ou tolerante (engine real).",
+                  "const strict = !!pm.variables.get('stubControlUrl');",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"data\"],\"additionalProperties\":false,\"properties\":{\"data\":{\"oneOf\":[{\"type\":\"object\",\"required\":[\"receiptId\",\"outcome\",\"markedAt\",\"warnings\"],\"additionalProperties\":false,\"properties\":{\"receiptId\":{\"type\":\"string\",\"pattern\":\"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$\"},\"outcome\":{\"const\":\"registered\"},\"markedAt\":{\"type\":\"string\",\"pattern\":\"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(\\\\.\\\\d+)?(Z|[+-]\\\\d{2}:\\\\d{2})$\"},\"warnings\":{\"type\":\"array\",\"items\":{\"enum\":[\"clock_divergence\",\"possible_duplicate\"]}}}},{\"type\":\"object\",\"required\":[\"outcome\",\"reason\",\"warnings\"],\"additionalProperties\":false,\"properties\":{\"outcome\":{\"const\":\"fallback_required\"},\"reason\":{\"enum\":[\"not_recognized\",\"liveness_failed\",\"no_face\",\"multiple_faces\",\"engine_unavailable\",\"engine_degraded\",\"too_many_candidates\"]},\"warnings\":{\"type\":\"array\",\"items\":{\"enum\":[\"clock_divergence\",\"possible_duplicate\"]}}}}]},\"meta\":{\"type\":\"object\",\"required\":[\"timings\"],\"properties\":{\"timings\":{\"type\":\"object\",\"required\":[\"validate\",\"total\"],\"properties\":{\"validate\":{\"type\":\"number\"},\"candidates\":{\"type\":[\"number\",\"null\"]},\"engineRoundTrip\":{\"type\":[\"number\",\"null\"]},\"engineProcessing\":{\"type\":[\"number\",\"null\"]},\"engineStages\":{\"type\":[\"object\",\"null\"],\"additionalProperties\":{\"type\":\"number\"}},\"dbInsert\":{\"type\":[\"number\",\"null\"]},\"total\":{\"type\":\"number\"}}}}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));",
+                  "const punch = pm.response.json().data;",
+                  "pm.test(strict ? 'fallback_required por not_recognized' : 'registered ou fallback_required', () => {",
+                  "  if (strict) { pm.expect(punch.outcome).to.eql('fallback_required'); pm.expect(punch.reason).to.eql('not_recognized'); }",
+                  "  else pm.expect(['registered', 'fallback_required']).to.include(punch.outcome);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Reenvio idempotente",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "synthetic.png"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "{{firstSequence}}",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "{{capturedAt}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "Reenvia a MESMA `deviceSequence` da batida (1) (variável `firstSequence`). O aparelho reenvia até receber o recibo; a API devolve o mesmo `receiptId` sem gravar de novo. Só compara o recibo quando a (1) registrou; senão apenas valida o schema."
+          },
+          "response": [
+            {
+              "name": "200 Mesmo recibo",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                },
+                {
+                  "key": "Server-Timing",
+                  "value": "validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"receiptId\": \"3f1c2b9a-6a52-4d52-9f55-1d1f1e0c7a10\",\n    \"outcome\": \"registered\",\n    \"markedAt\": \"2026-11-18T12:00:00.000Z\",\n    \"warnings\": []\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Controle opcional do stub da engine (so existe no runner local: stubControlUrl definido).",
+                  "const stubUrl = pm.variables.get('stubControlUrl');",
+                  "if (stubUrl) {",
+                  "  pm.sendRequest({",
+                  "    url: stubUrl + '/__control/behavior', method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json' },",
+                  "    body: { mode: 'raw', raw: JSON.stringify({\"status\":\"identified\"}) },",
+                  "  }, (err) => { if (err) { console.error('Falha ao ajustar o stub da engine'); } });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Modo estrito (stubControlUrl definido, stub da engine controlado pelo runner) ou tolerante (engine real).",
+                  "const strict = !!pm.variables.get('stubControlUrl');",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"data\"],\"additionalProperties\":false,\"properties\":{\"data\":{\"oneOf\":[{\"type\":\"object\",\"required\":[\"receiptId\",\"outcome\",\"markedAt\",\"warnings\"],\"additionalProperties\":false,\"properties\":{\"receiptId\":{\"type\":\"string\",\"pattern\":\"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$\"},\"outcome\":{\"const\":\"registered\"},\"markedAt\":{\"type\":\"string\",\"pattern\":\"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(\\\\.\\\\d+)?(Z|[+-]\\\\d{2}:\\\\d{2})$\"},\"warnings\":{\"type\":\"array\",\"items\":{\"enum\":[\"clock_divergence\",\"possible_duplicate\"]}}}},{\"type\":\"object\",\"required\":[\"outcome\",\"reason\",\"warnings\"],\"additionalProperties\":false,\"properties\":{\"outcome\":{\"const\":\"fallback_required\"},\"reason\":{\"enum\":[\"not_recognized\",\"liveness_failed\",\"no_face\",\"multiple_faces\",\"engine_unavailable\",\"engine_degraded\",\"too_many_candidates\"]},\"warnings\":{\"type\":\"array\",\"items\":{\"enum\":[\"clock_divergence\",\"possible_duplicate\"]}}}}]},\"meta\":{\"type\":\"object\",\"required\":[\"timings\"],\"properties\":{\"timings\":{\"type\":\"object\",\"required\":[\"validate\",\"total\"],\"properties\":{\"validate\":{\"type\":\"number\"},\"candidates\":{\"type\":[\"number\",\"null\"]},\"engineRoundTrip\":{\"type\":[\"number\",\"null\"]},\"engineProcessing\":{\"type\":[\"number\",\"null\"]},\"engineStages\":{\"type\":[\"object\",\"null\"],\"additionalProperties\":{\"type\":\"number\"}},\"dbInsert\":{\"type\":[\"number\",\"null\"]},\"total\":{\"type\":\"number\"}}}}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));",
+                  "const first = pm.collectionVariables.get('firstReceiptId');",
+                  "const punch = pm.response.json().data;",
+                  "if (first) {",
+                  "  pm.test('Mesmo receiptId da batida (1)', () => { pm.expect(punch.outcome).to.eql('registered'); pm.expect(punch.receiptId).to.eql(first); });",
+                  "} else {",
+                  "  pm.test('Batida (1) não registrou: sem recibo a comparar', () => pm.expect(strict).to.eql(false));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Hora divergente",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "synthetic.png"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "{{deviceSequence}}",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "{{capturedAtPast}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "`capturedAt` 5 minutos no passado (variável `capturedAtPast`): o relógio do aparelho está fora da tolerância (30 s). A batida é registrada com o horário do servidor em `markedAt` (diferente de `capturedAt`) e o warning `clock_divergence`. Engine real que não reconhecer o rosto: aceita `fallback_required`."
+          },
+          "response": [
+            {
+              "name": "200 Hora divergente",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                },
+                {
+                  "key": "Server-Timing",
+                  "value": "validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"receiptId\": \"3f1c2b9a-6a52-4d52-9f55-1d1f1e0c7a10\",\n    \"outcome\": \"registered\",\n    \"markedAt\": \"2026-11-18T12:00:00.000Z\",\n    \"warnings\": [\n      \"clock_divergence\"\n    ]\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Controle opcional do stub da engine (so existe no runner local: stubControlUrl definido).",
+                  "const stubUrl = pm.variables.get('stubControlUrl');",
+                  "if (stubUrl) {",
+                  "  pm.sendRequest({",
+                  "    url: stubUrl + '/__control/behavior', method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json' },",
+                  "    body: { mode: 'raw', raw: JSON.stringify({\"status\":\"identified\"}) },",
+                  "  }, (err) => { if (err) { console.error('Falha ao ajustar o stub da engine'); } });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Modo estrito (stubControlUrl definido, stub da engine controlado pelo runner) ou tolerante (engine real).",
+                  "const strict = !!pm.variables.get('stubControlUrl');",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"data\"],\"additionalProperties\":false,\"properties\":{\"data\":{\"oneOf\":[{\"type\":\"object\",\"required\":[\"receiptId\",\"outcome\",\"markedAt\",\"warnings\"],\"additionalProperties\":false,\"properties\":{\"receiptId\":{\"type\":\"string\",\"pattern\":\"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$\"},\"outcome\":{\"const\":\"registered\"},\"markedAt\":{\"type\":\"string\",\"pattern\":\"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(\\\\.\\\\d+)?(Z|[+-]\\\\d{2}:\\\\d{2})$\"},\"warnings\":{\"type\":\"array\",\"items\":{\"enum\":[\"clock_divergence\",\"possible_duplicate\"]}}}},{\"type\":\"object\",\"required\":[\"outcome\",\"reason\",\"warnings\"],\"additionalProperties\":false,\"properties\":{\"outcome\":{\"const\":\"fallback_required\"},\"reason\":{\"enum\":[\"not_recognized\",\"liveness_failed\",\"no_face\",\"multiple_faces\",\"engine_unavailable\",\"engine_degraded\",\"too_many_candidates\"]},\"warnings\":{\"type\":\"array\",\"items\":{\"enum\":[\"clock_divergence\",\"possible_duplicate\"]}}}}]},\"meta\":{\"type\":\"object\",\"required\":[\"timings\"],\"properties\":{\"timings\":{\"type\":\"object\",\"required\":[\"validate\",\"total\"],\"properties\":{\"validate\":{\"type\":\"number\"},\"candidates\":{\"type\":[\"number\",\"null\"]},\"engineRoundTrip\":{\"type\":[\"number\",\"null\"]},\"engineProcessing\":{\"type\":[\"number\",\"null\"]},\"engineStages\":{\"type\":[\"object\",\"null\"],\"additionalProperties\":{\"type\":\"number\"}},\"dbInsert\":{\"type\":[\"number\",\"null\"]},\"total\":{\"type\":\"number\"}}}}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));",
+                  "const punch = pm.response.json().data;",
+                  "if (punch.outcome === 'registered') {",
+                  "  pm.test('Warning clock_divergence presente', () => pm.expect(punch.warnings).to.include('clock_divergence'));",
+                  "  pm.test('markedAt difere de capturedAt', () => pm.expect(punch.markedAt).to.not.eql(pm.collectionVariables.get('capturedAtPast')));",
+                  "} else {",
+                  "  pm.test('Engine real não reconheceu: fallback_required', () => { pm.expect(strict).to.eql(false); pm.expect(punch.outcome).to.eql('fallback_required'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Duplicidade",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "synthetic.png"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "{{deviceSequence}}",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "{{capturedAt}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "A mesma pessoa batendo de novo em menos de 60 s (as batidas 1 e 4 já a registraram): warning `possible_duplicate`, mas a batida continua `registered` (duplicidade só sinaliza). Engine real que não reconhecer o rosto: aceita `fallback_required`."
+          },
+          "response": [
+            {
+              "name": "200 Possível duplicidade",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                },
+                {
+                  "key": "Server-Timing",
+                  "value": "validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"data\": {\n    \"receiptId\": \"3f1c2b9a-6a52-4d52-9f55-1d1f1e0c7a10\",\n    \"outcome\": \"registered\",\n    \"markedAt\": \"2026-11-18T12:00:00.000Z\",\n    \"warnings\": [\n      \"possible_duplicate\"\n    ]\n  }\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Controle opcional do stub da engine (so existe no runner local: stubControlUrl definido).",
+                  "const stubUrl = pm.variables.get('stubControlUrl');",
+                  "if (stubUrl) {",
+                  "  pm.sendRequest({",
+                  "    url: stubUrl + '/__control/behavior', method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json' },",
+                  "    body: { mode: 'raw', raw: JSON.stringify({\"status\":\"identified\"}) },",
+                  "  }, (err) => { if (err) { console.error('Falha ao ajustar o stub da engine'); } });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Modo estrito (stubControlUrl definido, stub da engine controlado pelo runner) ou tolerante (engine real).",
+                  "const strict = !!pm.variables.get('stubControlUrl');",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"data\"],\"additionalProperties\":false,\"properties\":{\"data\":{\"oneOf\":[{\"type\":\"object\",\"required\":[\"receiptId\",\"outcome\",\"markedAt\",\"warnings\"],\"additionalProperties\":false,\"properties\":{\"receiptId\":{\"type\":\"string\",\"pattern\":\"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$\"},\"outcome\":{\"const\":\"registered\"},\"markedAt\":{\"type\":\"string\",\"pattern\":\"^\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}(\\\\.\\\\d+)?(Z|[+-]\\\\d{2}:\\\\d{2})$\"},\"warnings\":{\"type\":\"array\",\"items\":{\"enum\":[\"clock_divergence\",\"possible_duplicate\"]}}}},{\"type\":\"object\",\"required\":[\"outcome\",\"reason\",\"warnings\"],\"additionalProperties\":false,\"properties\":{\"outcome\":{\"const\":\"fallback_required\"},\"reason\":{\"enum\":[\"not_recognized\",\"liveness_failed\",\"no_face\",\"multiple_faces\",\"engine_unavailable\",\"engine_degraded\",\"too_many_candidates\"]},\"warnings\":{\"type\":\"array\",\"items\":{\"enum\":[\"clock_divergence\",\"possible_duplicate\"]}}}}]},\"meta\":{\"type\":\"object\",\"required\":[\"timings\"],\"properties\":{\"timings\":{\"type\":\"object\",\"required\":[\"validate\",\"total\"],\"properties\":{\"validate\":{\"type\":\"number\"},\"candidates\":{\"type\":[\"number\",\"null\"]},\"engineRoundTrip\":{\"type\":[\"number\",\"null\"]},\"engineProcessing\":{\"type\":[\"number\",\"null\"]},\"engineStages\":{\"type\":[\"object\",\"null\"],\"additionalProperties\":{\"type\":\"number\"}},\"dbInsert\":{\"type\":[\"number\",\"null\"]},\"total\":{\"type\":\"number\"}}}}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));",
+                  "const punch = pm.response.json().data;",
+                  "if (punch.outcome === 'registered') {",
+                  "  pm.test('Warning possible_duplicate presente', () => pm.expect(punch.warnings).to.include('possible_duplicate'));",
+                  "} else {",
+                  "  pm.test('Engine real não reconheceu: fallback_required', () => { pm.expect(strict).to.eql(false); pm.expect(punch.outcome).to.eql('fallback_required'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Autenticação por chave de serviço no header `X-Service-Key`. A coleção usa a variável `serviceKey` (secret, nunca versionada); estas requests sobrescrevem a autenticação.",
+      "item": [
+        {
+          "name": "Sem chave",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "synthetic.png"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "{{deviceSequence}}",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "{{capturedAt}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "Sem o header `X-Service-Key`: 401 `UNAUTHORIZED`.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "401 Sem chave",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Não autorizado\",\n  \"code\": \"UNAUTHORIZED\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"error\":{\"type\":\"string\",\"minLength\":1},\"code\":{\"const\":\"UNAUTHORIZED\"},\"details\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"path\",\"message\"]}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));",
+                  "pm.test('Mensagem em pt-BR', () => pm.expect(pm.response.json().error).to.eql('Não autorizado'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chave inválida",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Service-Key",
+                "value": "chave-invalida-de-teste"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "synthetic.png"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "{{deviceSequence}}",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "{{capturedAt}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "Chave que não consta em `COLLECTOR_SERVICE_KEYS`: 401 `UNAUTHORIZED`.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "401 Chave inválida",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Service-Key",
+                    "value": "chave-invalida-de-teste"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Não autorizado\",\n  \"code\": \"UNAUTHORIZED\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"error\":{\"type\":\"string\",\"minLength\":1},\"code\":{\"const\":\"UNAUTHORIZED\"},\"details\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"path\",\"message\"]}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));",
+                  "pm.test('Mensagem em pt-BR', () => pm.expect(pm.response.json().error).to.eql('Não autorizado'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Validation",
+      "description": "Entradas inválidas. A validação acontece antes da engine, então valem nos dois modos (stub ou engine real). Erro vem como `{ error, code }`.",
+      "item": [
+        {
+          "name": "Imagem inválida (magic bytes)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "not-an-image.png"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "{{deviceSequence}}",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "{{capturedAt}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "Arquivo de texto enviado como `image/png`: o mime declarado não bate com os magic bytes. 400 `INVALID_IMAGE`."
+          },
+          "response": [
+            {
+              "name": "400 Imagem inválida",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                },
+                {
+                  "key": "Server-Timing",
+                  "value": "validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Imagem inválida: envie JPEG ou PNG\",\n  \"code\": \"INVALID_IMAGE\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"error\":{\"type\":\"string\",\"minLength\":1},\"code\":{\"const\":\"INVALID_IMAGE\"},\"details\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"path\",\"message\"]}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Imagem inválida (mime)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "synthetic.png",
+                  "contentType": "text/plain"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "{{deviceSequence}}",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "{{capturedAt}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "PNG real enviado com `Content-Type: text/plain` na parte `image`: mime fora de JPEG/PNG. 400 `INVALID_IMAGE`."
+          },
+          "response": [
+            {
+              "name": "400 Mime inválido",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                },
+                {
+                  "key": "Server-Timing",
+                  "value": "validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Imagem inválida: envie JPEG ou PNG\",\n  \"code\": \"INVALID_IMAGE\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"error\":{\"type\":\"string\",\"minLength\":1},\"code\":{\"const\":\"INVALID_IMAGE\"},\"details\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"path\",\"message\"]}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Imagem grande demais",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "too-large.jpg"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "{{deviceSequence}}",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "{{capturedAt}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "Imagem de 1,2 MB (limite `MAX_IMAGE_BYTES` = 1 MB): 413 `IMAGE_TOO_LARGE`. O arquivo `too-large.jpg` é gerado por `postman/fixtures/generate.mjs` (o runner `pnpm postman:test` gera antes de rodar); não é versionado."
+          },
+          "response": [
+            {
+              "name": "413 Imagem grande",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "Payload Too Large",
+              "code": 413,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                },
+                {
+                  "key": "Server-Timing",
+                  "value": "validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Imagem maior que o limite permitido\",\n  \"code\": \"IMAGE_TOO_LARGE\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 413', () => pm.response.to.have.status(413));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"error\":{\"type\":\"string\",\"minLength\":1},\"code\":{\"const\":\"IMAGE_TOO_LARGE\"},\"details\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"path\",\"message\"]}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sequência inválida (0)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "synthetic.png"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "0",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "{{capturedAt}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "`deviceSequence = 0`: precisa ser inteiro maior que zero. 400 `VALIDATION_ERROR`."
+          },
+          "response": [
+            {
+              "name": "400 Sequência inválida",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                },
+                {
+                  "key": "Server-Timing",
+                  "value": "validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Requisição inválida\",\n  \"code\": \"VALIDATION_ERROR\",\n  \"details\": [\n    {\n      \"path\": \"deviceSequence\",\n      \"message\": \"deviceSequence deve ser maior que zero\"\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"error\":{\"type\":\"string\",\"minLength\":1},\"code\":{\"const\":\"VALIDATION_ERROR\"},\"details\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"path\",\"message\"]}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));",
+                  "pm.test('details aponta deviceSequence', () => pm.expect(JSON.stringify(pm.response.json().details || [])).to.include('deviceSequence'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "capturedAt inválido",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": "synthetic.png"
+                },
+                {
+                  "key": "deviceSequence",
+                  "value": "{{deviceSequence}}",
+                  "type": "text"
+                },
+                {
+                  "key": "capturedAt",
+                  "value": "ontem de manha",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/coletor/batidas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coletor",
+                "batidas"
+              ]
+            },
+            "description": "`capturedAt` fora do formato ISO 8601: 400 `VALIDATION_ERROR`."
+          },
+          "response": [
+            {
+              "name": "400 capturedAt inválido",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/coletor/batidas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "coletor",
+                    "batidas"
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                },
+                {
+                  "key": "Server-Timing",
+                  "value": "validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"error\": \"Requisição inválida\",\n  \"code\": \"VALIDATION_ERROR\",\n  \"details\": [\n    {\n      \"path\": \"capturedAt\",\n      \"message\": \"capturedAt deve ser data e hora ISO 8601\"\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "const schema = {\"type\":\"object\",\"required\":[\"error\",\"code\"],\"properties\":{\"error\":{\"type\":\"string\",\"minLength\":1},\"code\":{\"const\":\"VALIDATION_ERROR\"},\"details\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"required\":[\"path\",\"message\"]}}}};",
+                  "pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));",
+                  "pm.test('details aponta capturedAt', () => pm.expect(JSON.stringify(pm.response.json().details || [])).to.include('capturedAt'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

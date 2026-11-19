@@ -17,6 +17,7 @@ SaaS de **RH com ponto eletrônico REP-P** (Portaria MTP 671/2021) e reconhecime
 
 1. [`CLAUDE.md`](CLAUDE.md): resumo do projeto, stack, regras e convenções. É o arquivo que o Claude Code lê sozinho.
 2. [`docs/README.md`](docs/README.md): índice e ordem de leitura da documentação.
+3. [`docs/desenvolvimento.md`](docs/desenvolvimento.md): como subir o projeto na sua máquina (banco, motor facial, api, testes e Postman).
 
 ## Rodar o motor facial
 

@@ -3,7 +3,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   createLogger,
   EngineIntegrityError,
-  EngineProtocolError,
   ENGINE_MAX_CANDIDATES,
   encryptDek,
   encryptEmbedding,
@@ -203,24 +202,24 @@ describe('HttpEngineClient', () => {
     }
   });
 
-  it('HTTP 401 lança EngineProtocolError', async () => {
-    const err = await new HttpEngineClient({
+  // Fora do contrato não bloqueia a marcação: vira fallback e log de erro.
+  it('HTTP 401 (chave da engine errada) vira fallback/engine_unavailable', async () => {
+    const result = await new HttpEngineClient({
       baseUrl: stub.url, apiKey: 'chave-errada', timeoutMs: 2000, maxConcurrency: 1, logger: silent,
-    }).recognize(request()).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(EngineProtocolError);
-    expect((err as EngineProtocolError).httpStatus).toBe(401);
+    }).recognize(request());
+    expect(result).toMatchObject({ kind: 'fallback', reason: 'engine_unavailable' });
   });
 
-  it('HTTP 400 genérico e JSON fora do schema lançam EngineProtocolError', async () => {
+  it('HTTP 400 genérico (ex.: imagem não decodificável) e JSON fora do schema viram fallback', async () => {
     stub.setBehavior({ httpStatus: 400 });
-    await expect(client().recognize(request())).rejects.toBeInstanceOf(EngineProtocolError);
+    await expect(client().recognize(request())).resolves.toMatchObject({ kind: 'fallback', reason: 'engine_unavailable' });
     stub.setBehavior({ malformed: true });
-    await expect(client().recognize(request())).rejects.toBeInstanceOf(EngineProtocolError);
+    await expect(client().recognize(request())).resolves.toMatchObject({ kind: 'fallback', reason: 'engine_unavailable' });
   });
 
-  it('identificado fora da lista de candidatos lança EngineProtocolError', async () => {
+  it('identificado fora da lista de candidatos vira fallback (nunca registra outra pessoa)', async () => {
     stub.setBehavior({ status: 'identified', personId: 999 });
-    await expect(client().recognize(request())).rejects.toBeInstanceOf(EngineProtocolError);
+    await expect(client().recognize(request())).resolves.toMatchObject({ kind: 'fallback', reason: 'engine_unavailable' });
   });
 
   it('semáforo: nunca mais que maxConcurrency simultâneas na engine', async () => {

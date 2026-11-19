@@ -14,6 +14,9 @@
 | 8 | [`conventions/security-lgpd.md`](conventions/security-lgpd.md) | Dado sensível (biometria e saúde), cifragem, acesso, retenção |
 | 9 | [`face-engine.md`](face-engine.md) | O motor facial: contrato, configuração, restrições e lacunas frente ao REP-P |
 | 10 | [`benchmark.md`](benchmark.md) | Metodologia, números medidos em 29/10/2026 e o que eles decidem |
+| 11 | [`desenvolvimento.md`](desenvolvimento.md) | Como rodar o projeto localmente: pré-requisitos, segredos, compose, migration, api, testes, Postman e benchmark |
+| 12 | [`SPEC-primeira-entrega.md`](SPEC-primeira-entrega.md) | Decisões da primeira entrega da api do coletor (fonte da verdade desta entrega) |
+| 13 | [`conventions/api-testing.md`](conventions/api-testing.md) | Coleção Postman da API: como importar, rodar com Newman e a regra de todo endpoint novo |
 
 ## Os documentos 01, 02 e 03
 

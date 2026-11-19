@@ -9,7 +9,9 @@
     "test": "vitest run",
     "dev": "tsx watch --env-file-if-exists=.env.dev src/server.ts",
     "start": "tsx src/server.ts",
-    "dev:enroll-fake": "tsx --env-file-if-exists=.env.dev scripts/enroll-fake.ts"
+    "dev:enroll-fake": "tsx --env-file-if-exists=.env.dev scripts/enroll-fake.ts",
+    "postman:test": "tsx scripts/postman-test.ts",
+    "bench:punch": "tsx scripts/bench-punch.ts"
   },
   "dependencies": {
     "@fastify/multipart": "10.1.9",
@@ -24,6 +26,7 @@
   "devDependencies": {
     "@types/node": "24.19.2",
     "@types/pg": "8.23.1",
+    "newman": "6.2.3",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
     "vitest": "5.1.1"

@@ -119,12 +119,18 @@ export class PunchService {
       if (isClockDivergent) warnings.push('clock_divergence');
 
       const dbTimer = startTimer();
-      const isDuplicate = await repository.existsByCpfBetween(
-        ctx.tenantId,
-        person.cpf,
-        new Date(markedAt.getTime() - DUPLICATE_WINDOW_MS),
-        new Date(markedAt.getTime() + DUPLICATE_WINDOW_MS),
-      );
+      // A checagem só serve para avisar: se falhar, segue sem o aviso e grava.
+      const isDuplicate = await repository
+        .existsByCpfBetween(
+          ctx.tenantId,
+          person.cpf,
+          new Date(markedAt.getTime() - DUPLICATE_WINDOW_MS),
+          new Date(markedAt.getTime() + DUPLICATE_WINDOW_MS),
+        )
+        .catch((err: unknown) => {
+          logger.warn({ traceId: publicId, err: err instanceof Error ? err.name : 'unknown' }, 'duplicidade: checagem falhou; seguindo sem o aviso');
+          return false;
+        });
       // Duplicidade só sinaliza: a batida é registrada do mesmo jeito.
       if (isDuplicate) warnings.push('possible_duplicate');
 

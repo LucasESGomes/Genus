@@ -9,11 +9,14 @@ set -euo pipefail
 : "${ARP_OWNER_PASSWORD:?ARP_OWNER_PASSWORD não definida}"
 : "${ARP_COLLECTOR_PASSWORD:?ARP_COLLECTOR_PASSWORD não definida}"
 
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres <<-SQL
+# Senhas entram como variáveis do psql (:'var' = literal com escape), nunca
+# interpoladas pelo shell dentro do SQL: uma aspa na senha não quebra nem injeta.
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
+  -v owner_pw="$ARP_OWNER_PASSWORD" -v collector_pw="$ARP_COLLECTOR_PASSWORD" <<-'SQL'
   -- Dono do banco arp (fiscal). Usado apenas pelas migrations.
-  CREATE ROLE arp_owner LOGIN PASSWORD '${ARP_OWNER_PASSWORD}';
+  CREATE ROLE arp_owner LOGIN PASSWORD :'owner_pw';
   -- Papel de runtime da api do coletor: só INSERT e SELECT em entradas (dado pela migration).
-  CREATE ROLE arp_collector LOGIN PASSWORD '${ARP_COLLECTOR_PASSWORD}';
+  CREATE ROLE arp_collector LOGIN PASSWORD :'collector_pw';
 
   CREATE DATABASE arp OWNER arp_owner;
   -- Banco operacional: vazio por enquanto, dono padrão (superusuário do contêiner).

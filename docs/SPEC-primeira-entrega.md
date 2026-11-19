@@ -26,7 +26,10 @@
 | Mais de 240 candidatos | 200 `fallback_required`, `too_many_candidates`, sem chamar a engine |
 | `capturedAt` a mais de 30 s do servidor, ou no futuro | Registra com a hora do **servidor**, `eh_hora_divergente = true`, warning `clock_divergence` |
 | Mesmo CPF com entrada nos últimos 60 s | **Registra**, warning `possible_duplicate` |
-| Engine 422 (InvalidTag do embedding) ou 400 "Erro ao descriptografar DEK" | `EngineIntegrityError`: log de erro, **500 `INTERNAL_ERROR`**. Jamais "não identificado" |
+| Engine fora do contrato (401 de chave errada, 400 de imagem não decodificável, 413/429 de proxy, JSON fora do schema, `person_id` fora da lista) | 200 `fallback_required`, `engine_unavailable`, com log `error`. Nada gravado |
+| Falha na checagem de duplicidade | Segue sem o aviso e grava (log `warn`) |
+| Engine 422 (InvalidTag do embedding) ou 400 "Erro ao descriptografar DEK" | `EngineIntegrityError`: log `error` com `severity: critical`, **500 `INTERNAL_ERROR`**. Jamais "não identificado" |
+| Postgres fora do ar | 500 `INTERNAL_ERROR`: sem banco não há como registrar; o aparelho mantém a batida local e reenvia |
 
 O aparelho trata qualquer resposta não 200 como modo degradado (PIN). A batida nunca se perde porque o aparelho a grava localmente antes de enviar.
 
