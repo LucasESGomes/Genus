@@ -9,7 +9,8 @@
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "dev:enroll-fake": "pnpm --filter @genus/collector-api dev:enroll-fake"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
