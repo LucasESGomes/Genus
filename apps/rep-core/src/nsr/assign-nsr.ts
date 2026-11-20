@@ -107,7 +107,8 @@ export async function assignNsr(
   // Conexão derrubada no meio da transação pode emitir 'error' no client; sem ouvinte
   // isso viraria exceção não tratada. O erro real chega pela rejeição da query.
   const onClientError = (err: Error): void => {
-    log.warn({ entryId, err: err.message }, 'nsr_client_error');
+    // Sem err.message: o texto do driver pg pode citar host ou porta.
+    log.warn({ entryId, err: { name: err.name, code: (err as { code?: string }).code } }, 'nsr_client_error');
   };
   client.on('error', onClientError);
 

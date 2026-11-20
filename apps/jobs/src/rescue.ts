@@ -91,7 +91,9 @@ async function ensureJob<T>(
   const state = await existing.getState();
   switch (state) {
     case 'failed':
-      await existing.retry();
+      // resetAttemptsMade: sem isso, o job esgotado mantém attemptsMade no teto e o primeiro
+      // erro recuperável já marcaria a entrada como falhou, sem nenhum retry com backoff.
+      await existing.retry('failed', { resetAttemptsMade: true });
       return 'enqueued';
     case 'completed':
       // A linha segue `pendente` (senão nem teria sido selecionada): o job concluiu sem efeito.
@@ -156,7 +158,9 @@ async function rescueEntries(
       if (outcome === 'enqueued') result.entradasReenfileiradas += 1;
       else result.ignorados += 1;
     });
-    lastId = Number(res.rows[res.rows.length - 1]!.id);
+    const lastParsed = toSafeInt(res.rows[res.rows.length - 1]!.id);
+    if (lastParsed === null) throw new Error("id fora do intervalo seguro no resgate");
+    lastId = lastParsed;
     if (res.rows.length < RESCUE_BATCH_SIZE) return;
   }
   deps.logger.warn({ event: 'rescue_batch_cap_reached', kind: 'entradas' }, 'resgate: limite de lotes do ciclo atingido; o resto fica para a próxima rodada');
@@ -207,7 +211,9 @@ async function rescueOutbox(deps: RescueDeps, cutoff: Date, result: RescueResult
       if (outcome === 'enqueued') result.outboxReenfileirados += 1;
       else result.ignorados += 1;
     });
-    lastId = Number(res.rows[res.rows.length - 1]!.id);
+    const lastParsed = toSafeInt(res.rows[res.rows.length - 1]!.id);
+    if (lastParsed === null) throw new Error("id fora do intervalo seguro no resgate");
+    lastId = lastParsed;
     if (res.rows.length < RESCUE_BATCH_SIZE) return;
   }
   deps.logger.warn({ event: 'rescue_batch_cap_reached', kind: 'outbox' }, 'resgate: limite de lotes do ciclo atingido; o resto fica para a próxima rodada');

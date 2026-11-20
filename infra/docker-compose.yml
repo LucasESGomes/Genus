@@ -81,7 +81,9 @@ services:
       VALKEY_PASSWORD: ${VALKEY_PASSWORD:?Defina VALKEY_PASSWORD em infra/.env}
     # AOF a cada segundo e noeviction: com a memória cheia o Valkey recusa escrita, não descarta batida na fila.
     # A senha entra por variável de ambiente, lida pelo shell do contêiner ($$ é o $ escapado do Compose).
-    command: sh -c 'exec valkey-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction --requirepass "$$VALKEY_PASSWORD"'
+    # A senha NÃO vai no argv do valkey-server (apareceria em `ps`): é escrita num arquivo
+    # de configuração temporário, com permissão 600, dentro do contêiner.
+    command: sh -c 'umask 077 && printf "requirepass %s\n" "$$VALKEY_PASSWORD" > /tmp/valkey.conf && exec valkey-server /tmp/valkey.conf --appendonly yes --appendfsync everysec --maxmemory-policy noeviction'
     volumes:
       - valkey-dados:/data
     healthcheck:
