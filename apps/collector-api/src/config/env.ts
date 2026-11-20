@@ -61,6 +61,21 @@ const rawSchema = z.object({
   DEV_TENANT_ID: positiveInt('DEV_TENANT_ID'),
   DEV_ESTABLISHMENT_ID: positiveInt('DEV_ESTABLISHMENT_ID'),
   DEV_DEVICE_ID: positiveInt('DEV_DEVICE_ID'),
+  // Fila (docs/SPEC-nsr-fila.md §9). URL sem senha; a senha vem separada e nunca é logada.
+  VALKEY_URL: z
+    .string()
+    .refine((v) => {
+      try {
+        const u = new URL(v);
+        return (u.protocol === 'redis:' || u.protocol === 'rediss:') && u.password === '';
+      } catch {
+        return false;
+      }
+    }, 'VALKEY_URL deve ser redis://host:porta ou rediss://host:porta, sem senha (use VALKEY_PASSWORD)')
+    .optional(),
+  VALKEY_PASSWORD: z.string().optional(),
+  QUEUE_PUBLISH_TIMEOUT_MS: positiveInt('QUEUE_PUBLISH_TIMEOUT_MS').default(250),
+  QUEUE_ATTEMPTS: positiveInt('QUEUE_ATTEMPTS').default(5),
 });
 
 export interface Env {
@@ -82,6 +97,11 @@ export interface Env {
   devTenantId: number;
   devEstablishmentId: number;
   devDeviceId: number;
+  /** Ausente = a api sobe sem fila (a publicação é opcional; o resgate cobre). */
+  valkeyUrl: string | undefined;
+  valkeyPassword: string | undefined;
+  queuePublishTimeoutMs: number;
+  queueAttempts: number;
 }
 
 export class EnvError extends Error {
@@ -138,6 +158,11 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     if (problems.length > 0) throw new EnvError(problems);
   }
 
+  // Fora de dev, o Valkey exige senha. Sem VALKEY_URL a fila fica desligada e não há o que proteger.
+  if (raw.APP_ENV !== 'dev' && raw.VALKEY_URL !== undefined && raw.VALKEY_PASSWORD === undefined) {
+    throw new EnvError([{ variable: 'VALKEY_PASSWORD', message: 'obrigatória em homolog e prod' }]);
+  }
+
   return {
     appEnv: raw.APP_ENV,
     port: raw.PORT,
@@ -157,5 +182,9 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     devTenantId: raw.DEV_TENANT_ID,
     devEstablishmentId: raw.DEV_ESTABLISHMENT_ID,
     devDeviceId: raw.DEV_DEVICE_ID,
+    valkeyUrl: raw.VALKEY_URL,
+    valkeyPassword: raw.VALKEY_PASSWORD,
+    queuePublishTimeoutMs: raw.QUEUE_PUBLISH_TIMEOUT_MS,
+    queueAttempts: raw.QUEUE_ATTEMPTS,
   };
 }

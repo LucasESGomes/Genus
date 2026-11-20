@@ -12,7 +12,8 @@ response:
     content: |-
       {
         "data": {
-          "ready": true
+          "ready": true,
+          "queue": "ok"
         }
       }
 order: 1000

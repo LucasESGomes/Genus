@@ -16,6 +16,7 @@ import {
   type PunchResultDto,
   type PunchTimings,
   type PunchWarning,
+  type QueuePublisher,
 } from '@genus/shared';
 import type { PunchRepository } from './repository';
 import { resolveMarkedAt } from './rules/clock-divergence';
@@ -42,6 +43,8 @@ export interface PunchServiceDeps {
   engine: EngineClient;
   clock: Clock;
   logger: Logger;
+  /** Publica em `punches` depois do commit. Falha nunca muda a resposta. */
+  queuePublisher: QueuePublisher;
 }
 
 const clamp01 = (value: number | null): number | null =>
@@ -152,10 +155,14 @@ export class PunchService {
         const winner = await repository.findByDeviceSequence(ctx.tenantId, ctx.deviceId, input.deviceSequence);
         if (!winner) throw new Error('Entrada não encontrada após conflito de idempotência');
         timings.dbInsert = roundMs(dbTimer());
+        // Quem perdeu a corrida também tenta publicar: o vencedor pode ter caído antes de publicar.
+        // O jobId é determinístico, então publicar duas vezes é no-op.
+        await this.publishPunch(ctx, input.deviceSequence, winner.id, publicId);
         return finish(this.receiptResult(winner), { receiptId: winner.publicId, replayed: true });
       }
-      // FILA: publicar aqui, depois do commit e fora da transação (a planejar)
       timings.dbInsert = roundMs(dbTimer());
+      // Só agora, com o INSERT já confirmado (commit automático do statement) e fora de transação.
+      await this.publishPunch(ctx, input.deviceSequence, inserted.id, publicId);
 
       return finish(
         {
@@ -182,6 +189,40 @@ export class PunchService {
         'punch_recognition',
       );
       throw err;
+    }
+  }
+
+  /**
+   * Publica a batida em `punches`. Tolerante a falha por regra da Portaria 671:
+   * a marcação já está gravada e nunca é bloqueada. O resgate (apps/jobs)
+   * enfileira o que ficou de fora. O log leva só nome/código do erro: a
+   * mensagem de conexão pode citar host.
+   */
+  private async publishPunch(
+    ctx: DeviceContext,
+    deviceSequence: number,
+    entryId: number,
+    traceId: string,
+  ): Promise<void> {
+    try {
+      await this.deps.queuePublisher.publishPunch({
+        entryId,
+        tenantId: ctx.tenantId,
+        establishmentId: ctx.establishmentId,
+        deviceId: ctx.deviceId,
+        deviceSequence,
+      });
+    } catch (err) {
+      const code = (err as { code?: unknown } | null)?.code;
+      this.deps.logger.warn(
+        {
+          event: 'queue_publish_failed',
+          traceId,
+          entryId,
+          err: { name: err instanceof Error ? err.name : 'unknown', code: typeof code === 'string' ? code : null },
+        },
+        'fila: falha ao publicar a batida; o resgate cobre',
+      );
     }
   }
 

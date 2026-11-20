@@ -3,6 +3,7 @@ import {
   readyResponseSchema,
   type DependencyStatus,
   type EngineClient,
+  type QueuePublisher,
 } from '@genus/shared';
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
@@ -11,6 +12,7 @@ import type { Pool } from 'pg';
 export interface HealthRoutesOptions {
   pool: Pick<Pool, 'query'>;
   engine: EngineClient;
+  queue: Pick<QueuePublisher, 'ping'>;
   /** Prazo do `SELECT 1`. */
   databaseTimeoutMs?: number;
 }
@@ -65,13 +67,19 @@ export const healthRoutes: FastifyPluginAsync<HealthRoutesOptions> = async (scop
       schema: {
         tags: ['Saúde'],
         summary: 'Pronta para receber batidas (Postgres responde)',
-        description: '200 se o Postgres responde, 503 se não. A engine não entra: sem ela a api ainda responde `fallback_required`.',
+        description: '200 se o Postgres responde, 503 se não. A engine e o Valkey não entram: sem a engine a api responde `fallback_required`; sem o Valkey a batida grava e o resgate enfileira depois. `queue` informa `ok` ou `down`.',
         response: { 200: readyResponseSchema, 503: readyResponseSchema },
       },
     },
     async (_req, reply) => {
-      const ready = (await checkDatabase(opts.pool, dbTimeout)) === 'ok';
-      return reply.code(ready ? 200 : 503).send({ data: { ready } });
+      const [database, queueUp] = await Promise.all([
+        checkDatabase(opts.pool, dbTimeout),
+        // `ping` nunca lança; o catch é só cinto e suspensório.
+        opts.queue.ping().catch(() => false),
+      ]);
+      const ready = database === 'ok';
+      // O Valkey fora NÃO derruba a prontidão: a batida grava no banco e o resgate enfileira depois.
+      return reply.code(ready ? 200 : 503).send({ data: { ready, queue: queueUp ? ('ok' as const) : ('down' as const) } });
     },
   );
 };

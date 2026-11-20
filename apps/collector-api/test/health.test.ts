@@ -2,6 +2,7 @@ import { startArpTestDatabase, type ArpTestDatabase } from '@genus/db-arp';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { closedPortUrl, createTestApp, ENGINE_API_KEY, MASTER_KEY, type TestApp } from './support/harness';
 import { startEngineStub, type EngineStub } from './support/engine-stub';
+import { FakeQueuePublisher } from './support/fake-queue';
 
 let db: ArpTestDatabase;
 let stub: EngineStub;
@@ -31,7 +32,7 @@ describe('health', () => {
     expect(health.json()).toEqual({ data: { status: 'ok', checks: { api: 'ok', database: 'ok', engine: 'ok' } } });
     const ready = await t.app.inject({ method: 'GET', url: '/health/ready' });
     expect(ready.statusCode).toBe(200);
-    expect(ready.json()).toEqual({ data: { ready: true } });
+    expect(ready.json()).toEqual({ data: { ready: true, queue: 'ok' } });
   });
 
   it('engine fora: /health 200 com engine down; /health/ready continua 200', async () => {
@@ -49,6 +50,17 @@ describe('health', () => {
     expect(health.json().data).toMatchObject({ status: 'degraded', checks: { engine: 'degraded' } });
   });
 
+  it('fila (Valkey) fora: /health/ready continua 200 e informa queue down', async () => {
+    const queue = new FakeQueuePublisher();
+    queue.pingResult = false;
+    t = await createTestApp({ collectorUrl: db.collectorUrl, engineUrl: stub.url, queue });
+    const ready = await t.app.inject({ method: 'GET', url: '/health/ready' });
+    expect(ready.statusCode).toBe(200);
+    expect(ready.json()).toEqual({ data: { ready: true, queue: 'down' } });
+    // /health (api, banco, engine) não muda.
+    expect((await t.app.inject({ method: 'GET', url: '/health' })).json().data.status).toBe('ok');
+  });
+
   it('banco fora: /health 200 com database down; /health/ready 503', async () => {
     t = await createTestApp({
       collectorUrl: db.collectorUrl.replace(/@[^/]+\//, '@127.0.0.1:1/'),
@@ -59,6 +71,6 @@ describe('health', () => {
     expect(health.json().data).toMatchObject({ status: 'down', checks: { database: 'down', engine: 'ok' } });
     const ready = await t.app.inject({ method: 'GET', url: '/health/ready' });
     expect(ready.statusCode).toBe(503);
-    expect(ready.json()).toEqual({ data: { ready: false } });
+    expect(ready.json()).toEqual({ data: { ready: false, queue: 'ok' } });
   });
 });

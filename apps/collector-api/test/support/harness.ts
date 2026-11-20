@@ -9,6 +9,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/app';
 import { loadEnv, type Env } from '../../src/config/env';
 import { createContainer, type Container } from '../../src/container';
+import { FakeQueuePublisher } from './fake-queue';
 
 export const ENGINE_API_KEY = 'chave-da-engine-de-teste-0123456789';
 export const MASTER_KEY = randomBytes(32).toString('hex');
@@ -41,6 +42,8 @@ export interface TestApp {
   clock: FixedClock;
   log: MemoryLog;
   logger: Logger;
+  /** Fila falsa injetada no container: grava as publicações e falha sob demanda. */
+  queue: FakeQueuePublisher;
   close(): Promise<void>;
 }
 
@@ -48,6 +51,7 @@ export interface TestAppOptions {
   collectorUrl: string;
   engineUrl: string;
   env?: Record<string, string>;
+  queue?: FakeQueuePublisher;
 }
 
 export async function createTestApp(opts: TestAppOptions): Promise<TestApp> {
@@ -70,7 +74,8 @@ export async function createTestApp(opts: TestAppOptions): Promise<TestApp> {
   const log = memoryLog();
   const logger = createLogger({ level: env.logLevel, service: 'collector-api', destination: log.destination });
   const clock = new FixedClock(SERVER_NOW);
-  const container = createContainer(env, { logger, clock });
+  const queue = opts.queue ?? new FakeQueuePublisher();
+  const container = createContainer(env, { logger, clock, queuePublisher: queue });
   const app = await buildApp(container.appDeps);
   return {
     app,
@@ -79,6 +84,7 @@ export async function createTestApp(opts: TestAppOptions): Promise<TestApp> {
     clock,
     log,
     logger,
+    queue,
     close: async () => {
       await app.close();
       await container.close();

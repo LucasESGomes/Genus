@@ -73,6 +73,22 @@ describe('loadEnv', () => {
     expect(loadEnv(base({ EXPOSE_TIMINGS: 'true' })).exposeTimings).toBe(true);
   });
 
+  it('fila: padrões, URL sem senha e senha obrigatória fora de dev', () => {
+    expect(loadEnv(base())).toMatchObject({
+      valkeyUrl: undefined,
+      valkeyPassword: undefined,
+      queuePublishTimeoutMs: 250,
+      queueAttempts: 5,
+    });
+    const withQueue = loadEnv(base({ VALKEY_URL: 'redis://localhost:6379', QUEUE_PUBLISH_TIMEOUT_MS: '100' }));
+    expect(withQueue).toMatchObject({ valkeyUrl: 'redis://localhost:6379', queuePublishTimeoutMs: 100 });
+    expect(() => loadEnv(base({ VALKEY_URL: 'redis://:senha-vazada@localhost:6379' }))).toThrow(/VALKEY_URL/);
+    expect(() => loadEnv(base({ VALKEY_URL: 'http://localhost' }))).toThrow(/VALKEY_URL/);
+    expect(() => loadEnv(prod({ VALKEY_URL: 'rediss://valkey:6379' }))).toThrow(/VALKEY_PASSWORD/);
+    expect(() => loadEnv(base({ APP_ENV: 'homolog', VALKEY_URL: 'redis://valkey:6379' }))).toThrow(/VALKEY_PASSWORD/);
+    expect(loadEnv(prod({ VALKEY_URL: 'rediss://valkey:6379', VALKEY_PASSWORD: 'x' })).valkeyPassword).toBe('x');
+  });
+
   it('booleano estrito e inteiros positivos', () => {
     expect(() => loadEnv(base({ FAKE_CANDIDATES_ENABLED: 'TRUE' }))).toThrow(/FAKE_CANDIDATES_ENABLED/);
     expect(() => loadEnv(base({ FAKE_CANDIDATES_ENABLED: '1' }))).toThrow(EnvError);

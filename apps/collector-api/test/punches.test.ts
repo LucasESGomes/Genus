@@ -1,3 +1,4 @@
+import { punchJobId } from '@genus/queue';
 import { decryptDek } from '@genus/shared';
 import { startArpTestDatabase, type ArpTestDatabase } from '@genus/db-arp';
 import pg from 'pg';
@@ -254,6 +255,50 @@ describe('batida reconhecida', () => {
     a.clock.advance(120_000);
     const later = await postPunch(a, { deviceSequence: 2, capturedAt: iso(120_000 - 1000) });
     expect(later.json().data.warnings).toEqual([]);
+  });
+});
+
+describe('publicação na fila punches', () => {
+  it('uma publicação por batida nova, com os IDs e o jobId certos, só depois do INSERT', async () => {
+    const a = await start();
+    const res = await postPunch(a, { deviceSequence: 7 });
+    expect(res.statusCode).toBe(200);
+    const [row] = await rows();
+    expect(a.queue.published).toEqual([
+      { entryId: Number(row?.id), tenantId: 1, establishmentId: 10, deviceId: 100, deviceSequence: 7 },
+    ]);
+    expect(punchJobId(100, 7)).toBe('100-7');
+  });
+
+  it('reenvio de batida já gravada não publica de novo (o resgate cobre)', async () => {
+    const a = await start();
+    await postPunch(a, { deviceSequence: 3 });
+    await postPunch(a, { deviceSequence: 3 });
+    expect(a.queue.published).toHaveLength(1);
+  });
+
+  it('fallback_required não grava nem publica', async () => {
+    const a = await start();
+    stub.setBehavior({ status: 'face_not_recognized' });
+    await postPunch(a, { deviceSequence: 4 });
+    expect(a.queue.published).toHaveLength(0);
+  });
+
+  it('publicação que lança: resposta continua registered, linha gravada e log queue_publish_failed sem dado sensível', async () => {
+    const a = await start();
+    a.queue.publishError = Object.assign(new Error('connect ECONNREFUSED 10.0.0.9:6379 redis://:senha@10.0.0.9'), {
+      code: 'ECONNREFUSED',
+    });
+    const res = await postPunch(a, { deviceSequence: 5 });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toMatchObject({ outcome: 'registered' });
+    expect(await rows()).toHaveLength(1);
+
+    const failed = a.log.records().filter((r) => r.event === 'queue_publish_failed');
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toMatchObject({ level: 'warn', entryId: expect.any(Number), err: { name: 'Error', code: 'ECONNREFUSED' } });
+    expect(a.log.text()).not.toContain('senha');
+    expect(a.log.text()).not.toContain('10.0.0.9');
   });
 });
 

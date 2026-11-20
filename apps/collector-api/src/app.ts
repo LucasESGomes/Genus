@@ -2,7 +2,7 @@
  * `buildApp(deps)`: monta o Fastify sem abrir porta (os testes usam `inject`).
  */
 import multipart from '@fastify/multipart';
-import type { DeviceAuthenticator, EngineClient, Logger } from '@genus/shared';
+import type { DeviceAuthenticator, EngineClient, Logger, QueuePublisher } from '@genus/shared';
 import Fastify, { LogController, type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import type { Pool } from 'pg';
@@ -17,6 +17,8 @@ export interface AppDeps {
   logger: Logger;
   pool: Pick<Pool, 'query'>;
   engine: EngineClient;
+  /** Só para `/health/ready` (campo `queue`). */
+  queuePublisher: QueuePublisher;
   punchService: PunchService;
   deviceAuthenticator: DeviceAuthenticator;
   serviceKeys: string[];
@@ -51,7 +53,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // Antes das rotas: o @fastify/swagger coleta as rotas registradas depois dele.
   if (deps.apiDocs) await registerApiDocs(app);
 
-  await app.register(healthRoutes, { pool: deps.pool, engine: deps.engine });
+  await app.register(healthRoutes, { pool: deps.pool, engine: deps.engine, queue: deps.queuePublisher });
 
   await app.register(
     async (scope) => {

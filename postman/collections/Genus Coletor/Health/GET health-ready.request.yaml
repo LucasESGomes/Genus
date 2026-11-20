@@ -1,6 +1,6 @@
 $kind: http-request
 name: GET /health/ready
-description: "Prontidão para receber tráfego: 200 se o Postgres responde; 503 caso contrário. A engine NÃO entra no ready (sem ela a API ainda responde `fallback_required`). Não exige chave."
+description: "Prontidão para receber tráfego: 200 se o Postgres responde; 503 caso contrário. A engine e o Valkey NÃO entram no ready (sem a engine a API responde `fallback_required`; sem o Valkey a batida grava e o resgate enfileira depois). `data.queue` é `ok` ou `down` (informativo). Não exige chave."
 url: "{{baseUrl}}/health/ready"
 method: GET
 auth:
@@ -9,9 +9,11 @@ scripts:
   - type: afterResponse
     code: |-
       pm.test('Status 200', () => pm.response.to.have.status(200));
-      const schema = {"type":"object","required":["data"],"properties":{"data":{"type":"object","required":["ready"],"properties":{"ready":{"type":"boolean"}}}}};
+      const schema = {"type":"object","required":["data"],"properties":{"data":{"type":"object","required":["ready","queue"],"properties":{"ready":{"type":"boolean"},"queue":{"type":"string","enum":["ok","down"]}}}}};
       pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));
       pm.test('ready é true', () => pm.expect(pm.response.json().data.ready).to.eql(true));
+      // O Valkey fora (ou não configurado) mostra `down` e NÃO muda o status HTTP.
+      pm.test('queue é ok ou down', () => pm.expect(['ok', 'down']).to.include(pm.response.json().data.queue));
     language: text/javascript
 examples: './.resources/GET health-ready.resources/examples'
 order: 2000

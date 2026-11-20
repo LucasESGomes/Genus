@@ -135,7 +135,7 @@ Erros do domínio são `AppError(code, httpStatus, message)`; o handler global c
 ## 8. Transações, outbox e jobs
 
 - **Efeito colateral entra na mesma transação** que a mudança: grave a linha no `outbox`, faça `COMMIT`, **depois** publique na fila. Nunca publique dentro da transação (`02` §5).
-- Jobs: filas em `kebab-case` inglês (`recalculate-day`, `analyze-certificate`). `jobId` **determinístico** (`recalculate-day:{employeeId}:{workDate}`), para duplicata virar no-op.
+- Jobs: filas em `kebab-case` inglês (`recalculate-day`, `analyze-certificate`). `jobId` **determinístico** (`recalculate-day-{employeeId}-{workDate}`), para duplicata virar no-op. Separador só `-`: o BullMQ recusa `:` em jobId personalizado.
 - Handler **idempotente**: rodar duas vezes dá o mesmo resultado (ledger por `UNIQUE` na origem; PDF no mesmo caminho do S3).
 - Payload pequeno: **IDs**, nunca o objeto nem dado sensível.
 - Retry com backoff; depois de N tentativas vai para `failed`, gera alerta e fica reprocessável.

@@ -7,6 +7,8 @@ import type { Pool } from 'pg';
 
 /** O que a api devolve ao aparelho como recibo. */
 export interface EntryReceipt {
+  /** `entradas.id` (BIGINT convertido). Só para enfileirar; nunca sai na resposta HTTP. */
+  id: number;
   publicId: string;
   markedAt: Date;
   isClockDivergent: boolean;
@@ -27,13 +29,16 @@ export interface NewEntry {
 }
 
 interface ReceiptRow {
+  id: string | number;
   id_publico: string;
   marcado_em: Date;
   eh_hora_divergente: boolean;
 }
 
 function toReceipt(row: ReceiptRow): EntryReceipt {
-  return { publicId: row.id_publico, markedAt: row.marcado_em, isClockDivergent: row.eh_hora_divergente };
+  const id = Number(row.id);
+  if (!Number.isSafeInteger(id)) throw new Error('entradas.id fora do intervalo seguro');
+  return { id, publicId: row.id_publico, markedAt: row.marcado_em, isClockDivergent: row.eh_hora_divergente };
 }
 
 export class PunchRepository {
@@ -46,7 +51,7 @@ export class PunchRepository {
     deviceSequence: number,
   ): Promise<EntryReceipt | null> {
     const { rows } = await this.pool.query<ReceiptRow>(
-      `SELECT id_publico, marcado_em, eh_hora_divergente
+      `SELECT id, id_publico, marcado_em, eh_hora_divergente
          FROM entradas
         WHERE conta_id = $1 AND aparelho_id = $2 AND sequencia_aparelho = $3`,
       [tenantId, deviceId, deviceSequence],
@@ -56,7 +61,7 @@ export class PunchRepository {
 
   async findByPublicId(tenantId: number, publicId: string): Promise<EntryReceipt | null> {
     const { rows } = await this.pool.query<ReceiptRow>(
-      `SELECT id_publico, marcado_em, eh_hora_divergente
+      `SELECT id, id_publico, marcado_em, eh_hora_divergente
          FROM entradas
         WHERE conta_id = $1 AND id_publico = $2`,
       [tenantId, publicId],
@@ -88,7 +93,7 @@ export class PunchRepository {
            metodo_identificacao, nota_reconhecimento, nota_vivacidade
          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'facial', $11, $12)
          ON CONFLICT (aparelho_id, sequencia_aparelho) DO NOTHING
-         RETURNING id_publico, marcado_em, eh_hora_divergente`,
+         RETURNING id, id_publico, marcado_em, eh_hora_divergente`,
       [
         entry.publicId,
         tenantId,

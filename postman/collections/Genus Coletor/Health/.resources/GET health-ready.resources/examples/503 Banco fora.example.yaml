@@ -12,7 +12,8 @@ response:
     content: |-
       {
         "data": {
-          "ready": false
+          "ready": false,
+          "queue": "ok"
         }
       }
 order: 2000

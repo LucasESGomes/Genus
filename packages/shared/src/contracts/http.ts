@@ -43,6 +43,7 @@ export type HealthResponse = z.infer<typeof healthResponseSchema>;
  * (responde `fallback_required`), e tirá-la do balanceador seria pior.
  */
 export const readyResponseSchema = z.object({
-  data: z.object({ ready: z.boolean() }),
+  /** `queue` é informativo: o Valkey fora não derruba a prontidão (a batida grava e o resgate enfileira). */
+  data: z.object({ ready: z.boolean(), queue: z.enum(['ok', 'down']) }),
 });
 export type ReadyResponse = z.infer<typeof readyResponseSchema>;
