@@ -6,16 +6,18 @@
  * segredos gerados e COERENTES entre si:
  *
  *   infra/.env                   compose: senhas do Postgres e dos papéis do arp, Valkey, MASTER_KEY, ENGINE_API_KEY, portas
- *   apps/collector-api/.env.dev  api do coletor: URLs do banco, mesma MASTER_KEY e ENGINE_API_KEY
+ *   apps/collector-api/.env.dev  api do coletor: URLs do banco, Valkey, mesma MASTER_KEY e ENGINE_API_KEY
+ *   apps/rep-core/.env.dev       rep-core: ARP_CORE_DATABASE_URL, Valkey (docs/SPEC-nsr-fila.md §9)
+ *   apps/jobs/.env.dev           jobs: ARP_READER_DATABASE_URL, Valkey (docs/SPEC-nsr-fila.md §9)
  *
  * - infra/.env: se já existe, só troca valores vazios ou com TROQUE_ (e acrescenta as chaves novas no fim).
  * - .env.dev: as variáveis que DERIVAM do infra/.env (URLs, porta, chaves da
- *   engine) são sempre alinhadas a ele; o resto só é preenchido se faltar.
- * - Nenhum valor é impresso. Os dois arquivos estão no .gitignore.
+ *   engine, Valkey) são sempre alinhadas a ele; o resto só é preenchido se faltar.
+ * - Nenhum valor é impresso. Os arquivos estão no .gitignore.
  */
 import { randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -24,6 +26,10 @@ const INFRA = path.join(root, 'infra', '.env');
 const INFRA_EXAMPLE = path.join(root, 'infra', '.env.example');
 const API = path.join(root, 'apps', 'collector-api', '.env.dev');
 const API_EXAMPLE = path.join(root, 'apps', 'collector-api', '.env.dev.example');
+const REP_CORE = path.join(root, 'apps', 'rep-core', '.env.dev');
+const REP_CORE_EXAMPLE = path.join(root, 'apps', 'rep-core', '.env.dev.example');
+const JOBS = path.join(root, 'apps', 'jobs', '.env.dev');
+const JOBS_EXAMPLE = path.join(root, 'apps', 'jobs', '.env.dev.example');
 const PG_VOLUME = 'genus-postgres-arp-app-dados';
 
 const out = (line = '') => process.stdout.write(`${line}\n`);
@@ -82,7 +88,13 @@ const apiCreated = !existsSync(API);
 let apiText = readFileSync(apiCreated ? API_EXAMPLE : API, 'utf8');
 const apiBefore = parse(apiText);
 const pgPort = infra.POSTGRES_PORT || '5432';
+// Valkey: URL sem senha; a senha vem separada (docs/SPEC-nsr-fila.md §9).
+const valkeyDerived = {
+  VALKEY_URL: `redis://localhost:${infra.VALKEY_PORT || '6379'}`,
+  VALKEY_PASSWORD: infra.VALKEY_PASSWORD,
+};
 const derived = {
+  ...valkeyDerived,
   ARP_DATABASE_URL: `postgres://arp_collector:${encodeURIComponent(infra.ARP_COLLECTOR_PASSWORD)}@localhost:${pgPort}/arp`,
   ARP_MIGRATION_DATABASE_URL: `postgres://arp_owner:${encodeURIComponent(infra.ARP_OWNER_PASSWORD)}@localhost:${pgPort}/arp`,
   ARP_READER_DATABASE_URL: `postgres://arp_reader:${encodeURIComponent(infra.ARP_READER_PASSWORD)}@localhost:${pgPort}/arp`,
@@ -102,11 +114,70 @@ if (keys.length === 0 || keys.some((k) => k.includes('TROQUE'))) {
   apiText = setVar(apiText, 'COLLECTOR_SERVICE_KEYS', hex(24));
   apiChanged.push('COLLECTOR_SERVICE_KEYS');
 }
+// Chaves da fila com valor padrão: preenchidas só se faltarem (não sobrescrevem ajustes do dev).
+const API_QUEUE_DEFAULTS = { QUEUE_PUBLISH_TIMEOUT_MS: '250', QUEUE_ATTEMPTS: '5' };
+for (const [key, value] of Object.entries(API_QUEUE_DEFAULTS)) {
+  if (isPlaceholder(apiBefore[key])) {
+    apiText = setVar(apiText, key, value);
+    apiChanged.push(key);
+  }
+}
 writeFileSync(API, apiText);
+
+// ------------------------------------------- rep-core e jobs (mesmo padrão de derivação)
+/**
+ * Escreve um .env.dev de um processo: base = o .env.dev existente, senão o .env.dev.example,
+ * senão um texto mínimo embutido. Derivados são alinhados ao infra/.env; padrões só entram se faltarem.
+ */
+function syncEnv({ file, example, fallback, derived: values, defaults = {} }) {
+  const created = !existsSync(file);
+  let text = !created ? readFileSync(file, 'utf8') : existsSync(example) ? readFileSync(example, 'utf8') : fallback;
+  const before = parse(text);
+  const changed = [];
+  for (const [key, value] of Object.entries(values)) {
+    if (before[key] !== value) {
+      text = setVar(text, key, value);
+      changed.push(key);
+    }
+  }
+  for (const [key, value] of Object.entries(defaults)) {
+    if (isPlaceholder(before[key])) {
+      text = setVar(text, key, value);
+      changed.push(key);
+    }
+  }
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, text);
+  const rel = path.relative(root, file).split(path.sep).join('/');
+  return `${created ? 'Criado' : 'Conferido'}: ${rel}${changed.length ? ` (ajustados: ${changed.join(', ')})` : ' (nada a mudar)'}`;
+}
+
+const repCoreMsg = syncEnv({
+  file: REP_CORE,
+  example: REP_CORE_EXAMPLE,
+  fallback: '# Gerado por scripts/setup-dev.mjs. Variáveis: docs/SPEC-nsr-fila.md §9.\n',
+  derived: {
+    ARP_CORE_DATABASE_URL: `postgres://arp_core:${encodeURIComponent(infra.ARP_CORE_PASSWORD)}@localhost:${pgPort}/arp`,
+    ...valkeyDerived,
+  },
+  defaults: { WORKER_CONCURRENCY: '4', QUEUE_ATTEMPTS: '5' },
+});
+const jobsMsg = syncEnv({
+  file: JOBS,
+  example: JOBS_EXAMPLE,
+  fallback: '# Gerado por scripts/setup-dev.mjs. Variáveis: docs/SPEC-nsr-fila.md §9.\n',
+  derived: {
+    ARP_READER_DATABASE_URL: `postgres://arp_reader:${encodeURIComponent(infra.ARP_READER_PASSWORD)}@localhost:${pgPort}/arp`,
+    ...valkeyDerived,
+  },
+  defaults: { RESCUE_INTERVAL_MS: '20000', RESCUE_MIN_AGE_MS: '30000', POST_PUNCH_DEPTH_WARN: '10000' },
+});
 
 // -------------------------------------------------------------------- relatório
 out(`${infraCreated ? 'Criado' : 'Conferido'}: infra/.env${infraChanged.length ? ` (gerados: ${infraChanged.join(', ')})` : ' (nada a mudar)'}`);
 out(`${apiCreated ? 'Criado' : 'Conferido'}: apps/collector-api/.env.dev${apiChanged.length ? ` (ajustados: ${apiChanged.join(', ')})` : ' (nada a mudar)'}`);
+out(repCoreMsg);
+out(jobsMsg);
 
 // Só senhas do Postgres que já existiam no volume exigem recriar o volume. Papéis novos e o
 // Valkey são criados sem isso: o garantir-papeis.sh (rodado pelo dev:up) cria os papéis que faltam.

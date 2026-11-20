@@ -7,10 +7,14 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "verify-chain": "tsx --env-file-if-exists=../collector-api/.env.dev src/cli/verify-chain.ts"
+    "verify-chain": "tsx --env-file-if-exists=../collector-api/.env.dev src/cli/verify-chain.ts",
+    "start": "tsx --env-file-if-exists=../collector-api/.env.dev src/main.ts"
   },
   "dependencies": {
+    "@genus/queue": "workspace:*",
     "@genus/shared": "workspace:*",
+    "bullmq": "6.7.8",
+    "ioredis": "5.11.1",
     "pg": "8.23.1",
     "zod": "4.6.7"
   },
