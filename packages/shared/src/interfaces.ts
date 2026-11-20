@@ -137,6 +137,35 @@ export interface EngineClient {
 }
 
 // ---------------------------------------------------------------------------
+// Fila de batidas (BullMQ). Implementação: @genus/queue (docs/SPEC-nsr-fila.md §6).
+// ---------------------------------------------------------------------------
+
+/** Dados de uma batida gravada em `entradas`, o necessário para enfileirar. */
+export interface PunchQueueEntry {
+  /** `entradas.id` */
+  entryId: number;
+  /** `conta_id` */
+  tenantId: number;
+  /** `estabelecimento_id` */
+  establishmentId: number;
+  /** `aparelho_id`: só para montar o jobId, não vai no payload. */
+  deviceId: number;
+  /** `sequencia_aparelho`: só para montar o jobId, não vai no payload. */
+  deviceSequence: number;
+}
+
+/**
+ * Publica na fila `punches`. Chamado DEPOIS do COMMIT da entrada e fora da
+ * transação. Quem chama decide o efeito de uma falha: a batida nunca é desfeita.
+ */
+export interface QueuePublisher {
+  /** Lança em falha ou timeout. */
+  publishPunch(entry: PunchQueueEntry): Promise<void>;
+  /** Para `/health/ready`. Nunca lança. */
+  ping(): Promise<boolean>;
+}
+
+// ---------------------------------------------------------------------------
 // Erros
 // ---------------------------------------------------------------------------
 
