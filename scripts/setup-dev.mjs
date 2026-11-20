@@ -98,6 +98,8 @@ const derived = {
   ARP_DATABASE_URL: `postgres://arp_collector:${encodeURIComponent(infra.ARP_COLLECTOR_PASSWORD)}@localhost:${pgPort}/arp`,
   ARP_MIGRATION_DATABASE_URL: `postgres://arp_owner:${encodeURIComponent(infra.ARP_OWNER_PASSWORD)}@localhost:${pgPort}/arp`,
   ARP_READER_DATABASE_URL: `postgres://arp_reader:${encodeURIComponent(infra.ARP_READER_PASSWORD)}@localhost:${pgPort}/arp`,
+  // O .env.dev do coletor é o compartilhado: rep-core (dev:rep-core, arp:verify-chain) lê daqui.
+  ARP_CORE_DATABASE_URL: `postgres://arp_core:${encodeURIComponent(infra.ARP_CORE_PASSWORD)}@localhost:${pgPort}/arp`,
   ENGINE_URL: `http://localhost:${infra.ENGINE_PORT || '8001'}`,
   ENGINE_API_KEY: infra.ENGINE_API_KEY,
   MASTER_KEY: infra.MASTER_KEY,

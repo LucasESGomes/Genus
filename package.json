@@ -15,6 +15,7 @@
     "dev:enroll-fake": "pnpm --filter @genus/collector-api dev:enroll-fake",
     "postman:test": "pnpm --filter @genus/collector-api postman:test",
     "bench:punch": "pnpm --filter @genus/collector-api bench:punch",
+    "bench:nsr": "pnpm --filter @genus/e2e bench:nsr",
     "setup:dev": "node scripts/setup-dev.mjs",
     "dev:up": "node scripts/dev-up.mjs",
     "dev:punch": "pnpm --filter @genus/collector-api dev:punch",
