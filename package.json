@@ -17,7 +17,8 @@
     "bench:punch": "pnpm --filter @genus/collector-api bench:punch",
     "setup:dev": "node scripts/setup-dev.mjs",
     "dev:up": "node scripts/dev-up.mjs",
-    "dev:punch": "pnpm --filter @genus/collector-api dev:punch"
+    "dev:punch": "pnpm --filter @genus/collector-api dev:punch",
+    "postman:export": "node scripts/postman-export.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -26,6 +27,7 @@
     "globals": "17.14.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.73.0",
-    "vitest": "5.1.1"
+    "vitest": "5.1.1",
+    "yaml": "2.9.1"
   }
 }

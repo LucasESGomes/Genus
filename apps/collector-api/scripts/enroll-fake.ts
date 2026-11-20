@@ -36,8 +36,10 @@ import {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const packageDir = path.resolve(here, '..');
 const repoRoot = path.resolve(packageDir, '../..');
-const facesDir = path.join(repoRoot, 'dev-data', 'faces');
-const probesDir = path.join(repoRoot, 'dev-data', 'probes');
+// DEV_DATA_DIR permite apontar para o dev-data de outro clone (padrão: <repo>/dev-data).
+const dataDir = path.resolve(process.env.DEV_DATA_DIR ?? path.join(repoRoot, 'dev-data'));
+const facesDir = path.join(dataDir, 'faces');
+const probesDir = path.join(dataDir, 'probes');
 const FIRST_REAL_EMPLOYEE_ID = 1001;
 const MIME: Record<string, string> = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png' };
 
@@ -121,9 +123,14 @@ async function main(): Promise<void> {
     fail(`Engine inacessível em ${engineUrl} (${err instanceof Error ? err.message : String(err)}). Suba o compose com --profile dev.`);
   }
 
+  // A engine guarda a DEK por tenant em cache por 1 h e ignora a enviada: limpa antes de cadastrar.
+  await fetch(`${engineUrl}/cache/dek/${encodeURIComponent(tenantId)}`, { method: 'DELETE', headers: { 'X-API-Key': apiKey } }).catch(
+    () => undefined,
+  );
   const dek = deriveDevDek(masterKey, tenantId);
   const tenantDek = encryptDek(dek, masterKey);
   const people: GalleryFile['people'] = [];
+  const chosenByEmployee = new Map<number, string[]>();
   const failed: Array<{ name: string; reason: string }> = [];
   const probes: string[] = [];
 
@@ -152,6 +159,7 @@ async function main(): Promise<void> {
         displayName: src.name,
         embedding: { ivHex: reg.embedding_iv, tagHex: reg.embedding_tag, ciphertextHex: reg.embedding_ct, keyVersion: 1 },
       });
+      chosenByEmployee.set(employeeId, chosen.map((f) => path.basename(f)));
       out(`${src.name} (colaborador ${employeeId}): embedding de ${reg.images_processed} foto(s): ${chosen.map((f) => path.basename(f)).join(', ')}`);
       if (reg.images_processed < chosen.length) out('  aviso: a engine não achou rosto em alguma das fotos sorteadas.');
 
@@ -160,13 +168,14 @@ async function main(): Promise<void> {
       mkdirSync(probeDir, { recursive: true });
       for (const file of rest) {
         copyFileSync(file, path.join(probeDir, path.basename(file)));
-        probes.push(path.relative(repoRoot, path.join(probeDir, path.basename(file))).replaceAll('\\', '/'));
+        probes.push(path.relative(path.dirname(dataDir), path.join(probeDir, path.basename(file))).replaceAll('\\', '/'));
       }
     } catch (err) {
       failed.push({ name: src.name, reason: err instanceof Error ? err.message : String(err) });
     }
   }
 
+  const realPeople = people.splice(0, people.length);
   for (let i = 1; i <= fakes; i++) {
     people.push({
       employeeId: i,
@@ -174,6 +183,13 @@ async function main(): Promise<void> {
       displayName: fakeName(i),
       embedding: encryptEmbedding(randomUnitVector(), dek),
     });
+  }
+
+  // As pessoas reais entram numa posição sorteada NO MEIO da lista (nunca a primeira nem a última).
+  const usedPhotos = new Map(realPeople.map((p) => [p.employeeId, chosenByEmployee.get(p.employeeId) ?? []]));
+  for (const person of realPeople) {
+    const at = people.length < 2 ? people.length : 1 + randomInt(people.length - 1);
+    people.splice(at, 0, person);
   }
 
   // O cache de embeddings da engine não tem TTL: invalida cada pessoa gravada.
@@ -188,14 +204,25 @@ async function main(): Promise<void> {
   mkdirSync(path.dirname(galleryPath), { recursive: true });
   writeFileSync(galleryPath, JSON.stringify(gallery, null, 2));
 
+  // Lista legível (sem embedding nem chave). CPFs são fictícios.
+  const csvPath = path.join(path.dirname(galleryPath), 'candidatos.csv');
+  const csv = ['posicao;colaborador_id;nome;cpf_ficticio;origem;fotos_do_embedding'];
+  people.forEach((p, i) => {
+    const photos = usedPhotos.get(p.employeeId);
+    csv.push([i + 1, p.employeeId, p.displayName, p.cpf, photos ? 'foto real' : 'sintetico', photos ? photos.join(' ') : ''].join(';'));
+  });
+  writeFileSync(csvPath, csv.join('\n') + '\n');
+
   const real = people.length - fakes;
   out();
-  out(`Galeria gravada em ${path.relative(repoRoot, galleryPath)}: ${real} pessoa(s) real(is) + ${fakes} fictícia(s) = ${people.length} candidatos.`);
+  out(`Galeria gravada em ${galleryPath}: ${real} pessoa(s) real(is) + ${fakes} fictícia(s) = ${people.length} candidatos.`);
+  out(`Lista legível: ${csvPath}`);
+  for (const p of realPeople) out(`  ${p.displayName} está na posição ${people.indexOf(p) + 1} de ${people.length}.`);
   for (const f of failed) out(`  FALHOU ${f.name}: ${f.reason}`);
   if (probes.length > 0) {
     // Nome fixo para a request "Rosto real" do Postman.
     const fixed = path.join(probesDir, 'proxima-batida.jpg');
-    copyFileSync(path.join(repoRoot, probes[0] as string), fixed);
+    copyFileSync(path.join(probesDir, '..', '..', probes[0] as string), fixed);
     out();
     out(`Foto de teste para o Postman (pasta "Rosto real"): dev-data/probes/proxima-batida.jpg (cópia de ${probes[0]})`);
     out('Fotos para testar a batida (não usadas no cadastro):');

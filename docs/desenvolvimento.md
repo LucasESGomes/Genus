@@ -137,7 +137,7 @@ pnpm postman:test                    # Postman CLI: sobe o stub da engine e a ap
 pnpm postman:test -- --real-engine   # com a engine real (pnpm dev:up antes)
 ```
 
-No Postman: abra a **pasta do repositório** (o `.postman/resources.yaml` registra a coleção e os environments), ponha a Working directory na raiz do repositório, escolha o environment `dev` e preencha `serviceKey` com a primeira chave de `COLLECTOR_SERVICE_KEYS` do `.env.dev`. A pasta **Rosto real** faz uma batida com a sua foto.
+Para importar no Postman: `pnpm postman:export` e arraste os dois arquivos de `postman/export/` no Import. Ou, no modo Git: abra a **pasta do repositório** (o `.postman/resources.yaml` registra a coleção e os environments), ponha a Working directory na raiz do repositório, escolha o environment `dev` e preencha `serviceKey` com a primeira chave de `COLLECTOR_SERVICE_KEYS` do `.env.dev`. A pasta **Rosto real** faz uma batida com a sua foto.
 
 ## 8. Benchmark
 

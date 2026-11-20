@@ -37,6 +37,10 @@ Variáveis de cada environment:
 
 ## 2. Abrir no Postman
 
+**Jeito mais simples (Import):** rode `pnpm postman:export` e importe no Postman (Import > arraste) os dois arquivos de `postman/export/`: a coleção e o environment de dev, num formato só (v2.1 JSON) gerado a partir do YAML. Os caminhos das imagens saem absolutos, então não precisa configurar a Working directory. `postman/export/` fica fora do Git; rode de novo quando a coleção mudar.
+
+**Modo Git (edita o YAML direto):**
+
 1. No Postman, abra a **pasta do repositório** (modo Git / Local View). O `.postman/resources.yaml` da raiz registra tudo que está em `postman/`: a coleção **Genus - API do Coletor** e os três environments aparecem sozinhos. Não é preciso importar arquivo.
 2. **Working directory = raiz do repositório** (Settings > General > Working directory). Os arquivos dos requests (`postman/fixtures/...`, `dev-data/probes/...`) são caminhos relativos à raiz.
 3. Escolha o environment no seletor do canto superior direito e preencha `serviceKey`.

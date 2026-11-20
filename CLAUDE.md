@@ -175,11 +175,12 @@ python bench.py init | set-url | check | capture | enroll | gen | micro | seq | 
 pnpm install
 pnpm dev:up                          # cria os .env (setup:dev), sobe Postgres + engine e aplica a migration
 pnpm dev                             # api em http://localhost:3001; Swagger em /docs (só APP_ENV=dev e só localhost)
-pnpm dev:enroll-fake                 # galeria: dev-data/faces/<pessoa>/ (3 fotos sorteadas) + 50 candidatos fictícios
+pnpm dev:enroll-fake                 # galeria: dev-data/faces/<pessoa>/ (3 fotos sorteadas) + 50 fictícios; lista em dev-data/candidatos.csv
 pnpm dev:punch                       # uma batida com uma foto de dev-data/probes/
 pnpm db:migrate:arp [-- --env prod]  # lê ARP_MIGRATION_DATABASE_URL de apps/collector-api/.env.<ambiente>
 pnpm -r typecheck && pnpm -r lint && pnpm -r test   # o teste exige Docker (Testcontainers)
 pnpm postman:test                    # Postman CLI na coleção YAML; -- --real-engine usa a engine real
+pnpm postman:export                  # gera postman/export/*.json para importar no Postman
 pnpm bench:punch -- --n 50 --concurrency 4 [--image caminho]
 ```
 
