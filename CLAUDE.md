@@ -16,7 +16,11 @@ O motor facial vem da **Visage** (produto irmão, em `../visage`). A Visage **n�
 services/face-engine/   Motor facial (Python). Cópia de REP-P/engine @ d80c5dd, que veio de visage/face_engine
 bench/                  Benchmark de capacidade da engine (scripts; dados, chaves e resultados ficam fora do git)
 apps/collector-api/     API do coletor (Fastify). Existe: primeira entrega, POST /coletor/batidas (ver docs/SPEC-primeira-entrega.md)
+apps/rep-core/          Motor de NSR e worker da fila `punches` (consome, grava `registros`, `evidencias`, `outbox`). Verificação da cadeia: `pnpm arp:verify-chain`. Existe
+apps/jobs/              Resgate: republica `entradas` e `outbox` pendentes há mais de 30 s. Existe
 packages/shared/        Contratos Zod, Clock, logger e cripto, compartilhados entre os apps. Existe
+packages/queue/         `@genus/queue`: filas `punches` e `post-punch`, jobId, payloads e publicador. Existe
+tests/e2e/              Testes ponta a ponta e benchmark do NSR (`bench:nsr`). (a criar: ainda não existe)
 db/arp/                 Migrations SQL do banco arp (fiscal) e o executor (pnpm db:migrate:arp)
 infra/                  Compose local: Postgres (bancos arp e app) e face-engine
 postman/                Coleção da API em YAML (Postman v3, um request por arquivo) e environments. Ver docs/conventions/api-testing.md
@@ -51,8 +55,8 @@ packages/               shared/ já existe (acima). (a criar) regras puras compa
 ## Arquitetura em dez linhas
 
 1. O **aparelho** assina e guarda cada batida antes de enviar (primeiro outbox).
-2. A **api-coletor** identifica o rosto no `face-engine` e grava na tabela `entradas`; só o **rep-core** escreve no banco `arp`.
-3. O **rep-core** atribui NSR e hash em uma transação com `FOR UPDATE` por estabelecimento e grava eventos no `outbox`.
+2. A **api-coletor** identifica o rosto no `face-engine`, grava na tabela `entradas` e publica na fila `punches` depois do COMMIT; só o **rep-core** escreve no banco `arp`.
+3. O **rep-core** (worker da fila `punches`) atribui NSR e hash em uma transação com `FOR UPDATE` por estabelecimento e grava eventos no `outbox`.
 4. **Jobs** consomem o outbox: PDF do comprovante, cálculo da jornada (PTRP), QR oficial, espelho, selo diário.
 5. O **api-portal** (Fastify) serve os portais de RH, gestor e funcionário. As funcionalidades de RH são, em geral, **módulos novos nele + tabelas no banco `app`**.
 6. O **PTRP** (apuração) só **acrescenta** informação sobre as marcações. Nunca altera a original.
@@ -182,6 +186,10 @@ pnpm -r typecheck && pnpm -r lint && pnpm -r test   # o teste exige Docker (Test
 pnpm postman:test                    # Postman CLI na coleção YAML; -- --real-engine usa a engine real
 pnpm postman:export                  # gera postman/export/*.json para importar no Postman
 pnpm bench:punch -- --n 50 --concurrency 4 [--image caminho]
+pnpm queue:inspect                   # profundidade de `punches` e `post-punch` no Valkey
+pnpm dev:rep-core                    # worker do rep-core (consome `punches`)
+pnpm dev:jobs                        # resgate (republica `entradas` e `outbox` pendentes)
+pnpm arp:verify-chain -- --establishment <id> --tenant <id>   # verifica NSR, hash encadeado e cadeia
 ```
 
 ## Como trabalhar neste repositório

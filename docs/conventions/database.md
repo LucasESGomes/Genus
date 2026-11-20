@@ -248,6 +248,22 @@ export const employees = pgTable('colaboradores', {
 
 **Termo novo:** entra neste glossário no mesmo PR. O nome em inglês do código é a tradução canônica daqui.
 
+**Termos do arp (NSR e fila).** Colunas e objetos criados pela migration `0002` e pela fila. Os identificadores de código já em uso estão na coluna do meio; onde o código ainda não tem nome, a sugestão segue §12.1 e está marcada.
+
+| Banco (pt-BR) | Identificador no código | Observação |
+|---|---|---|
+| `versao_formato_hash` | `versaoFormatoHash` | `SMALLINT`. Versão da fórmula do hash (`HASH_FORMAT_VERSION`). Trocar a fórmula gera nova versão |
+| `hash_anterior` | `hashAnterior` (linha lida) · `previousHash` (parâmetro das funções) | `BYTEA` de 32 bytes. Genesis = 32 zeros |
+| `hash` | `hash` | `BYTEA` de 32 bytes (SHA-256) |
+| `tipo_coletor` | `tipoColetor` | `CHAR(2)`, `'01'` a `'05'` (AFD). Constante `'01'` enquanto a api não recebe lotes offline |
+| `eh_offline` | `ehOffline` | `BOOLEAN` (flag do AFD). Constante `false` por enquanto |
+| `sequencias_estabelecimento` | `sequencias_estabelecimento` | Igual ao nome da tabela. Guarda `ultimo_nsr` e `ultimo_hash`; atualizada só pelo rep-core |
+| `outbox` | `outbox` | Igual. Fonte da verdade dos eventos pós-batida (`generate-receipt-pdf`, `recalculate-day`, `official-qr`) |
+| `registros` | `registros` | Igual. Só INSERT; trigger recusa UPDATE, DELETE e TRUNCATE |
+| `evidencias` | `evidencias` | Igual. Só INSERT; mesmo bloqueio de `registros` |
+| `recusar_alteracao_fiscal` | `recusar_alteracao_fiscal` | Função SQL (trigger) em `registros` e `evidencias`. Nome de função, não é traduzido |
+| `exigir_registro_para_processar` | `exigir_registro_para_processar` | Função SQL (trigger) em `entradas`. Só deixa `entradas` ir a `processado` com evidência e os 3 eventos de `outbox` |
+
 ## 13. Migrations
 
 - Ferramenta: `drizzle-kit generate` para o `app`. Arquivos `NNNN_descricao.sql` numerados pela ferramenta; a descrição em português, `snake_case` (`0007_cria_pedidos_ajuste`).

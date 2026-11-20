@@ -193,3 +193,28 @@ Com `EXPOSE_TIMINGS=true` (só dev), o corpo da resposta também traz `meta.timi
 - **Valkey (fila das batidas).** `pnpm dev:up` sobe também o serviço `valkey` (`genus-valkey`, versão fixada, AOF e `noeviction`). A senha é `VALKEY_PASSWORD` em `infra/.env`. Ela é obrigatória: o servidor exige autenticação.
 - **Porta do Valkey no host.** Só existe com o perfil `dev`, em `127.0.0.1:${VALKEY_PORT}` (padrão 6379). Sem o perfil, o Valkey só é alcançado pela rede interna do Compose.
 - Se trocar `POSTGRES_PASSWORD` ou as senhas de `arp_owner`/`arp_collector` depois da primeira subida, o volume precisa ser recriado (`down -v`, como descrito em §3). Papéis novos (`arp_core`, `arp_reader`) entram sem recriar o volume. Mas o `garantir-papeis.sh` não troca a senha de um papel que já existe: se mudar `ARP_CORE_PASSWORD` ou `ARP_READER_PASSWORD` depois, recrie o volume.
+
+## 12. Fila, worker e resgate
+
+A batida passa por três processos, além do Postgres e do Valkey (`pnpm dev:up`). Cada um roda no seu terminal:
+
+| Processo | Comando | O que faz |
+|---|---|---|
+| api do coletor | `pnpm dev` | Grava a batida em `entradas` (`pendente`) e publica o id na fila `punches` depois do COMMIT |
+| rep-core | `pnpm dev:rep-core` | Worker: consome `punches`, atribui NSR e hash, grava `registros`, `evidencias` e `outbox` numa só transação |
+| jobs | `pnpm dev:jobs` | Resgate: a cada 20 s republica `entradas` e `outbox` pendentes há mais de 30 s |
+
+**Quem lê qual `.env.dev`.**
+- `apps/collector-api/.env.dev` é o arquivo compartilhado: a api, o `pnpm queue:inspect` e os scripts `start` do rep-core e dos jobs (`--env-file-if-exists`) leem o seu `VALKEY_URL`, `VALKEY_PASSWORD` e as URLs do banco.
+- `pnpm setup:dev` também gera `apps/rep-core/.env.dev` (`ARP_CORE_DATABASE_URL`) e `apps/jobs/.env.dev` (`ARP_READER_DATABASE_URL`). **Hoje os scripts `dev:rep-core`, `dev:jobs` e `arp:verify-chain` não leem esses dois arquivos.** Até isso ser corrigido, exporte no shell as variáveis que faltarem (`ARP_CORE_DATABASE_URL`, `ARP_READER_DATABASE_URL`) antes de rodar: variável já definida no ambiente tem precedência sobre o arquivo.
+- A senha do Valkey vai em `VALKEY_PASSWORD`. Nunca coloque senha dentro de `VALKEY_URL`: a configuração recusa a subida.
+
+**Inspecionar as filas.**
+
+```bash
+pnpm queue:inspect
+```
+
+Mostra, para `punches` e `post-punch`, a contagem de jobs por estado (`waiting`, `active`, `delayed`, `completed`, `failed` etc.) e a profundidade da `post-punch` (`waiting` + `delayed` + `active`). Avisa quando a profundidade passa de `POST_PUNCH_DEPTH_WARN` (padrão 10000). A senha não é impressa. Códigos de saída: `0` ok, `2` configuração inválida, `1` o Valkey não respondeu.
+
+**A `post-punch` cresce sem consumidor. Isso é esperado nesta rodada.** Cada batida gera três jobs `waiting` nessa fila e três linhas `pendente` no `outbox`, porque ainda não existem os consumidores (PDF, jornada, QR). Não é erro, e não se deve criar consumidor falso que marque o `outbox` como processado. Com a política `noeviction` do Valkey, se a memória encher, ele recusa escritas; acompanhe com `pnpm queue:inspect`.

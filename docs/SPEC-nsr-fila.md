@@ -123,6 +123,11 @@ Consome `punches`: (1) `assignNsr`; (2) com o `COMMIT` feito, publica os 3 event
 
 Com `arp_reader` (lê entre contas: processo de infraestrutura; carrega `conta_id` no payload do job; documentado). A cada `RESCUE_INTERVAL_MS` (padrão 20000), lotes de 500, mais antigos primeiro, "agora" pelo `Clock`. Itens pendentes há mais de `RESCUE_MIN_AGE_MS` (padrão 30000): `entradas` → `punches`; `outbox` → `post-punch`. Mesmo `jobId`: inexistente → `add`; `waiting/active/delayed` → nada; `failed` → `retry()`; `completed` com linha ainda `pendente` → `remove()` e `add`. Nunca escreve no banco. `warn` se a profundidade de `post-punch` passar de `POST_PUNCH_DEPTH_WARN` (padrão 10000).
 
+### Decisões da implementação
+
+- **Varredura em lotes por `id` (keyset), não um `LIMIT` único.** A rodada lê lotes de 500 linhas ordenadas por `id`, avançando o cursor, até esgotar os pendentes. Há teto de 200 lotes por tipo (`entradas` e `outbox`) por ciclo (`MAX_BATCHES_PER_KIND`), como trava contra varredura sem fim. Motivo: com `LIMIT 500` fixo, os primeiros itens já enfileirados (ainda `waiting` ou `completed` com linha pendente) ocupavam sempre a janela e escondiam os demais, que nunca eram republicados.
+- O intervalo (`RESCUE_INTERVAL_MS`) e a idade mínima (`RESCUE_MIN_AGE_MS`) seguem o texto acima; o teto de lotes não muda o contrato de "nunca escreve no banco".
+
 ## 9. Variáveis de ambiente
 
 | Processo | Variáveis |
@@ -132,6 +137,14 @@ Com `arp_reader` (lê entre contas: processo de infraestrutura; carrega `conta_i
 | jobs | `ARP_READER_DATABASE_URL`, `VALKEY_URL`, `VALKEY_PASSWORD`, `RESCUE_INTERVAL_MS` (20000), `RESCUE_MIN_AGE_MS` (30000), `POST_PUNCH_DEPTH_WARN` (10000) |
 
 URLs de conexão e senhas nunca aparecem em log.
+
+### Decisões da implementação
+
+- **`VALKEY_URL` nunca leva senha.** A URL aceita só `redis://host:porta` ou `rediss://host:porta`; com senha embutida a configuração recusa a subida. A senha é a variável separada `VALKEY_PASSWORD`. Vale para collector-api, rep-core e jobs.
+- **collector-api, homolog e prod:** `VALKEY_PASSWORD` é obrigatória quando `VALKEY_URL` está definida. Em `dev` não é exigida. Sem `VALKEY_URL` a fila fica desligada (log `queue_disabled`) e o resgate cobre as batidas depois.
+- **rep-core e jobs:** `VALKEY_PASSWORD` segue a mesma regra de fora de dev (obrigatória quando o `APP_ENV` não é `dev`).
+- **`LOG_LEVEL` é opcional** em rep-core e jobs. Padrão: `debug` em dev e `info` em prod.
+- **Arquivo de ambiente de dev:** os scripts `start` do rep-core e dos jobs leem `apps/collector-api/.env.dev`, e não os `apps/rep-core/.env.dev` e `apps/jobs/.env.dev` que o `pnpm setup:dev` gera. Divergência em aberto: até os scripts seguirem o setup, as variáveis que faltarem precisam ser exportadas no shell (ver `docs/desenvolvimento.md` §12).
 
 ## 10. Helpers de teste (contrato)
 
