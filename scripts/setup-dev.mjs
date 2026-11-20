@@ -85,6 +85,7 @@ const pgPort = infra.POSTGRES_PORT || '5432';
 const derived = {
   ARP_DATABASE_URL: `postgres://arp_collector:${encodeURIComponent(infra.ARP_COLLECTOR_PASSWORD)}@localhost:${pgPort}/arp`,
   ARP_MIGRATION_DATABASE_URL: `postgres://arp_owner:${encodeURIComponent(infra.ARP_OWNER_PASSWORD)}@localhost:${pgPort}/arp`,
+  ARP_READER_DATABASE_URL: `postgres://arp_reader:${encodeURIComponent(infra.ARP_READER_PASSWORD)}@localhost:${pgPort}/arp`,
   ENGINE_URL: `http://localhost:${infra.ENGINE_PORT || '8001'}`,
   ENGINE_API_KEY: infra.ENGINE_API_KEY,
   MASTER_KEY: infra.MASTER_KEY,

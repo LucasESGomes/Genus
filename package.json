@@ -18,7 +18,8 @@
     "setup:dev": "node scripts/setup-dev.mjs",
     "dev:up": "node scripts/dev-up.mjs",
     "dev:punch": "pnpm --filter @genus/collector-api dev:punch",
-    "postman:export": "node scripts/postman-export.mjs"
+    "postman:export": "node scripts/postman-export.mjs",
+    "arp:verify-chain": "pnpm --filter @genus/rep-core verify-chain"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
