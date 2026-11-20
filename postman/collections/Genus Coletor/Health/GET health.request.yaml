@@ -1,0 +1,17 @@
+$kind: http-request
+name: GET /health
+description: Estado do processo e das dependências (banco e engine). Sempre 200 enquanto o processo responde; o campo `status` indica o pior estado entre as dependências (`ok`, `degraded`, `down`). Não exige chave.
+url: "{{baseUrl}}/health"
+method: GET
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const schema = {"type":"object","required":["data"],"properties":{"data":{"type":"object","required":["status","checks"],"properties":{"status":{"enum":["ok","degraded","down"]},"checks":{"type":"object","required":["api","database","engine"],"properties":{"api":{"const":"ok"},"database":{"enum":["ok","degraded","down"]},"engine":{"enum":["ok","degraded","down"]}}}}}}};
+      pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));
+      pm.test('Processo e banco ok', () => { const c = pm.response.json().data.checks; pm.expect(c.api).to.eql('ok'); pm.expect(c.database).to.eql('ok'); });
+    language: text/javascript
+examples: './.resources/GET health.resources/examples'
+order: 1000

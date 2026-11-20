@@ -1,0 +1,3 @@
+$kind: collection
+description: Entradas inválidas. A validação acontece antes da engine, então valem nos dois modos (stub ou engine real). Erro vem como `{ error, code }`.
+order: 4000

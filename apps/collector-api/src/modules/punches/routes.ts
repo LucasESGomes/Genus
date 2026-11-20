@@ -29,7 +29,22 @@ export function formatServerTiming(t: Partial<PunchTimings> & { validate: number
 export const punchRoutes: FastifyPluginAsync<PunchRoutesOptions> = async (scope, opts) => {
   scope.withTypeProvider<ZodTypeProvider>().post(
     '/batidas',
-    { schema: { response: { 200: punchResponseSchema } } },
+    {
+      schema: {
+        tags: ['Batidas'],
+        summary: 'Registrar batida por reconhecimento facial',
+        description: [
+          'Fluxo: chave de serviço → validação → idempotência por (aparelho, `deviceSequence`) → candidatos do servidor → engine → INSERT em `arp.entradas` (`pendente`).',
+          '',
+          '- `registered`: rosto identificado; `receiptId` é o recibo (o mesmo em todo reenvio da mesma sequência).',
+          '- `fallback_required` (**HTTP 200**, nada gravado): o aparelho segue pelo PIN. `reason` diz por quê.',
+          '',
+          'O aparelho, o estabelecimento, a conta e a lista de candidatos vêm do servidor, nunca do corpo.',
+        ].join('\n'),
+        security: [{ serviceKey: [] }],
+        response: { 200: punchResponseSchema },
+      },
+    },
     async (req, reply) => {
       const total = startTimer();
       const validateTimer = startTimer();

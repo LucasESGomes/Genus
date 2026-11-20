@@ -1,0 +1,26 @@
+$kind: http-request
+description: "`deviceSequence = 0`: precisa ser inteiro maior que zero. 400 `VALIDATION_ERROR`."
+url: "{{baseUrl}}/coletor/batidas"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: file
+      key: image
+      src: 'postman/fixtures/synthetic.png'
+    - type: text
+      key: deviceSequence
+      value: "0"
+    - type: text
+      key: capturedAt
+      value: "{{capturedAt}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 400', () => pm.response.to.have.status(400));
+      const schema = {"type":"object","required":["error","code"],"properties":{"error":{"type":"string","minLength":1},"code":{"const":"VALIDATION_ERROR"},"details":{"type":"array","items":{"type":"object","required":["path","message"]}}}};
+      pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));
+      pm.test('details aponta deviceSequence', () => pm.expect(JSON.stringify(pm.response.json().details || [])).to.include('deviceSequence'));
+    language: text/javascript
+examples: ./.resources/Sequência inválida (0).resources/examples
+order: 4000

@@ -1,0 +1,5 @@
+# Postman em modo Git (Local View): abra a RAIZ do repositório no Postman.
+# Tudo em postman/ (coleção v3 em YAML e environments) é registrado automaticamente.
+# Guia: docs/conventions/api-testing.md
+workspace:
+  id: ""

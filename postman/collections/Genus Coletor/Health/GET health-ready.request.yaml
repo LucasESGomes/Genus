@@ -1,0 +1,17 @@
+$kind: http-request
+name: GET /health/ready
+description: "Prontidão para receber tráfego: 200 se o Postgres responde; 503 caso contrário. A engine NÃO entra no ready (sem ela a API ainda responde `fallback_required`). Não exige chave."
+url: "{{baseUrl}}/health/ready"
+method: GET
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const schema = {"type":"object","required":["data"],"properties":{"data":{"type":"object","required":["ready"],"properties":{"ready":{"type":"boolean"}}}}};
+      pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));
+      pm.test('ready é true', () => pm.expect(pm.response.json().data.ready).to.eql(true));
+    language: text/javascript
+examples: './.resources/GET health-ready.resources/examples'
+order: 2000

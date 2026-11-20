@@ -1,0 +1,32 @@
+$kind: http-request
+description: |-
+  Batida com uma foto real que a engine nunca viu (`dev-data/probes/proxima-batida.jpg`, gerada por `pnpm dev:enroll-fake`). Com a galeria carregada, o esperado é `registered`. `fallback_required` também passa nos testes, mas o `reason` diz o que houve: `not_recognized` (rosto fora da galeria ou limiar), `liveness_failed` (prova de vida reprovou a foto), `no_face`, `engine_degraded` (liveness desligado na engine).
+url: '{{baseUrl}}/coletor/batidas'
+method: POST
+body:
+  type: formdata
+  content:
+    - type: file
+      key: image
+      src: 'dev-data/probes/proxima-batida.jpg'
+    - type: text
+      key: deviceSequence
+      value: '{{deviceSequence}}'
+    - type: text
+      key: capturedAt
+      value: '{{capturedAt}}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200 (nunca bloqueia a marcação)', () => pm.response.to.have.status(200));
+      const data = pm.response.json().data;
+      pm.test('registered ou fallback_required', () => pm.expect(['registered', 'fallback_required']).to.include(data.outcome));
+      if (data.outcome === 'registered') {
+        pm.test('receiptId é UUID', () => pm.expect(data.receiptId).to.match(/^[0-9a-f-]{36}$/i));
+        console.log('Registrada. receiptId:', data.receiptId, 'avisos:', JSON.stringify(data.warnings));
+      } else {
+        console.log('Fallback:', data.reason);
+      }
+    language: text/javascript
+examples: './.resources/Batida com seu rosto.resources/examples'
+order: 1000

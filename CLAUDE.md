@@ -19,7 +19,8 @@ apps/collector-api/     API do coletor (Fastify). Existe: primeira entrega, POST
 packages/shared/        Contratos Zod, Clock, logger e cripto, compartilhados entre os apps. Existe
 db/arp/                 Migrations SQL do banco arp (fiscal) e o executor (pnpm db:migrate:arp)
 infra/                  Compose local: Postgres (bancos arp e app) e face-engine
-postman/                Coleção e ambientes da API. Ver docs/conventions/api-testing.md
+postman/                Coleção da API em YAML (Postman v3, um request por arquivo) e environments. Ver docs/conventions/api-testing.md
+dev-data/               (fora do Git) fotos de teste, galeria de candidatos e probes. Nunca versionar
 docs/
   architecture/         01 contexto e Portaria · 02 arquitetura · 03 funcionalidades e modos · 04 funcionalidades de RH · diagramas
   conventions/          database.md · backend.md · security-lgpd.md · api-testing.md
@@ -170,14 +171,15 @@ python bench.py init | set-url | check | capture | enroll | gen | micro | seq | 
 ```
 
 ```bash
-# API do coletor (da raiz do repositório). Node 24 (.nvmrc), pnpm 10 e Docker. Passo a passo: docs/desenvolvimento.md
+# API do coletor (da raiz do repositório). Node 24 (.nvmrc), pnpm 10, Docker e Postman CLI. Passo a passo: docs/desenvolvimento.md
 pnpm install
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d postgres   # com a engine: acrescente --profile dev
+pnpm dev:up                          # cria os .env (setup:dev), sobe Postgres + engine e aplica a migration
+pnpm dev                             # api em http://localhost:3001; Swagger em /docs (só APP_ENV=dev e só localhost)
+pnpm dev:enroll-fake                 # galeria: dev-data/faces/<pessoa>/ (3 fotos sorteadas) + 50 candidatos fictícios
+pnpm dev:punch                       # uma batida com uma foto de dev-data/probes/
 pnpm db:migrate:arp [-- --env prod]  # lê ARP_MIGRATION_DATABASE_URL de apps/collector-api/.env.<ambiente>
-pnpm dev                             # api com apps/collector-api/.env.dev
-pnpm dev:enroll-fake                 # galeria fictícia a partir de dev-data/faces/
 pnpm -r typecheck && pnpm -r lint && pnpm -r test   # o teste exige Docker (Testcontainers)
-pnpm postman:test                    # Newman; -- --real-engine usa a engine real
+pnpm postman:test                    # Postman CLI na coleção YAML; -- --real-engine usa a engine real
 pnpm bench:punch -- --n 50 --concurrency 4 [--image caminho]
 ```
 

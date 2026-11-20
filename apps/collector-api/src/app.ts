@@ -9,6 +9,7 @@ import type { Pool } from 'pg';
 import { healthRoutes } from './modules/health/routes';
 import { punchRoutes } from './modules/punches/routes';
 import type { PunchService } from './modules/punches/service';
+import { registerApiDocs } from './plugins/api-docs';
 import { registerErrorHandling } from './plugins/error-handler';
 import { registerServiceKeyAuth } from './plugins/service-key-auth';
 
@@ -21,6 +22,8 @@ export interface AppDeps {
   serviceKeys: string[];
   maxImageBytes: number;
   exposeTimings: boolean;
+  /** Swagger em /docs. Só true com APP_ENV=dev; mesmo assim só atende 127.0.0.1/::1. */
+  apiDocs?: boolean;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
@@ -44,6 +47,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       parts: 20,
     },
   });
+
+  // Antes das rotas: o @fastify/swagger coleta as rotas registradas depois dele.
+  if (deps.apiDocs) await registerApiDocs(app);
 
   await app.register(healthRoutes, { pool: deps.pool, engine: deps.engine });
 

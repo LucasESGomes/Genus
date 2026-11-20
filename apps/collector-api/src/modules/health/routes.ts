@@ -36,7 +36,17 @@ export const healthRoutes: FastifyPluginAsync<HealthRoutesOptions> = async (scop
   const dbTimeout = opts.databaseTimeoutMs ?? 2000;
   const app = scope.withTypeProvider<ZodTypeProvider>();
 
-  app.get('/health', { schema: { response: { 200: healthResponseSchema } } }, async () => {
+  app.get(
+    '/health',
+    {
+      schema: {
+        tags: ['Saúde'],
+        summary: 'Estado da api, do Postgres e da engine',
+        description: 'Sempre 200 enquanto o processo responde. `status` é o pior estado entre as dependências. A engine `degraded` (liveness desligado) faz as batidas responderem `fallback_required`.',
+        response: { 200: healthResponseSchema },
+      },
+    },
+    async () => {
     const [database, engine] = await Promise.all([
       checkDatabase(opts.pool, dbTimeout),
       opts.engine.health().catch((): DependencyStatus => 'down'),
@@ -51,7 +61,14 @@ export const healthRoutes: FastifyPluginAsync<HealthRoutesOptions> = async (scop
   // A engine não entra: sem ela a API ainda responde `fallback_required`.
   app.get(
     '/health/ready',
-    { schema: { response: { 200: readyResponseSchema, 503: readyResponseSchema } } },
+    {
+      schema: {
+        tags: ['Saúde'],
+        summary: 'Pronta para receber batidas (Postgres responde)',
+        description: '200 se o Postgres responde, 503 se não. A engine não entra: sem ela a api ainda responde `fallback_required`.',
+        response: { 200: readyResponseSchema, 503: readyResponseSchema },
+      },
+    },
     async (_req, reply) => {
       const ready = (await checkDatabase(opts.pool, dbTimeout)) === 'ok';
       return reply.code(ready ? 200 : 503).send({ data: { ready } });

@@ -50,6 +50,7 @@ export function createContainer(
   const candidateProvider = new FakeCandidateProvider({
     masterKeyHex: env.masterKey,
     count: env.fakeCandidatesCount,
+    tenantId: String(env.devTenantId),
     galleryPath: env.devGalleryPath ? path.resolve(APP_ROOT, env.devGalleryPath) : undefined,
     logger,
   });
@@ -89,6 +90,8 @@ export function createContainer(
       serviceKeys: env.serviceKeys,
       maxImageBytes: env.maxImageBytes,
       exposeTimings: env.exposeTimings,
+      // Swagger só em dev (e só para 127.0.0.1/::1, ver plugins/api-docs.ts).
+      apiDocs: env.appEnv === 'dev',
     },
     close: () => pool.end(),
   };

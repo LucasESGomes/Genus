@@ -13,7 +13,7 @@ import {
   type DeviceContext,
 } from '@genus/shared';
 import { isValidCpf } from '../src/candidates/cpf';
-import { FakeCandidateProvider, randomUnitVector, type GalleryFile } from '../src/candidates/fake-candidate-provider';
+import { deriveDevDek, FakeCandidateProvider, randomUnitVector, type GalleryFile } from '../src/candidates/fake-candidate-provider';
 
 const logger = createLogger({ level: 'silent', service: 'test' });
 const MASTER = randomBytes(32).toString('hex');
@@ -78,5 +78,25 @@ describe('FakeCandidateProvider', () => {
       masterKeyHex: MASTER, count: 3, galleryPath: path.join(tmp, 'nao-existe.json'), logger,
     }).getCandidates(ctx);
     expect(set.candidates).toHaveLength(3);
+  });
+});
+
+describe('DEK de dev estável (engine guarda a DEK por tenant em cache por 1 h)', () => {
+  it('sem galeria, dois starts da api usam a MESMA DEK: embeddings de um start decifram com a do outro', async () => {
+    const a = await new FakeCandidateProvider({ masterKeyHex: MASTER, count: 3, logger }).getCandidates(ctx);
+    const b = await new FakeCandidateProvider({ masterKeyHex: MASTER, count: 3, logger }).getCandidates(ctx);
+    const dekA = decryptDek(a.tenantDek, MASTER);
+    const dekB = decryptDek(b.tenantDek, MASTER);
+    expect(dekA.equals(dekB)).toBe(true);
+    expect(dekA.equals(deriveDevDek(MASTER, '1'))).toBe(true);
+    const first = b.candidates[0];
+    expect(first).toBeDefined();
+    expect(decryptEmbedding(first!.embedding, dekA)).toHaveLength(512);
+  });
+
+  it('a DEK derivada muda com a conta e com a MASTER_KEY', () => {
+    expect(deriveDevDek(MASTER, '1').equals(deriveDevDek(MASTER, '2'))).toBe(false);
+    expect(deriveDevDek(MASTER, '1').equals(deriveDevDek(randomBytes(32).toString('hex'), '1'))).toBe(false);
+    expect(deriveDevDek(MASTER, '1')).toHaveLength(32);
   });
 });

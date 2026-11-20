@@ -1,0 +1,24 @@
+$kind: http-example
+request:
+  url: "{{baseUrl}}/coletor/batidas"
+  method: POST
+response:
+  statusCode: 400
+  statusText: Bad Request
+  headers:
+    Content-Type: application/json; charset=utf-8
+    Server-Timing: validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5
+  body:
+    type: json
+    content: |-
+      {
+        "error": "Requisição inválida",
+        "code": "VALIDATION_ERROR",
+        "details": [
+          {
+            "path": "deviceSequence",
+            "message": "deviceSequence deve ser maior que zero"
+          }
+        ]
+      }
+order: 1000

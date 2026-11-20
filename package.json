@@ -14,7 +14,10 @@
     "db:migrate:arp": "pnpm --filter @genus/db-arp migrate",
     "dev:enroll-fake": "pnpm --filter @genus/collector-api dev:enroll-fake",
     "postman:test": "pnpm --filter @genus/collector-api postman:test",
-    "bench:punch": "pnpm --filter @genus/collector-api bench:punch"
+    "bench:punch": "pnpm --filter @genus/collector-api bench:punch",
+    "setup:dev": "node scripts/setup-dev.mjs",
+    "dev:up": "node scripts/dev-up.mjs",
+    "dev:punch": "pnpm --filter @genus/collector-api dev:punch"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

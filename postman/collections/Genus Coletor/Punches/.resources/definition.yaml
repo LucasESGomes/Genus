@@ -1,0 +1,6 @@
+$kind: collection
+description: |-
+  POST /coletor/batidas. Regra: o sistema NUNCA bloqueia uma marcação; falha de reconhecimento vira 200 `fallback_required`; duplicidade e hora divergente são warnings e a batida é registrada.
+
+  Modos de execução: com `stubControlUrl` definido (runner local `pnpm postman:test`, stub da engine) os testes são ESTRITOS e o pre-request ajusta o resultado do stub. Sem `stubControlUrl` (engine real), os testes de batida aceitam `registered` OU `fallback_required` e validam o schema do que vier.
+order: 2000

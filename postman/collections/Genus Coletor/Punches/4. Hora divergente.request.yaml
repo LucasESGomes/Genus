@@ -1,0 +1,46 @@
+$kind: http-request
+description: "`capturedAt` 5 minutos no passado (variável `capturedAtPast`): o relógio do aparelho está fora da tolerância (30 s). A batida é registrada com o horário do servidor em `markedAt` (diferente de `capturedAt`) e o warning `clock_divergence`. Engine real que não reconhecer o rosto: aceita `fallback_required`."
+url: "{{baseUrl}}/coletor/batidas"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: file
+      key: image
+      src: 'postman/fixtures/synthetic.png'
+    - type: text
+      key: deviceSequence
+      value: "{{deviceSequence}}"
+    - type: text
+      key: capturedAt
+      value: "{{capturedAtPast}}"
+scripts:
+  - type: beforeRequest
+    code: |-
+      // Controle opcional do stub da engine (so existe no runner local: stubControlUrl definido).
+      const stubUrl = pm.variables.get('stubControlUrl');
+      if (stubUrl) {
+        pm.sendRequest({
+          url: stubUrl + '/__control/behavior', method: 'POST',
+          header: { 'Content-Type': 'application/json' },
+          body: { mode: 'raw', raw: JSON.stringify({"status":"identified"}) },
+        }, (err) => { if (err) { console.error('Falha ao ajustar o stub da engine'); } });
+      }
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      // Modo estrito (stubControlUrl definido, stub da engine controlado pelo runner) ou tolerante (engine real).
+      const strict = !!pm.variables.get('stubControlUrl');
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const schema = {"type":"object","required":["data"],"additionalProperties":false,"properties":{"data":{"oneOf":[{"type":"object","required":["receiptId","outcome","markedAt","warnings"],"additionalProperties":false,"properties":{"receiptId":{"type":"string","pattern":"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"},"outcome":{"const":"registered"},"markedAt":{"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"},"warnings":{"type":"array","items":{"enum":["clock_divergence","possible_duplicate"]}}}},{"type":"object","required":["outcome","reason","warnings"],"additionalProperties":false,"properties":{"outcome":{"const":"fallback_required"},"reason":{"enum":["not_recognized","liveness_failed","no_face","multiple_faces","engine_unavailable","engine_degraded","too_many_candidates"]},"warnings":{"type":"array","items":{"enum":["clock_divergence","possible_duplicate"]}}}}]},"meta":{"type":"object","required":["timings"],"properties":{"timings":{"type":"object","required":["validate","total"],"properties":{"validate":{"type":"number"},"candidates":{"type":["number","null"]},"engineRoundTrip":{"type":["number","null"]},"engineProcessing":{"type":["number","null"]},"engineStages":{"type":["object","null"],"additionalProperties":{"type":"number"}},"dbInsert":{"type":["number","null"]},"total":{"type":"number"}}}}}}};
+      pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));
+      const punch = pm.response.json().data;
+      if (punch.outcome === 'registered') {
+        pm.test('Warning clock_divergence presente', () => pm.expect(punch.warnings).to.include('clock_divergence'));
+        pm.test('markedAt difere de capturedAt', () => pm.expect(punch.markedAt).to.not.eql(pm.collectionVariables.get('capturedAtPast')));
+      } else {
+        pm.test('Engine real não reconheceu: fallback_required', () => { pm.expect(strict).to.eql(false); pm.expect(punch.outcome).to.eql('fallback_required'); });
+      }
+    language: text/javascript
+examples: ./.resources/4. Hora divergente.resources/examples
+order: 4000

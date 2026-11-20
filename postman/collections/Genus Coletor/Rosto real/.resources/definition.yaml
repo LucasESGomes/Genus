@@ -1,0 +1,12 @@
+$kind: collection
+description: |-
+  Teste MANUAL com a engine real e um rosto cadastrado. Fica fora do `pnpm postman:test` (depende das suas fotos, que nunca vão ao Git).
+
+  Preparação, uma vez:
+  1. `pnpm dev:up` (Postgres + engine) e `pnpm dev` (api).
+  2. Suas fotos em `dev-data/faces/<seu-nome>/` e `pnpm dev:enroll-fake`: sorteia 3 fotos para o embedding, cria 50 candidatos fictícios e copia uma foto NÃO usada no cadastro para `dev-data/probes/proxima-batida.jpg`.
+  3. Reinicie a api para ela carregar a galeria.
+  4. No Postman, a Working Directory precisa ser a raiz do repositório (Settings > General > Working directory), porque o arquivo é `dev-data/probes/proxima-batida.jpg`.
+
+  Esperado: `registered` com `receiptId`. Mande de novo e a segunda batida vem com o aviso `possible_duplicate` (mesma pessoa em menos de 60 s), e continua registrada.
+order: 5000

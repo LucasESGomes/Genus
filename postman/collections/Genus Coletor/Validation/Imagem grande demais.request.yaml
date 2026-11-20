@@ -1,0 +1,25 @@
+$kind: http-request
+description: "Imagem de 1,2 MB (limite `MAX_IMAGE_BYTES` = 1 MB): 413 `IMAGE_TOO_LARGE`. O arquivo `too-large.jpg` é gerado por `postman/fixtures/generate.mjs` (o runner `pnpm postman:test` gera antes de rodar); não é versionado."
+url: "{{baseUrl}}/coletor/batidas"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: file
+      key: image
+      src: 'postman/fixtures/too-large.jpg'
+    - type: text
+      key: deviceSequence
+      value: "{{deviceSequence}}"
+    - type: text
+      key: capturedAt
+      value: "{{capturedAt}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 413', () => pm.response.to.have.status(413));
+      const schema = {"type":"object","required":["error","code"],"properties":{"error":{"type":"string","minLength":1},"code":{"const":"IMAGE_TOO_LARGE"},"details":{"type":"array","items":{"type":"object","required":["path","message"]}}}};
+      pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));
+    language: text/javascript
+examples: ./.resources/Imagem grande demais.resources/examples
+order: 3000

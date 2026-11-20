@@ -1,0 +1,22 @@
+$kind: http-example
+request:
+  url: "{{baseUrl}}/coletor/batidas"
+  method: POST
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json; charset=utf-8
+    Server-Timing: validate;dur=1.2, candidates;dur=0.4, engine;dur=70.1, engine-processing;dur=49, db;dur=3.2, total;dur=81.5
+  body:
+    type: json
+    content: |-
+      {
+        "data": {
+          "receiptId": "3f1c2b9a-6a52-4d52-9f55-1d1f1e0c7a10",
+          "outcome": "registered",
+          "markedAt": "2026-11-18T12:00:00.000Z",
+          "warnings": []
+        }
+      }
+order: 1000

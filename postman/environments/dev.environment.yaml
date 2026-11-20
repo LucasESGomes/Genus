@@ -1,0 +1,22 @@
+name: Genus Coletor · dev
+values:
+  - key: baseUrl
+    value: 'http://localhost:3001'
+    enabled: true
+    type: default
+    description: 'api do coletor local (pnpm dev, porta 3001).'
+  - key: serviceKey
+    value: ''
+    enabled: true
+    type: secret
+    description: 'Chave de serviço (header X-Service-Key): uma das COLLECTOR_SERVICE_KEYS. Preencha só o valor atual no Postman; nunca versionar.'
+  - key: maxResponseMs
+    value: '2000'
+    enabled: true
+    type: default
+    description: Teto (ms) do teste de tempo de resposta.
+  - key: stubControlUrl
+    value: ''
+    enabled: true
+    type: default
+    description: Só no runner local (pnpm postman:test, stub da engine). Deixe vazio com a engine real.

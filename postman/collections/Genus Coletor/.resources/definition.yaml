@@ -1,0 +1,51 @@
+$kind: collection
+name: Genus - API do Coletor
+description: |-
+  Coleção da api do coletor (`POST /coletor/batidas`, `GET /health`, `GET /health/ready`).
+
+  **Como usar**
+  1. Escolha o environment (dev, homolog ou prod) e preencha `serviceKey` (secret; nunca commitar). Para trocar de ambiente basta trocar o environment.
+  2. `deviceSequence` e `capturedAt` são gerados automaticamente a cada request (pre-request da coleção).
+  3. As imagens sintéticas ficam em `postman/fixtures/` e os caminhos dos arquivos são relativos à RAIZ do repositório: no Postman, Settings > General > Working directory = a pasta do repositório. `too-large.jpg` (> 1 MB) não é versionada: gere com `node postman/fixtures/generate.mjs`.
+  4. Linha de comando (Postman CLI): `pnpm postman:test` (sobe stub da engine e a api local) ou `pnpm postman:test -- --real-engine`.
+  5. Rosto real: pasta **Rosto real** (manual), depois de `pnpm dev:enroll-fake`.
+
+  **Modos dos testes de batida:** com `stubControlUrl` (runner local) os testes são estritos; sem ele (engine real) aceitam `registered` ou `fallback_required` e validam o schema.
+
+  Regras: o sistema nunca bloqueia marcação; fallback é 200 `fallback_required`; duplicidade e hora divergente são warnings.
+variables:
+  deviceSequence: ""
+  seqCounter: ""
+  firstSequence: ""
+  firstReceiptId: ""
+  capturedAt: ""
+  capturedAtPast: ""
+scripts:
+  - type: http:beforeRequest
+    code: |-
+      // deviceSequence: crescente e único entre execuções (ms desde a época * 1000 + contador).
+      const counter = (Number(pm.collectionVariables.get('seqCounter')) || 0) + 1;
+      pm.collectionVariables.set('seqCounter', String(counter));
+      pm.collectionVariables.set('deviceSequence', String(Date.now() * 1000 + (counter % 1000)));
+      pm.collectionVariables.set('capturedAt', new Date().toISOString());
+      pm.collectionVariables.set('capturedAtPast', new Date(Date.now() - 5 * 60 * 1000).toISOString());
+    language: text/javascript
+  - type: http:afterResponse
+    code: |-
+      const isPunch = pm.request.url.getPath().endsWith('/coletor/batidas');
+      pm.test('Corpo é JSON', () => pm.expect(() => pm.response.json()).to.not.throw());
+      // 401 é recusado antes da rota, por isso não traz Server-Timing.
+      if (isPunch && pm.response.code !== 401) {
+        pm.test('Header Server-Timing presente', () => pm.expect(pm.response.headers.has('Server-Timing')).to.eql(true));
+      }
+      const maxMs = Number(pm.environment.get('maxResponseMs')) || 2000;
+      pm.test('Tempo de resposta abaixo de ' + maxMs + ' ms', () => pm.expect(pm.response.responseTime).to.be.below(maxMs));
+    language: text/javascript
+auth:
+  - id: ee00e0dc-0e24-4cab-b4bf-1815ef3d628b
+    type: apikey
+    name: apikey auth
+    credentials:
+      key: X-Service-Key
+      value: "{{serviceKey}}"
+      in: header

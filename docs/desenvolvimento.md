@@ -11,39 +11,54 @@
 | Node.js | **24 LTS**, conforme `.nvmrc` (`24.14.1`) | Com `nvm`: `nvm use` |
 | pnpm | **10** | `package.json` fixa a versão em `packageManager` (pnpm 10.20.0). Use `corepack enable` |
 | Docker | Recente, com Compose v2 | Obrigatório para o banco, a engine e os testes (Testcontainers) |
+| Postman CLI | Recente (comando `postman`) | Só para `pnpm postman:test`. [Instalação](https://learning.postman.com/docs/postman-cli/postman-cli-installation/) |
 
-## 2. Primeira vez
-
-### 2.1 Copiar os arquivos de ambiente
+## 2. Começo rápido (do zero a uma batida reconhecida)
 
 ```bash
-cp infra/.env.example infra/.env
-cp apps/collector-api/.env.dev.example apps/collector-api/.env.dev
+pnpm install
+pnpm dev:up        # cria os .env com segredos, sobe Postgres + engine e aplica a migration
+pnpm dev           # sobe a api em http://localhost:3001 (deixe este terminal aberto)
 ```
 
-Esses arquivos ficam fora do Git (`.env`, `.env.*`). Nunca os versione.
+Em outro terminal:
 
-### 2.2 Gerar os segredos
+```bash
+# suas fotos: uma pasta por pessoa (dev-data/ nunca vai ao Git)
+#   dev-data/faces/<seu-nome>/1.jpg, 2.jpg, ...
+pnpm dev:enroll-fake   # embedding de 3 fotos sorteadas + 50 candidatos fictícios
+# reinicie o pnpm dev (Ctrl+C e de novo) para a api carregar a galeria
+pnpm dev:punch         # uma batida com uma foto que a engine nunca viu
+```
 
-| Segredo | Onde entra | Tamanho | Comando |
-|---|---|---|---|
-| `MASTER_KEY` | `infra/.env` **e** `apps/collector-api/.env.dev` | 64 hex (32 bytes) | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-| `ENGINE_API_KEY` | `infra/.env` **e** `apps/collector-api/.env.dev` | 32 caracteres ou mais | `node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"` |
-| `COLLECTOR_SERVICE_KEYS` | `apps/collector-api/.env.dev` (lista separada por vírgula) | 32 caracteres ou mais, cada uma | o mesmo comando acima |
-| Senhas dos papéis do Postgres | `infra/.env` (`ARP_OWNER_PASSWORD`, `ARP_COLLECTOR_PASSWORD`) e nas URLs de `.env.dev` | à sua escolha | o mesmo comando acima |
+Esperado no `dev:punch`: `HTTP 200`, `"outcome": "registered"` e um `receiptId`. Repita e a segunda vem com o aviso `possible_duplicate` (mesma pessoa em menos de 60 s), ainda registrada. A batida fica em `arp.entradas` como `pendente`.
 
-Regras:
+| Comando | O que faz |
+|---|---|
+| `pnpm setup:dev` | Cria `infra/.env` e `apps/collector-api/.env.dev` com segredos gerados e coerentes entre si (mesma `MASTER_KEY` e `ENGINE_API_KEY`, senhas dos papéis nas URLs). Se já existem, só completa o que falta. Não imprime nenhum valor |
+| `pnpm dev:up` | `setup:dev` + `docker compose ... --profile dev up -d --wait` + `pnpm db:migrate:arp`. A primeira vez baixa os modelos da engine (alguns minutos) |
+| `pnpm dev` | Api do coletor com `apps/collector-api/.env.dev`, recarrega ao salvar |
+| `pnpm dev:enroll-fake` | Galeria `dev-data/gallery.json`: cada subpasta de `dev-data/faces/` é uma pessoa; sorteia `--photos` fotos (padrão 3) para a engine gerar o embedding cifrado; cria `--fakes` candidatos fictícios (padrão 50). As fotos não sorteadas vão para `dev-data/probes/<pessoa>/` (para testar) e uma delas para `dev-data/probes/proxima-batida.jpg` (usada pelo Postman) |
+| `pnpm dev:punch` | Uma batida contra a api rodando. Opções: `--image <arquivo>`, `--sequence N` (repetir a mesma = teste de idempotência), `--captured-at <ISO>` |
 
-- **`MASTER_KEY` e `ENGINE_API_KEY` têm que ser iguais** nos dois arquivos. A engine e a api usam os mesmos valores.
-- A senha do `POSTGRES_PASSWORD` do superusuário vai só em `infra/.env`.
-- As senhas de `arp_owner` e `arp_collector` entram nas URLs de conexão:
-  - `ARP_MIGRATION_DATABASE_URL` usa `ARP_OWNER_PASSWORD`.
-  - `ARP_DATABASE_URL` usa `ARP_COLLECTOR_PASSWORD`.
-  - O comando com `base64url` gera só letras, números, `-` e `_`, que não precisam de escape na URL. Se usar outra senha, codifique-a (percent-encoding).
+Exemplos:
 
-### 2.3 Conferir
+```bash
+pnpm dev:enroll-fake -- --photos 5 --fakes 100
+pnpm dev:punch -- --image dev-data/probes/otavio/5.jpg
+pnpm dev:punch -- --sequence 42     # rode duas vezes: mesmo receiptId, sem linha nova
+```
 
-Antes de subir, confira que nenhum valor ainda começa com `TROQUE_`. A api valida `MASTER_KEY` (64 hex) no start e não sobe com o placeholder. A engine também valida essa chave no start.
+**Por que a DEK de dev é fixa:** a engine guarda a DEK de cada conta em cache por 1 h e, enquanto isso, ignora a DEK enviada. Por isso a DEK de dev é derivada da `MASTER_KEY` (sempre a mesma), e o `dev:enroll-fake` invalida o cache de embeddings da engine para cada pessoa gravada. Em produção cada conta tem DEK aleatória em `chaves_conta`.
+
+### 2.1 Configuração manual (se não quiser o `setup:dev`)
+
+Copie `infra/.env.example` → `infra/.env` e `apps/collector-api/.env.dev.example` → `apps/collector-api/.env.dev`, e troque todo `TROQUE_` (a api recusa subir com placeholder):
+
+- `MASTER_KEY`: 64 hex (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`), **igual** nos dois arquivos.
+- `ENGINE_API_KEY`: igual nos dois arquivos.
+- `COLLECTOR_SERVICE_KEYS`: uma ou mais chaves (≥ 32 caracteres), separadas por vírgula.
+- `ARP_OWNER_PASSWORD` e `ARP_COLLECTOR_PASSWORD` entram nas URLs `ARP_MIGRATION_DATABASE_URL` e `ARP_DATABASE_URL`, com a porta `POSTGRES_PORT`.
 
 ## 3. Subir o banco e a engine
 
@@ -91,15 +106,17 @@ A migration aplicada não muda mais. Nova alteração de banco vira uma nova mig
 pnpm dev
 ```
 
-O script `dev` lê `apps/collector-api/.env.dev`. Ele recarrega ao salvar um arquivo. A api sobe na porta `PORT` (3001 no exemplo).
+O script `dev` lê `apps/collector-api/.env.dev` e recarrega ao salvar. A api sobe na porta `PORT` (3001).
 
-Teste rápido:
+| Endereço | O que é |
+|---|---|
+| `http://localhost:3001/health` | Estado da api, do banco e da engine (sem chave) |
+| `http://localhost:3001/docs` | **Swagger** (OpenAPI 3) com todas as rotas, o corpo multipart da batida, os erros e a chave `X-Service-Key` (botão Authorize) |
+| `http://localhost:3001/docs/json` | O documento OpenAPI em JSON |
 
-```bash
-curl http://localhost:3001/health
-```
+O Swagger **não é público**: só existe com `APP_ENV=dev` (em homolog e prod as rotas nem são montadas) e, mesmo em dev, só responde a chamadas da própria máquina (127.0.0.1/::1). De outra máquina, 404.
 
-`GET /health` devolve o estado da api, do banco e da engine. Se a engine estiver fora, a api continua no ar e responde `fallback_required` para as batidas. Isso é esperado.
+Se a engine estiver fora, a api continua no ar e responde `fallback_required` para as batidas. Isso é esperado.
 
 ## 6. Testes e verificações
 
@@ -113,29 +130,25 @@ pnpm -r test
 
 ## 7. Postman
 
-A coleção testa a API do coletor. Veja o guia completo em [`conventions/api-testing.md`](conventions/api-testing.md).
+A coleção está em YAML (Postman Collection v3) em `postman/collections/Genus Coletor/`, com os environments em `postman/environments/*.environment.yaml`. Guia completo: [`conventions/api-testing.md`](conventions/api-testing.md).
 
 ```bash
-pnpm postman:test                    # sobe o stub da engine e a api, roda no environment dev
-pnpm postman:test -- --real-engine   # usa a engine real (suba com --profile dev antes)
+pnpm postman:test                    # Postman CLI: sobe o stub da engine e a api, roda as pastas automáticas
+pnpm postman:test -- --real-engine   # com a engine real (pnpm dev:up antes)
 ```
 
-Importe no Postman a coleção `postman/genus-collector.postman_collection.json` e o environment `postman/environments/dev.postman_environment.json`. Preencha `serviceKey` só no valor atual do environment, nunca no arquivo.
+No Postman: abra a **pasta do repositório** (o `.postman/resources.yaml` registra a coleção e os environments), ponha a Working directory na raiz do repositório, escolha o environment `dev` e preencha `serviceKey` com a primeira chave de `COLLECTOR_SERVICE_KEYS` do `.env.dev`. A pasta **Rosto real** faz uma batida com a sua foto.
 
-## 8. Benchmark e dados de teste
+## 8. Benchmark
 
 ```bash
-pnpm bench:punch -- --n 50 --concurrency 4                  # imagem sintética
-pnpm bench:punch -- --n 50 --concurrency 4 --image caminho  # foto real
+pnpm bench:punch -- --n 50 --concurrency 4                                       # imagem sintética
+pnpm bench:punch -- --n 50 --concurrency 4 --image dev-data/probes/<pessoa>/<foto>.jpg   # rosto real
 ```
 
-- Sem `--image`, o script usa uma imagem sintética. Ela mede só a etapa de **detecção**. Não mede o reconhecimento.
-- Para o pipeline completo (detecção, liveness e comparação com candidatos):
-  1. Coloque uma foto por pessoa em `dev-data/faces/` (um arquivo por pessoa).
-  2. Rode `pnpm dev:enroll-fake`. Ele gera a galeria em `dev-data/gallery.json`, que a api usa como candidatos.
-  3. Rode o benchmark com `--image` apontando para uma foto de alguém cadastrado.
-- **`dev-data/` nunca vai ao Git.** Ela tem rostos e embeddings. Já está no `.gitignore`. Não copie essas fotos para outras pastas do repositório.
-- Os resultados do benchmark ficam fora do Git, como em `bench/` (ver `docs/benchmark.md`).
+- Sem `--image`, a imagem é sintética: mede só decodificação e **detecção** (a engine para em `no_face`).
+- Com uma foto de `dev-data/probes/` (depois do `dev:enroll-fake`), mede o pipeline completo: detecção, liveness, embedding e comparação com os candidatos.
+- **`dev-data/` nunca vai ao Git.** Tem rostos e embeddings. Não copie essas fotos para outras pastas do repositório.
 
 ## 9. Trocar de ambiente
 

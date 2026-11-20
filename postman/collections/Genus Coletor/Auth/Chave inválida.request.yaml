@@ -1,0 +1,30 @@
+$kind: http-request
+description: "Chave que não consta em `COLLECTOR_SERVICE_KEYS`: 401 `UNAUTHORIZED`."
+url: "{{baseUrl}}/coletor/batidas"
+method: POST
+headers:
+  X-Service-Key: chave-invalida-de-teste
+body:
+  type: formdata
+  content:
+    - type: file
+      key: image
+      src: 'postman/fixtures/synthetic.png'
+    - type: text
+      key: deviceSequence
+      value: "{{deviceSequence}}"
+    - type: text
+      key: capturedAt
+      value: "{{capturedAt}}"
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 401', () => pm.response.to.have.status(401));
+      const schema = {"type":"object","required":["error","code"],"properties":{"error":{"type":"string","minLength":1},"code":{"const":"UNAUTHORIZED"},"details":{"type":"array","items":{"type":"object","required":["path","message"]}}}};
+      pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));
+      pm.test('Mensagem em pt-BR', () => pm.expect(pm.response.json().error).to.eql('Não autorizado'));
+    language: text/javascript
+examples: ./.resources/Chave inválida.resources/examples
+order: 2000

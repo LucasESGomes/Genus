@@ -2,14 +2,13 @@
  * Candidatos provisórios (desenvolvimento e homologação). Candidatos SEMPRE vêm
  * do servidor, nunca do corpo da requisição.
  */
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import {
   decryptDek,
   decryptEmbedding,
   encryptDek,
   encryptEmbedding,
-  generateDek,
   l2Normalize,
   maskCpf,
   type Candidate,
@@ -51,6 +50,26 @@ const FAKE_NAMES = [
   'Karina Lopes', 'Lucas Ribeiro', 'Marina Faria', 'Nelson Teixeira', 'Olívia Barros',
   'Paulo Moreira', 'Queila Freitas', 'Rafael Gomes', 'Sabrina Castro', 'Thiago Martins',
 ];
+const FAKE_SURNAMES = ['Souza', 'Lima', 'Mendes', 'Alves', 'Rocha', 'Nunes', 'Dias', 'Costa', 'Prado', 'Pereira'];
+
+/**
+ * DEK de desenvolvimento ESTÁVEL por conta, derivada da MASTER_KEY.
+ * Motivo: a engine guarda a DEK por tenant em cache por 1 h e, enquanto o cache
+ * vale, IGNORA a DEK enviada na requisição. Uma DEK aleatória a cada start da
+ * api (ou a cada cadastro) deixaria embeddings cifrados com uma DEK e a engine
+ * decifrando com outra: InvalidTag. Só para dev/homolog; em produção a DEK de
+ * cada conta é aleatória e fica em `chaves_conta` (banco app).
+ */
+export function deriveDevDek(masterKeyHex: string, tenantId: string): Buffer {
+  return createHmac('sha256', Buffer.from(masterKeyHex, 'hex')).update(`genus/dev-dek/v1/${tenantId}`).digest();
+}
+
+/** Nome fictício determinístico (nome + sobrenome) para o candidato `i` (1..N). */
+export function fakeName(i: number): string {
+  const first = FAKE_NAMES[(i - 1) % FAKE_NAMES.length] ?? 'Pessoa';
+  const last = FAKE_SURNAMES[Math.floor((i - 1) / FAKE_NAMES.length) % FAKE_SURNAMES.length] ?? '';
+  return `${first.split(' ')[0]} ${last}`.trim();
+}
 
 /** Vetor aleatório de 512 dimensões, norma L2 = 1 (embedding sintético). */
 export function randomUnitVector(): Float32Array {
@@ -68,6 +87,8 @@ export interface FakeCandidateProviderOptions {
   masterKeyHex: string;
   count?: number;
   galleryPath?: string;
+  /** Conta (tenant) da DEK de dev derivada. Padrão '1'. */
+  tenantId?: string;
   logger: Logger;
 }
 
@@ -94,17 +115,18 @@ export class FakeCandidateProvider implements CandidateProvider {
       for (const p of gallery.people) candidates.push({ ...p });
       opts.logger.info({ real: candidates.length }, 'candidatos: galeria de dev carregada');
     } else {
-      dek = generateDek();
+      dek = deriveDevDek(opts.masterKeyHex, opts.tenantId ?? '1');
       tenantDek = encryptDek(dek, opts.masterKeyHex);
     }
 
     const realCount = candidates.length;
+    const usedIds = new Set(candidates.map((c) => c.employeeId));
     for (let i = 1; candidates.length < count; i++) {
-      const cpf = generateFakeCpf(i);
+      if (usedIds.has(i)) continue;
       candidates.push({
         employeeId: i,
-        cpf,
-        displayName: FAKE_NAMES[(i - 1) % FAKE_NAMES.length] ?? `Pessoa ${i}`,
+        cpf: generateFakeCpf(i),
+        displayName: fakeName(i),
         embedding: encryptEmbedding(randomUnitVector(), dek),
       });
     }

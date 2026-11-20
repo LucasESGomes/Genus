@@ -1,0 +1,3 @@
+$kind: collection
+description: Autenticação por chave de serviço no header `X-Service-Key`. A coleção usa a variável `serviceKey` (secret, nunca versionada); estas requests sobrescrevem a autenticação.
+order: 3000

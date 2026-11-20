@@ -1,23 +1,25 @@
 /**
  * pnpm postman:test [-- --real-engine]
  *
- * Roda a coleção do Postman (postman/) com o Newman, localmente:
+ * Roda a coleção do Postman (postman/collections/Genus Coletor, formato v3 em YAML)
+ * com o Postman CLI, localmente:
  *  1. carrega apps/collector-api/.env.dev;
  *  2. sobe o stub da engine em processo (com endpoint de controle) usando a
  *     MASTER_KEY e a ENGINE_API_KEY do .env.dev;
  *  3. sobe a api como processo filho apontando para o stub (porta livre);
- *  4. executa o Newman (cli + junit em newman/) e encerra tudo.
+ *  4. executa `postman collection run` (pastas Health, Punches, Auth e Validation) e encerra tudo.
+ * Requer o Postman CLI instalado (comando `postman`): https://learning.postman.com/docs/postman-cli/postman-cli-installation/
  * Com --real-engine não há stub: a api usa a engine real do .env.dev e os testes
  * de batida rodam em modo tolerante.
  * Usa o Postgres real de dev (compose). A chave de serviço só passa em memória.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
-import newman from 'newman';
 import { startEngineStub, type EngineStub } from '../test/support/engine-stub';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -25,6 +27,29 @@ const packageDir = path.resolve(here, '..');
 const repoRoot = path.resolve(packageDir, '../..');
 const postmanDir = path.join(repoRoot, 'postman');
 const fixturesDir = path.join(postmanDir, 'fixtures');
+const AUTOMATED_FOLDERS = ['Health', 'Punches', 'Auth', 'Validation'];
+
+/** Environment v3 (YAML) só desta execução. Valores entre aspas simples, com escape. */
+function runEnvironment(baseUrl: string, serviceKey: string, stubControlUrl: string): string {
+  const q = (v: string): string => `'${v.replaceAll("'", "''")}'`;
+  const entry = (key: string, value: string, type: 'default' | 'secret'): string[] => [
+    `  - key: ${key}`,
+    `    value: ${q(value)}`,
+    '    enabled: true',
+    `    type: ${type}`,
+  ];
+  return [
+    'name: Genus Coletor · execução local',
+    'values:',
+    ...entry('baseUrl', baseUrl, 'default'),
+    ...entry('serviceKey', serviceKey, 'secret'),
+    ...entry('maxResponseMs', '2000', 'default'),
+    ...entry('stubControlUrl', stubControlUrl, 'default'),
+    '',
+  ].join('\n');
+}
+
+// Sem shell: o `postman` é um .exe, e o cmd.exe corromperia caminhos com acento.
 
 const args = process.argv.slice(2).filter((a) => a !== '--');
 const realEngine = args.includes('--real-engine');
@@ -65,6 +90,10 @@ async function waitReady(baseUrl: string, child: ChildProcess, timeoutMs: number
 }
 
 async function main(): Promise<void> {
+  const cli = spawnSync('postman', ['--version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  if (cli.status !== 0) {
+    fail('Postman CLI não encontrado (comando `postman`). Instale: https://learning.postman.com/docs/postman-cli/postman-cli-installation/');
+  }
   const envFile = path.join(packageDir, '.env.dev');
   if (!existsSync(envFile)) fail('apps/collector-api/.env.dev não encontrado (copie de .env.dev.example).');
   const dotenv = parseEnv(readFileSync(envFile, 'utf8')) as Record<string, string>;
@@ -78,6 +107,7 @@ async function main(): Promise<void> {
 
   let stub: EngineStub | null = null;
   let child: ChildProcess | null = null;
+  let tmpEnv: string | null = null;
 
   try {
     const childEnv: Record<string, string | undefined> = { ...process.env, ...dotenv };
@@ -115,39 +145,40 @@ async function main(): Promise<void> {
     }
     out(`api do coletor em ${baseUrl}`);
 
-    mkdirSync(path.join(repoRoot, 'newman'), { recursive: true });
+    // A chave de serviço vai num environment temporário FORA do repositório
+    // (não na linha de comando, que outros processos enxergam) e é apagado no fim.
+    tmpEnv = path.join(mkdtempSync(path.join(tmpdir(), 'genus-postman-')), 'run.environment.yaml');
+    writeFileSync(tmpEnv, runEnvironment(baseUrl, serviceKey, stub ? stub.url : ''), { mode: 0o600 });
+
+    const runArgs = [
+      'collection', 'run', path.join(postmanDir, 'collections', 'Genus Coletor'),
+      '-e', tmpEnv,
+      '--working-dir', repoRoot,
+      // A pasta "Rosto real" depende das suas fotos: fica fora da execução automática.
+      ...AUTOMATED_FOLDERS.flatMap((f) => ['-i', f]),
+      '--no-report-events',
+      '--disable-unicode',
+    ];
+    out(`postman ${runArgs.map((a) => (a === tmpEnv ? '<environment temporário>' : a)).join(' ')}`);
+    // spawn assíncrono, NUNCA spawnSync: o stub da engine roda neste mesmo processo e
+    // precisa do event loop livre para responder à api durante a execução.
     process.exitCode = await new Promise<number>((resolve) => {
-      newman.run(
-        {
-          collection: path.join(postmanDir, 'genus-collector.postman_collection.json'),
-          environment: path.join(postmanDir, 'environments', 'dev.postman_environment.json'),
-          envVar: [
-            { key: 'baseUrl', value: baseUrl },
-            { key: 'serviceKey', value: serviceKey },
-            { key: 'stubControlUrl', value: stub ? stub.url : '' },
-          ],
-          workingDir: fixturesDir,
-          insecureFileRead: false,
-          reporters: ['cli', 'junit'],
-          reporter: { junit: { export: path.join(repoRoot, 'newman', 'collector-junit.xml') } },
-        },
-        (err, summary) => {
-          if (err) {
-            process.stderr.write(`Newman falhou: ${err.message}\n`);
-            resolve(1);
-            return;
-          }
-          resolve(summary.run.failures.length > 0 ? 1 : 0);
-        },
-      );
+      // cwd = raiz: o CLI resolve o `src` dos arquivos pelo diretório atual (o --working-dir não basta).
+      const run = spawn('postman', runArgs, { cwd: repoRoot, stdio: ['ignore', 'inherit', 'inherit'] });
+      run.once('error', (err) => {
+        process.stderr.write(`Falha ao executar o Postman CLI: ${err.message}
+`);
+        resolve(1);
+      });
+      run.once('exit', (code) => resolve(code ?? 1));
     });
-    out(`Relatório JUnit: newman/collector-junit.xml`);
   } finally {
     if (child && child.exitCode === null) {
       child.kill();
       await new Promise((r) => setTimeout(r, 300));
     }
     if (stub) await stub.close();
+    if (tmpEnv) rmSync(path.dirname(tmpEnv), { recursive: true, force: true });
   }
   process.exit(process.exitCode ?? 1);
 }
