@@ -185,3 +185,11 @@ Cada batida gera um log `punch_recognition` (Pino, JSON, sem CPF). Os campos pri
 Em dev, o nível é `debug` (`LOG_LEVEL`). Para ver a latência de uma requisição sem abrir o log, leia o header `Server-Timing` da resposta. Ele lista as etapas em ms: `validate`, `candidates`, `engine`, `engine-processing`, `db` e `total`.
 
 Com `EXPOSE_TIMINGS=true` (só dev), o corpo da resposta também traz `meta.timings`. Esse campo nunca vai a produção.
+
+## 11. Papéis e Valkey
+
+- **Papéis do banco arp.** `arp_owner` (só migrations), `arp_collector` (api do coletor), `arp_core` (rep-core, única escrita em `registros`, `evidencias` e `outbox`) e `arp_reader` (leitura, resgate e verificação). As senhas estão em `infra/.env`: `ARP_OWNER_PASSWORD`, `ARP_COLLECTOR_PASSWORD`, `ARP_CORE_PASSWORD`, `ARP_READER_PASSWORD`.
+- **O init só roda no primeiro volume.** O `infra/postgres/init` cria os papéis apenas na primeira subida do volume `genus-postgres-arp-app-dados`. Em um ambiente que já existe, use o script idempotente `infra/postgres/garantir-papeis.sh`: ele cria só os papéis que faltam, não altera senhas já existentes nem dados. Você não precisa rodá-lo à mão: `pnpm dev:up` já o executa depois de o Postgres ficar saudável.
+- **Valkey (fila das batidas).** `pnpm dev:up` sobe também o serviço `valkey` (`genus-valkey`, versão fixada, AOF e `noeviction`). A senha é `VALKEY_PASSWORD` em `infra/.env`. Ela é obrigatória: o servidor exige autenticação.
+- **Porta do Valkey no host.** Só existe com o perfil `dev`, em `127.0.0.1:${VALKEY_PORT}` (padrão 6379). Sem o perfil, o Valkey só é alcançado pela rede interna do Compose.
+- Se trocar `POSTGRES_PASSWORD` ou as senhas de `arp_owner`/`arp_collector` depois da primeira subida, o volume precisa ser recriado (`down -v`, como descrito em §3). Papéis novos (`arp_core`, `arp_reader`) entram sem recriar o volume. Mas o `garantir-papeis.sh` não troca a senha de um papel que já existe: se mudar `ARP_CORE_PASSWORD` ou `ARP_READER_PASSWORD` depois, recrie o volume.

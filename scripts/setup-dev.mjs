@@ -5,10 +5,10 @@
  * Cria (ou completa) os dois arquivos de ambiente de desenvolvimento, com
  * segredos gerados e COERENTES entre si:
  *
- *   infra/.env                   compose: senhas do Postgres, MASTER_KEY, ENGINE_API_KEY, portas
+ *   infra/.env                   compose: senhas do Postgres e dos papéis do arp, Valkey, MASTER_KEY, ENGINE_API_KEY, portas
  *   apps/collector-api/.env.dev  api do coletor: URLs do banco, mesma MASTER_KEY e ENGINE_API_KEY
  *
- * - infra/.env: se já existe, só troca valores vazios ou com TROQUE_.
+ * - infra/.env: se já existe, só troca valores vazios ou com TROQUE_ (e acrescenta as chaves novas no fim).
  * - .env.dev: as variáveis que DERIVAM do infra/.env (URLs, porta, chaves da
  *   engine) são sempre alinhadas a ele; o resto só é preenchido se faltar.
  * - Nenhum valor é impresso. Os dois arquivos estão no .gitignore.
@@ -54,6 +54,10 @@ const infraGenerated = {
   POSTGRES_PASSWORD: () => hex(16),
   ARP_OWNER_PASSWORD: () => hex(16),
   ARP_COLLECTOR_PASSWORD: () => hex(16),
+  ARP_CORE_PASSWORD: () => hex(16),
+  ARP_READER_PASSWORD: () => hex(16),
+  VALKEY_PASSWORD: () => hex(16),
+  VALKEY_PORT: () => '6379',
   MASTER_KEY: () => hex(32),
   ENGINE_API_KEY: () => hex(24),
   POSTGRES_PORT: () => '5432',
@@ -103,7 +107,10 @@ writeFileSync(API, apiText);
 out(`${infraCreated ? 'Criado' : 'Conferido'}: infra/.env${infraChanged.length ? ` (gerados: ${infraChanged.join(', ')})` : ' (nada a mudar)'}`);
 out(`${apiCreated ? 'Criado' : 'Conferido'}: apps/collector-api/.env.dev${apiChanged.length ? ` (ajustados: ${apiChanged.join(', ')})` : ' (nada a mudar)'}`);
 
-const passwordsChanged = infraChanged.some((k) => k.endsWith('PASSWORD') || k === 'POSTGRES_USER');
+// Só senhas do Postgres que já existiam no volume exigem recriar o volume. Papéis novos e o
+// Valkey são criados sem isso: o garantir-papeis.sh (rodado pelo dev:up) cria os papéis que faltam.
+const PG_KEYS = ['POSTGRES_USER', 'POSTGRES_PASSWORD', 'ARP_OWNER_PASSWORD', 'ARP_COLLECTOR_PASSWORD'];
+const pgChanged = infraChanged.some((k) => PG_KEYS.includes(k));
 let volumeExists = false;
 try {
   execFileSync('docker', ['volume', 'inspect', PG_VOLUME], { stdio: 'ignore' });
@@ -111,11 +118,11 @@ try {
 } catch {
   // sem Docker ou sem o volume: nada a avisar
 }
-if (passwordsChanged && volumeExists) {
+if (pgChanged && volumeExists) {
   out('');
-  out(`ATENÇÃO: o volume ${PG_VOLUME} já existe e foi criado com OUTRAS senhas (o init do Postgres só roda na primeira subida).`);
+  out(`ATENÇÃO: o volume ${PG_VOLUME} já existe e foi criado com OUTRAS senhas do Postgres (o init só roda na primeira subida).`);
   out('Recrie o volume (apaga os dados locais do Postgres de dev):');
   out('  docker compose -f infra/docker-compose.yml --env-file infra/.env --profile dev down -v');
 }
 out('');
-out('Próximo passo: pnpm dev:up   (sobe Postgres + engine, espera ficarem saudáveis e aplica a migration)');
+out('Próximo passo: pnpm dev:up   (sobe Postgres, Valkey e engine, cria papéis que faltam e aplica a migration)');

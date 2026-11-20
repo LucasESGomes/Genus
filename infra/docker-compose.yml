@@ -1,12 +1,12 @@
 # Infraestrutura local e de homologação do Genus (Compose v2).
 # Uso: docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
-# O perfil "dev" publica a porta da engine em 127.0.0.1. Sem ele, a engine fica só na rede interna.
+# O perfil "dev" publica a porta da engine e a do Valkey em 127.0.0.1. Sem ele, ficam só na rede interna.
 name: genus
 
 services:
   # Um único Postgres com os DOIS bancos lógicos: `arp` (fiscal, REP-P: batidas, NSR)
   # e `app` (operacional: portais de RH). Eles se separam por banco e por papel
-  # (arp_owner, arp_collector), não por container (02-arquitetura.md §4.5, Tier 1).
+  # (arp_owner, arp_collector, arp_core, arp_reader), não por container (02-arquitetura.md §4.5, Tier 1).
   postgres:
     image: postgres:17.6-alpine
     container_name: genus-postgres-arp-app
@@ -14,9 +14,11 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?Defina POSTGRES_USER em infra/.env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD em infra/.env}
-      # Senhas dos papéis do banco arp, lidas pelo script de init (só na primeira subida do volume).
+      # Senhas dos papéis do banco arp: o init (primeira subida do volume) e o garantir-papeis.sh (dev-up) as leem.
       ARP_OWNER_PASSWORD: ${ARP_OWNER_PASSWORD:?Defina ARP_OWNER_PASSWORD em infra/.env}
       ARP_COLLECTOR_PASSWORD: ${ARP_COLLECTOR_PASSWORD:?Defina ARP_COLLECTOR_PASSWORD em infra/.env}
+      ARP_CORE_PASSWORD: ${ARP_CORE_PASSWORD:?Defina ARP_CORE_PASSWORD em infra/.env}
+      ARP_READER_PASSWORD: ${ARP_READER_PASSWORD:?Defina ARP_READER_PASSWORD em infra/.env}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
@@ -69,6 +71,39 @@ services:
     depends_on:
       - face-engine
 
+  # Valkey: fila das batidas (BullMQ). Versão exata, nunca `latest`.
+  # Sem "ports": só a rede interna do Compose alcança o Valkey (o acesso do host é o perfil dev, abaixo).
+  valkey:
+    image: valkey/valkey:9.2.0-alpine
+    container_name: genus-valkey
+    restart: unless-stopped
+    environment:
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD:?Defina VALKEY_PASSWORD em infra/.env}
+    # AOF a cada segundo e noeviction: com a memória cheia o Valkey recusa escrita, não descarta batida na fila.
+    # A senha entra por variável de ambiente, lida pelo shell do contêiner ($$ é o $ escapado do Compose).
+    command: sh -c 'exec valkey-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction --requirepass "$$VALKEY_PASSWORD"'
+    volumes:
+      - valkey-dados:/data
+    healthcheck:
+      # A senha vai por REDISCLI_AUTH (variável de ambiente), nunca na linha de comando do valkey-cli.
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$VALKEY_PASSWORD\" valkey-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Só no perfil "dev": publica o Valkey em 127.0.0.1 para testes locais.
+  # Sem o perfil, o Valkey não tem porta no host.
+  valkey-porta-dev:
+    image: alpine/socat:1.8.0.3
+    container_name: genus-valkey-porta-dev
+    profiles: ["dev"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${VALKEY_PORT:-6379}:6379"
+    command: tcp-listen:6379,fork,reuseaddr tcp-connect:valkey:6379
+    depends_on:
+      - valkey
+
 volumes:
   # Nomes fixos, para ficar claro no `docker volume ls`.
   pgdata:
@@ -77,3 +112,5 @@ volumes:
     name: genus-face-engine-modelos
   insightface:
     name: genus-face-engine-insightface
+  valkey-dados:
+    name: genus-valkey-dados

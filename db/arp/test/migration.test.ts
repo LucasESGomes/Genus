@@ -65,13 +65,13 @@ afterAll(async () => {
 describe("migrations", () => {
   it("aplica do zero e registra a versão", async () => {
     const r = await owner.query("SELECT versao FROM migracoes_aplicadas ORDER BY versao");
-    expect(r.rows.map((x) => x.versao)).toEqual(["0001_cria_entradas.sql"]);
+    expect(r.rows.map((x) => x.versao)).toEqual(["0001_cria_entradas.sql", "0002_nsr_registros.sql"]);
   });
 
   it("rodar de novo é no-op", async () => {
     const r = await migrate(db.ownerUrl);
     expect(r.applied).toEqual([]);
-    expect(r.skipped).toEqual(["0001_cria_entradas.sql"]);
+    expect(r.skipped).toEqual(["0001_cria_entradas.sql", "0002_nsr_registros.sql"]);
   });
 
   it("falha se uma migration aplicada foi alterada", async () => {

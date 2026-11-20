@@ -36,7 +36,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await owner.query('TRUNCATE entradas');
+  // DELETE, não TRUNCATE: `evidencias` tem FK para `entradas` e o trigger do arp recusa TRUNCATE em tabelas fiscais.
+  // Este teste não cria linhas em `evidencias`, então o DELETE é seguro.
+  await owner.query('DELETE FROM entradas');
   stub.resetCalls();
   stub.setBehavior({ status: 'identified' });
   stub.setDelay(0);
