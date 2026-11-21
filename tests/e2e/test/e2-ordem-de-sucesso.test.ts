@@ -14,7 +14,6 @@ import {
   countEvidencias,
   countOutbox,
   countRegistros,
-  entryIds,
   nsrList,
   outboxCounts,
 } from '../support/asserts';
@@ -212,7 +211,7 @@ describe('E2b: falha no outbox: o job não termina com sucesso e a entrada segue
     expect(await queues.punches.getJobCounts('failed')).toEqual({ failed: 0 });
   });
 
-  it('tentativas esgotadas (QUEUE_ATTEMPTS=1): job failed, entrada falhou (SPEC §7), nada em registros nem em post-punch', async () => {
+  it('tentativas esgotadas (QUEUE_ATTEMPTS=1): job failed, entrada SEGUE pendente (política A), nada em registros nem em post-punch', async () => {
     const est = 7202;
     const device = 8202;
     const queues = await openQueues(infra.valkey.url);
@@ -226,51 +225,47 @@ describe('E2b: falha no outbox: o job não termina com sucesso e a entrada segue
     expect((await postPunch(collector, 1)).statusCode).toBe(200);
     await waitFor(async () => (await queues.punches.getJobCounts('failed'))['failed'] === 1, 'job punches em failed', 30_000);
 
-    expect(await entryRow(est)).toEqual([{ status: 'falhou', tentativas: 1 }]);
+    expect(await entryRow(est)).toEqual([{ status: 'pendente', tentativas: 1 }]);
     expect(await countRegistros(infra.owner, est)).toBe(0);
     expect(await countOutbox(infra.owner, est)).toBe(0);
     expect(await lastNsr(est)).toBe(0);
     expect(await totalJobs(queues.postPunch)).toBe(0);
-    expect(core.logs.byEvent('punch_failed_permanently')).toHaveLength(1);
+    expect(core.logs.byEvent('punch_retry_exhausted')).toHaveLength(1);
+    expect(core.logs.byEvent('punch_failed_permanently')).toHaveLength(0);
   });
 });
 
 describe('E2c: falha permanente não abre buraco de NSR', () => {
-  it('entrada que virou `falhou` fica sem registro; o próximo registro real é o NSR 1; job.retry() não a ressuscita', async () => {
+  it('erro não recuperável (sequência de outra conta) marca falhou, sem registro e sem consumir NSR; o retry não ressuscita a entrada', async () => {
     const est = 7301;
     const device = 8301;
     const queues = await openQueues(infra.valkey.url);
     cleanup.add(() => queues.close());
     const collector = await startCollector(infra, { establishmentId: est, deviceId: device, attempts: 1 });
     cleanup.add(() => collector.close());
-    await installOutboxFailure(infra.owner);
+    // Erro PERMANENTE: a sequência do estabelecimento pertence a OUTRA conta (SequenceTenantMismatchError).
+    await infra.owner.query(
+      'INSERT INTO sequencias_estabelecimento (estabelecimento_id, conta_id, ultimo_nsr, ultimo_hash) VALUES ($1, 999, 0, NULL)',
+      [est],
+    );
     const core = startRepCore(infra, { attempts: 1 });
     cleanup.add(() => core.close());
 
     expect((await postPunch(collector, 1)).statusCode).toBe(200);
     await waitFor(async () => (await entryRow(est))[0]?.status === 'falhou', 'entrada falhou', 30_000);
+    expect(core.logs.byEvent('punch_unrecoverable')).toHaveLength(1);
+    expect(core.logs.byEvent('punch_retry_exhausted')).toHaveLength(0);
     expect(await countRegistros(infra.owner, est)).toBe(0);
+    expect(await lastNsr(est)).toBe(0);
 
-    // Causa removida. A entrada `falhou` é terminal: reprocessar o job antigo não gera registro.
-    await removeOutboxFailure(infra.owner);
+    // O retry do job não ressuscita uma entrada falhou (terminal para o fluxo automático).
     const failedJob = await queues.punches.getJob(punchJobId(device, 1));
-    await failedJob!.retry();
+    await failedJob!.retry('failed', { resetAttemptsMade: true });
     await waitFor(async () => (await queues.punches.getJobCounts('completed'))['completed'] === 1, 'retry concluído', 30_000);
     expect(core.logs.byEvent('punch_entry_failed_skipped')).toHaveLength(1);
     expect(await countRegistros(infra.owner, est)).toBe(0);
-
-    // Batida real seguinte: NSR 1, sem lacuna deixada pela falha.
-    expect((await postPunch(collector, 2)).statusCode).toBe(200);
-    await waitFor(async () => (await nsrList(infra.owner, est)).length === 1, 'registro da segunda batida', 30_000);
-    expect(await nsrList(infra.owner, est)).toEqual([1]);
-    const ids = await entryIds(infra.owner, est);
-    expect(ids).toHaveLength(2);
-    expect(await entryRow(est)).toEqual([
-      { status: 'falhou', tentativas: 1 },
-      { status: 'processado', tentativas: 0 },
-    ]);
-    const { report, invariant } = await chainReport(infra, TENANT, est);
-    expect(report.ok).toBe(true);
-    expect(invariant).toEqual([]);
+    // Erro não recuperável não gasta tentativa: tentativas segue 0.
+    expect(await entryRow(est)).toEqual([{ status: 'falhou', tentativas: 0 }]);
+    expect(await lastNsr(est)).toBe(0);
   });
 });

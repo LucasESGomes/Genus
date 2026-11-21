@@ -53,24 +53,19 @@ function describeError(err: unknown): { name: string; code: string | null; messa
 }
 
 /**
- * Soma uma tentativa em `entradas` (e, na última, marca `falhou`) em statement SEPARADO:
- * a transação do NSR já deu rollback. Nunca lança: se o UPDATE falhar, só registra.
- * `status = 'pendente'` no WHERE: `processado` é terminal (o trigger recusaria) e
- * `falhou` não precisa contar mais.
+ * Soma uma tentativa em `entradas` em statement SEPARADO: a transação do NSR já deu
+ * rollback. Nunca lança: se o UPDATE falhar, só registra.
+ * Erro recuperável NUNCA marca `falhou` (decisão: a batida já foi confirmada ao aparelho
+ * e não pode sumir do registro por uma queda temporária). A entrada segue `pendente` e
+ * o resgate reenfileira. `status = 'pendente'` no WHERE: `processado` é terminal.
  */
-async function recordAttemptFailure(
-  deps: PunchWorkerDeps,
-  tenantId: number,
-  entryId: number,
-  exhausted: boolean,
-): Promise<void> {
+async function recordAttemptFailure(deps: PunchWorkerDeps, tenantId: number, entryId: number): Promise<void> {
   try {
     await deps.pool.query(
       `UPDATE entradas
-          SET tentativas = tentativas + 1,
-              status = CASE WHEN $3::boolean THEN 'falhou' ELSE status END
+          SET tentativas = tentativas + 1
         WHERE id = $1 AND conta_id = $2 AND status = 'pendente'`,
-      [entryId, tenantId, exhausted],
+      [entryId, tenantId],
     );
   } catch (updateErr) {
     deps.logger.warn(
@@ -169,17 +164,18 @@ export function createPunchProcessor(deps: PunchWorkerDeps): (job: Job) => Promi
       const maxAttempts = job.opts.attempts ?? deps.attempts;
       // `attemptsMade` conta as tentativas já falhadas; esta é a (attemptsMade + 1)-ésima.
       const exhausted = job.attemptsMade + 1 >= maxAttempts;
-      await recordAttemptFailure(deps, tenantId, entryId, exhausted);
+      await recordAttemptFailure(deps, tenantId, entryId);
       if (exhausted) {
+        // Alerta, não falha: a entrada segue pendente e o resgate continua tentando.
         logger.error(
           {
-            event: 'punch_failed_permanently',
+            event: 'punch_retry_exhausted',
             entryId,
             jobId: job.id ?? null,
             attempts: job.attemptsMade + 1,
             err: describeError(err),
           },
-          'rep-core: tentativas esgotadas; entrada marcada como falhou (requer intervenção)',
+          'rep-core: tentativas automáticas esgotadas; entrada segue pendente para o resgate',
         );
       } else {
         logger.warn(

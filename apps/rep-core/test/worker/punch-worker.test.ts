@@ -255,10 +255,10 @@ describe('worker punches', () => {
     expect(await dbCounts(establishmentId)).toMatchObject({ registros: 0 });
   });
 
-  it('D6: tentativas esgotadas marcam a entrada como falhou, sem registro, e o job fica em failed', async () => {
+  it('D6: tentativas automáticas esgotadas deixam a entrada pendente (nunca falhou), sem registro; o resgate recupera quando a falha cessa', async () => {
     const { establishmentId, deviceId } = fresh();
     const [entry] = await seed(1, establishmentId, deviceId);
-    const remove = await injectOutboxFailure('teste_falha_sempre', `NEW.estabelecimento_id = ${establishmentId}`);
+    let remove = await injectOutboxFailure('teste_falha_sempre', `NEW.estabelecimento_id = ${establishmentId}`);
     try {
       harness = await startHarness({ valkeyUrl: valkey.url, pool: core, attempts: 2 });
       const jobId = await harness.enqueue({ entryId: entry!.entryId, tenantId: TENANT, establishmentId }, deviceId, 1);
@@ -271,11 +271,22 @@ describe('worker punches', () => {
         'SELECT status, tentativas FROM entradas WHERE id = $1',
         [entry!.entryId],
       );
-      expect(row.rows[0]).toEqual({ status: 'falhou', tentativas: 2 });
+      // Decisão de política: erro recuperável esgotado NÃO vira falhou (a batida já foi confirmada ao aparelho).
+      expect(row.rows[0]).toEqual({ status: 'pendente', tentativas: 2 });
       expect(await dbCounts(establishmentId)).toMatchObject({ registros: 0, outbox: 0 });
-      const alerts = harness.logs.byEvent('punch_failed_permanently');
+      expect(harness.logs.byEvent('punch_failed_permanently')).toHaveLength(0);
+      const alerts = harness.logs.byEvent('punch_retry_exhausted');
       expect(alerts).toHaveLength(1);
       expect(alerts[0]!.level).toBe('error');
+
+      // A falha cessa e o resgate refaz o job como o apps/jobs faz (resetAttemptsMade).
+      await remove();
+      remove = async () => {};
+      await job!.retry('failed', { resetAttemptsMade: true });
+      await waitFor(async () => (await dbCounts(establishmentId)).registros === 1, 'registro gravado após o resgate');
+      const done = await owner.query<{ status: string }>('SELECT status FROM entradas WHERE id = $1', [entry!.entryId]);
+      expect(done.rows[0]).toEqual({ status: 'processado' });
+      expect(await dbCounts(establishmentId)).toMatchObject({ registros: 1, outbox: 3 });
     } finally {
       await remove();
     }

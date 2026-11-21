@@ -117,7 +117,7 @@ export interface QueuePublisher {
 
 ## 7. Worker do rep-core (`apps/rep-core`, sem HTTP)
 
-Consome `punches`: (1) `assignNsr`; (2) com o `COMMIT` feito, publica os 3 eventos em `post-punch` (tolerante a falha: `warn`); (3) só então retorna sucesso. Redelivery (`already_processed`): também tenta publicar os eventos daquela entrada (idempotente pelo `jobId`). Concorrência `WORKER_CONCURRENCY` (padrão 4); o `Pool` precisa de no mínimo esse número de conexões + folga. Recuperável: `UPDATE entradas SET tentativas = tentativas + 1` em statement separado, depois relança. Não recuperável: `UnrecoverableError`, marca `falhou`. Esgotadas as tentativas: `status = 'falhou'`, log `error`. SIGTERM/SIGINT: fecha o worker e o pool.
+Consome `punches`: (1) `assignNsr`; (2) com o `COMMIT` feito, publica os 3 eventos em `post-punch` (tolerante a falha: `warn`); (3) só então retorna sucesso. Redelivery (`already_processed`): também tenta publicar os eventos daquela entrada (idempotente pelo `jobId`). Concorrência `WORKER_CONCURRENCY` (padrão 4); o `Pool` precisa de no mínimo esse número de conexões + folga. Recuperável: `UPDATE entradas SET tentativas = tentativas + 1` em statement separado, depois relança. Não recuperável: `UnrecoverableError`, marca `falhou`. Esgotadas as tentativas automáticas, a entrada **segue `pendente`** (política A: a batida já foi confirmada ao aparelho e não pode sumir do registro por uma queda temporária); log de alerta `punch_retry_exhausted` (nível `error`); o resgate reenfileira o job com `resetAttemptsMade`. Só erro não recuperável marca `falhou`. SIGTERM/SIGINT: fecha o worker e o pool.
 
 ## 8. Resgate (`apps/jobs`)
 

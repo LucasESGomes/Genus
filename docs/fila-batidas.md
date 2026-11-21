@@ -127,11 +127,11 @@ O **jobId** é o "número do recado" na fila. Se você tentar publicar um job co
 **Retry** é tentar de novo quando o job falha. **Backoff** é esperar um pouco entre as tentativas; **exponencial** significa que a espera dobra a cada falha (começando em 1 segundo: 1 s, 2 s, 4 s, 8 s...), para não martelar um banco que já está com problema. Opções em [job-options.ts](packages/queue/src/job-options.ts).
 
 - **Tentativas:** `QUEUE_ATTEMPTS` (padrão **5**), contando a primeira execução.
-- **Erro recuperável** (conexão com o banco caiu, deadlock, falha de INSERT): a transação desfaz tudo, o worker soma 1 em `entradas.tentativas` (em comando separado, fora da transação) e relança o erro; a fila espera o backoff e tenta de novo. Na última tentativa, a entrada vira `falhou` e o log `punch_failed_permanently` (nível `error`) aparece.
+- **Erro recuperável** (conexão com o banco caiu, deadlock, falha de INSERT): a transação desfaz tudo, o worker soma 1 em `entradas.tentativas` (em comando separado, fora da transação) e relança o erro; a fila espera o backoff e tenta de novo. Na última tentativa automática, a entrada **continua `pendente`** (decisão de política A) e aparece o alerta `punch_retry_exhausted` (nível `error`). O resgate, a cada 20 segundos, refaz o job até a falha cessar.
 - **Erro não recuperável** (entrada inexistente para a conta, evidência duplicada para outra entrada, sequência de outra conta, processada sem evidência): repetir não adianta. O worker marca a entrada `falhou` na hora e lança `UnrecoverableError`, que manda o job direto para o estado `failed`, sem gastar as demais tentativas. Log `punch_unrecoverable`.
 - **Entrada já `falhou`**: o worker ignora com aviso (`punch_entry_failed_skipped`) e conclui o job.
 - **Payload inválido**: `punch_payload_invalid`, não recuperável.
-- **O que é `failed`:** é o estado de um job que esgotou as tentativas ou foi marcado como não recuperável. Também chamado de *dead letter* (fila dos mortos) em outros sistemas: o job não some, fica guardado para investigação (`removeOnFail: false`). O estado equivalente no banco é `entradas.status = 'falhou'`. Falhou **não some e não é apagado**: é um alerta para alguém olhar.
+- **O que é `failed`:** é o estado de um job que esgotou as tentativas ou foi marcado como não recuperável. Também chamado de *dead letter* (fila dos mortos) em outros sistemas: o job não some, fica guardado para investigação (`removeOnFail: false`). No banco, `entradas.status = 'falhou'` é reservado a erro não recuperável; erro recuperável esgotado deixa a entrada `pendente`. Falhou **não some e não é apagado**: é um alerta para alguém olhar.
 - A falha em publicar em `post-punch` **nunca** falha o job de `punches`.
 
 ## 8. Idempotência
@@ -179,7 +179,7 @@ Adaptado de `02-arquitetura.md` §5.2 ao que existe hoje.
 | Peça | O que o aparelho vê | O que se perde | Como se recupera |
 |---|---|---|---|
 | **API do coletor** | Erro de rede ou 5xx; reenvia a batida | Nada. Se caiu antes do `COMMIT`, a entrada não existe e o aparelho reenvia. Se caiu depois, o reenvio devolve o mesmo recibo (UNIQUE aparelho + sequência) | Reiniciar a API. Entradas gravadas e não publicadas: o resgate publica |
-| **Postgres (`arp`)** | Erro 5xx na API (não grava, não responde `registered`) | Nada confirmado. O aparelho segue guardando e reenvia (outbox do aparelho) | Voltar o banco. O worker repete os jobs com backoff; se esgotar as tentativas, a entrada vira `falhou` (seção 13). Restauração de disco: `02-arquitetura.md` §8 |
+| **Postgres (`arp`)** | Erro 5xx na API (não grava, não responde `registered`) | Nada confirmado. O aparelho segue guardando e reenvia (outbox do aparelho) | Voltar o banco. O worker repete os jobs com backoff; se esgotar as tentativas automáticas, a entrada segue `pendente` e o resgate continua tentando (seção 13). Restauração de disco: `02-arquitetura.md` §8 |
 | **Valkey (fila)** | `registered` normalmente (publicação é opcional); a API loga `queue_publish_failed` | Possivelmente os jobs na memória (AOF `everysec` limita a perda a cerca de 1 s) | Voltar o Valkey. O resgate republica tudo o que está `pendente` no banco |
 | **Worker do rep-core** | `registered` normalmente; a entrada fica `pendente` | Nada. Uma transação em andamento sofre ROLLBACK; o NSR não é gasto | Reiniciar o worker (SIGTERM fecha de forma limpa). Os jobs na fila continuam; o resgate republica o que faltar |
 | **Resgate (apps/jobs)** | Nada (não está no caminho da batida) | Nada. Só atrasa o conserto de publicações que falharam | Reiniciar. É seguro rodar de novo a qualquer momento |
@@ -253,7 +253,7 @@ Códigos de saída: `0` íntegro, `1` problema encontrado, `2` erro de uso ou de
 ### Ver um job `failed`
 
 - **A contagem** de jobs `failed` aparece no `pnpm queue:inspect`.
-- **Qual entrada falhou e por quê:** procure nos logs do rep-core os eventos `punch_failed_permanently` (tentativas esgotadas) ou `punch_unrecoverable` (erro não recuperável). Eles trazem `entryId`, `jobId` e só o nome e o código do erro (nunca mensagem de driver, host ou dado pessoal).
+- **Qual entrada falhou e por quê:** procure nos logs do rep-core os eventos `punch_retry_exhausted` (tentativas automáticas esgotadas: a entrada segue pendente) ou `punch_unrecoverable` (erro não recuperável: a entrada vira falhou). Eles trazem `entryId`, `jobId` e só o nome e o código do erro (nunca mensagem de driver, host ou dado pessoal).
 - **No banco:** uma consulta de leitura por `entradas` com `status = 'falhou'` mostra as entradas afetadas e `tentativas`. Faça com o papel `arp_reader`, nunca com o papel que escreve.
 - Um comando para listar o conteúdo e o motivo de cada job `failed` na fila **não está implementado ainda**; hoje a investigação é por logs e pela tabela `entradas`.
 
@@ -270,9 +270,9 @@ Códigos de saída: `0` íntegro, `1` problema encontrado, `2` erro de uso ou de
 ### Job `failed` em `punches`
 
 1. Rode `pnpm queue:inspect` para confirmar a contagem de `failed`.
-2. Procure nos logs do rep-core `punch_failed_permanently` ou `punch_unrecoverable` e anote o `entryId`.
+2. Procure nos logs do rep-core `punch_retry_exhausted` ou `punch_unrecoverable` e anote o `entryId`.
 3. Descubra a causa. Erro de conexão ou deadlock: normalmente já foi resolvido; confirme que o banco está saudável. `EntryNotFoundError`, evidência duplicada ou sequência de outra conta: é um defeito de dado, não de infraestrutura; investigue a entrada.
-4. A entrada fica `falhou` e **não é reprocessada sozinha**. Reprocessar uma entrada `falhou` **não está implementado ainda** (não há comando). Decisão e mudança manual de status exigem aprovação, porque o sistema nunca bloqueia nem apaga uma marcação (Portaria 671).
+4. Se o log é `punch_retry_exhausted`, a entrada segue `pendente` e o resgate continua tentando sozinho: nada a fazer enquanto a causa for de infraestrutura. Se o log é `punch_unrecoverable`, a entrada ficou `falhou` e **não é reprocessada sozinha**. Reprocessar uma entrada `falhou` **não está implementado ainda** (não há comando). Decisão e mudança manual de status exigem aprovação, porque o sistema nunca bloqueia nem apaga uma marcação (Portaria 671).
 5. Confira que nenhuma outra entrada do mesmo aparelho ficou presa e rode `pnpm arp:verify-chain` para garantir que a cadeia está íntegra.
 
 ### Cadeia quebrada (`verify-chain` com exit 1)
@@ -293,7 +293,7 @@ Códigos de saída: `0` íntegro, `1` problema encontrado, `2` erro de uso ou de
 
 ### Entrada `falhou`
 
-1. Pelo `entryId` nos logs (`punch_failed_permanently` ou `punch_unrecoverable`), localize a entrada. Consulta de leitura em `entradas` com `status = 'falhou'`.
+1. Pelo `entryId` nos logs (`punch_retry_exhausted` ou `punch_unrecoverable`), localize a entrada. Consulta de leitura em `entradas` com `status = 'falhou'`.
 2. Entenda a causa (ver "Job `failed` em `punches`").
 3. Lembre: `falhou` é terminal para o fluxo automático. O worker ignora a entrada (`punch_entry_failed_skipped`) e o resgate só olha `pendente`.
 4. Voltar uma entrada para `pendente` **não está implementado ainda**; só se faça com decisão explícita, registrada.
