@@ -1,0 +1,41 @@
+{
+  "name": "@genus/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "dev": "tsx watch --env-file-if-exists=.env.dev src/server.ts",
+    "start": "tsx src/server.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file-if-exists=.env.dev src/db/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "check-arp": "tsx --env-file-if-exists=.env.dev scripts/check-arp.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "11.4.2",
+    "@fastify/helmet": "13.2.0",
+    "@fastify/swagger": "9.9.5",
+    "@fastify/swagger-ui": "6.1.5",
+    "@genus/shared": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "fastify": "5.12.8",
+    "fastify-type-provider-zod": "7.0.0",
+    "pg": "8.23.1",
+    "pino": "10.4.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@genus/db-arp": "workspace:*",
+    "@testcontainers/postgresql": "12.2.1",
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "drizzle-kit": "0.31.11",
+    "testcontainers": "12.2.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vitest": "5.1.1"
+  }
+}
