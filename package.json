@@ -10,7 +10,7 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "dev": "pnpm --filter @genus/collector-api dev",
+    "dev": "node scripts/dev-all.mjs",
     "db:migrate:arp": "pnpm --filter @genus/db-arp migrate",
     "dev:enroll-fake": "pnpm --filter @genus/collector-api dev:enroll-fake",
     "postman:test": "pnpm --filter @genus/collector-api postman:test",

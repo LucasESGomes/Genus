@@ -8,6 +8,14 @@ const DEFAULT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 // Chave arbitrária e fixa do advisory lock das migrations do arp.
 const LOCK_KEY = 7_120_001;
 
+/**
+ * sha256 do conteúdo com fim de linha normalizado (CRLF -> LF). Assim o mesmo arquivo tem o mesmo
+ * checksum em Windows (autocrlf) e em Linux; sem isso, um checkout diferente acusa "alterada".
+ */
+export function checksum(sql: string): string {
+  return createHash("sha256").update(sql.replace(/\r\n/g, "\n")).digest("hex");
+}
+
 export interface MigrateResult {
   applied: string[];
   skipped: string[];
@@ -37,7 +45,10 @@ export async function migrate(
     );
     for (const file of files) {
       const sql = await readFile(path.join(migrationsDir, file), "utf8");
-      const sha256 = createHash("sha256").update(sql).digest("hex");
+      const sha256 = checksum(sql);
+      // Checksums gravados antes desta correção foram calculados sobre os bytes brutos (com CRLF
+      // quando o checkout no Windows converte as quebras de linha). Ainda são aceitos.
+      const shaBruto = createHash("sha256").update(sql).digest("hex");
       await client.query("BEGIN");
       try {
         await client.query("SELECT pg_advisory_xact_lock($1)", [LOCK_KEY]);
@@ -47,7 +58,7 @@ export async function migrate(
         );
         const existing = found.rows[0];
         if (existing) {
-          if (existing.sha256 !== sha256) {
+          if (existing.sha256 !== sha256 && existing.sha256 !== shaBruto) {
             throw new Error(
               `Migration ${file} foi alterada depois de aplicada (nunca edite migration já aplicada; crie uma nova).`,
             );

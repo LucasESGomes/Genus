@@ -17,8 +17,7 @@
 
 ```bash
 pnpm install
-pnpm dev:up        # cria os .env com segredos, sobe Postgres + engine e aplica a migration
-pnpm dev           # sobe a api em http://localhost:3001 (deixe este terminal aberto)
+pnpm dev           # prepara tudo (dev:up) e sobe api, rep-core e resgate num terminal só (Ctrl+C encerra os três)
 ```
 
 Em outro terminal:
@@ -37,7 +36,7 @@ Esperado no `dev:punch`: `HTTP 200`, `"outcome": "registered"` e um `receiptId`.
 |---|---|
 | `pnpm setup:dev` | Cria `infra/.env` e `apps/collector-api/.env.dev` com segredos gerados e coerentes entre si (mesma `MASTER_KEY` e `ENGINE_API_KEY`, senhas dos papéis nas URLs). Se já existem, só completa o que falta. Não imprime nenhum valor |
 | `pnpm dev:up` | `setup:dev` + `docker compose ... --profile dev up -d --wait` + `pnpm db:migrate:arp`. A primeira vez baixa os modelos da engine (alguns minutos) |
-| `pnpm dev` | Api do coletor com `apps/collector-api/.env.dev`, recarrega ao salvar |
+| `pnpm dev` | Prepara (`pnpm dev:up`) e sobe api, rep-core e resgate. Log de cada um com prefixo `[api]`, `[rep-core]`, `[resgate]`. `pnpm dev -- --sem-preparo` pula o preparo |
 | `pnpm dev:enroll-fake` | Galeria `dev-data/gallery.json`: cada subpasta de `dev-data/faces/` é uma pessoa; sorteia `--photos` fotos (padrão 3) para a engine gerar o embedding cifrado; cria `--fakes` candidatos fictícios (padrão 50). As fotos não sorteadas vão para `dev-data/probes/<pessoa>/` (para testar) e uma delas para `dev-data/probes/proxima-batida.jpg` (usada pelo Postman) |
 | `pnpm dev:punch` | Uma batida contra a api rodando. Opções: `--image <arquivo>`, `--sequence N` (repetir a mesma = teste de idempotência), `--captured-at <ISO>` |
 
@@ -196,13 +195,15 @@ Com `EXPOSE_TIMINGS=true` (só dev), o corpo da resposta também traz `meta.timi
 
 ## 12. Fila, worker e resgate
 
-A batida passa por três processos, além do Postgres e do Valkey (`pnpm dev:up`). Cada um roda no seu terminal:
+A batida passa por três processos, além do Postgres e do Valkey. `pnpm dev` sobe os três de uma vez:
 
 | Processo | Comando | O que faz |
 |---|---|---|
 | api do coletor | `pnpm dev` | Grava a batida em `entradas` (`pendente`) e publica o id na fila `punches` depois do COMMIT |
 | rep-core | `pnpm dev:rep-core` | Worker: consome `punches`, atribui NSR e hash, grava `registros`, `evidencias` e `outbox` numa só transação |
 | jobs | `pnpm dev:jobs` | Resgate: a cada 20 s republica `entradas` e `outbox` pendentes há mais de 30 s |
+
+Para depurar um processo isolado, `pnpm dev:rep-core` e `pnpm dev:jobs` continuam existindo. O uso normal é `pnpm dev`.
 
 **Quem lê qual `.env.dev`.**
 - `apps/collector-api/.env.dev` é o arquivo compartilhado: a api, o `pnpm queue:inspect` e os scripts `start` do rep-core e dos jobs (`--env-file-if-exists`) leem o seu `VALKEY_URL`, `VALKEY_PASSWORD` e as URLs do banco.

@@ -8,7 +8,8 @@
  *      a primeira subida da engine baixa os modelos: alguns minutos;
  *   3. garante os papéis do banco arp (idempotente; cria só os que faltam em volume antigo);
  *   4. aplica as migrations do banco arp.
- * Depois: pnpm dev (api) e, em outro terminal, pnpm dev:punch.
+ * Depois: pnpm dev (sobe api, rep-core e resgate) e, em outro terminal, pnpm dev:punch.
+ * `pnpm dev` já roda este preparo antes de subir os processos.
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -43,6 +44,6 @@ run('Papéis do banco arp (idempotente: cria só o que falta)', 'docker', [...co
 run('Migrations do banco arp', 'pnpm', ['db:migrate:arp']);
 
 out('\nAmbiente pronto. Agora:');
-out('  pnpm dev                 # sobe a api em http://localhost:3001 (Swagger em http://localhost:3001/docs)');
+out('  pnpm dev                 # sobe api, rep-core e resgate (Swagger em http://localhost:3001/docs)');
 out('  pnpm dev:enroll-fake     # galeria: suas fotos em dev-data/faces/<nome>/ + 50 candidatos fictícios');
 out('  pnpm dev:punch           # uma batida com uma foto de dev-data/probes/');
