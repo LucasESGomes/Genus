@@ -264,6 +264,30 @@ export const employees = pgTable('colaboradores', {
 | `recusar_alteracao_fiscal` | `recusar_alteracao_fiscal` | Função SQL (trigger) em `registros` e `evidencias`. Nome de função, não é traduzido |
 | `exigir_registro_para_processar` | `exigir_registro_para_processar` | Função SQL (trigger) em `entradas`. Só deixa `entradas` ir a `processado` com evidência e os 3 eventos de `outbox` |
 
+**Schema `rh` do banco `app` (instância `postgres-rh`).** Criado de `apps/api/schema-rh.sql`. Segue a regra multi-tenant (`conta_id` em toda tabela, FKs compostas `(conta_id, x_id)`), mas mantém os nomes no **singular** do arquivo original: ver `apps/api/README.md`. Tradução no código (`apps/api/src/db/schema/`):
+
+| Banco (`rh.`) | Entidade no código | Banco (`rh.`) | Entidade no código |
+|---|---|---|---|
+| `conta` | `tenants` | `aparelho` | `devices` |
+| `empresa` | `companies` | `apuracao_dia` | `dailyTimesheets` |
+| `estabelecimento` | `establishments` | `apuracao_marcacao` | `timesheetPunches` |
+| `setor` | `departments` | `inconsistencia` | `timesheetIssues` |
+| `cargo` | `jobTitles` | `ajuste` | `timeAdjustments` |
+| `centro_custo` | `costCenters` | `atestado` | `medicalCertificates` |
+| `colaborador` | `employees` | `atestado_analise` | `certificateAnalyses` |
+| `colaborador_vinculo` | `employeeAssignments` | `afastamento` | `absences` |
+| `usuario` | `users` | `banco_horas_regra` | `timeBankPolicies` |
+| `usuario_estabelecimento` | `userEstablishments` | `banco_horas_lancamento` | `timeBankEntries` |
+| `escala` | `schedules` | `vw_banco_horas_saldo` (view) | `timeBankBalances` |
+| `escala_dia` | `scheduleDays` | `ferias_periodo_aquisitivo` | `vacationAccrualPeriods` |
+| `colaborador_escala` | `employeeSchedules` | `ferias_gozo` | `vacationInstallments` |
+| `troca_turno` | `scheduleOverrides` | `fechamento` | `closingPeriods` |
+| `feriado` | `holidays` | `espelho` | `timeMirrors` |
+| `estabelecimento_feriado` | `establishmentHolidays` | `auditoria` | `auditLogs` |
+| `parametro_legal` | `legalParameters` | | |
+
+Colunas fora das regras de §12.1: `ativo` → `isActive`, `folga` → `isDayOff`, `vigencia_inicio`/`vigencia_fim` → `validFrom`/`validTo`, `criado_por`/`decidido_por` → `createdById`/`decidedById`, `competencia` → `referenceMonth`, `ciencia_em` → `acknowledgedAt`.
+
 ## 13. Migrations
 
 - Ferramenta: `drizzle-kit generate` para o `app`. Arquivos `NNNN_descricao.sql` numerados pela ferramenta; a descrição em português, `snake_case` (`0007_cria_pedidos_ajuste`).
