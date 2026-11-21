@@ -1,0 +1,55 @@
+# Motor facial (Python + InsightFace + ONNX Runtime). Sem banco: recebe embeddings cifrados na requisição.
+# Subir só a engine:   docker compose up        (nesta pasta; exige o .env da raiz: pnpm setup:dev)
+#
+# workers=1 é obrigatório (cache em memória sem TTL; ver docs/face-engine.md). BENCH_ENDPOINTS nunca em produção.
+# A primeira subida baixa os modelos ONNX (alguns minutos): o healthcheck tem tolerância longa.
+name: genus
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  face-engine:
+    build: .
+    image: genus-face-engine
+    container_name: genus-face-engine
+    restart: unless-stopped
+    environment:
+      MASTER_KEY: ${MASTER_KEY:?Defina MASTER_KEY (64 hex) no .env da raiz (pnpm setup:dev)}
+      ENGINE_API_KEY: ${ENGINE_API_KEY:?Defina ENGINE_API_KEY no .env da raiz}
+      # Nunca true fora de benchmark.
+      BENCH_ENDPOINTS: "false"
+      SAVE_AUDIT_FRAMES: "false"
+      # 1 vCPU por engine: sem paralelismo interno (benchmark em docs/benchmark.md).
+      ENGINE_THREAD_POOL_SIZE: "1"
+      ONNX_INTRA_OP_THREADS: "1"
+      CV2_NUM_THREADS: "1"
+    volumes:
+      - engine-models:/app/models
+      - insightface:/root/.insightface
+    # Publicada só em 127.0.0.1 (dev). Em produção a engine não tem porta no host.
+    ports:
+      - "127.0.0.1:${ENGINE_PORT:-8001}:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,sys,urllib.request; sys.exit(0 if json.load(urllib.request.urlopen('http://127.0.0.1:8001/health')).get('status')=='ok' else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+    # Prioridade máxima, junto com o banco: teto de 1 vCPU (a medida do benchmark), a maior fatia de CPU
+    # em disputa e o último a ser morto por falta de RAM.
+    cpus: ${ENGINE_CPUS:-1.0}
+    cpu_shares: 2048
+    mem_limit: ${ENGINE_MEM_LIMIT:-2g}
+    mem_reservation: 1g
+    oom_score_adj: -500
+    init: true
+    stop_grace_period: 20s
+    logging: *logging
+
+volumes:
+  engine-models:
+    name: genus-face-engine-modelos
+  insightface:
+    name: genus-face-engine-insightface

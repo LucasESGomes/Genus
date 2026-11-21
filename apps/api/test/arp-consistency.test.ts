@@ -50,19 +50,19 @@ describe('checkArp (dois bancos reais)', () => {
     await c.connect();
     try {
       const one = async (sql: string, params: unknown[]) => Number((await c.query<{ id: string }>(sql, params)).rows[0]?.id);
-      const tenantId = await one("INSERT INTO rh.conta (nome) VALUES ('Conta') RETURNING id", []);
-      const companyId = await one("INSERT INTO rh.empresa (conta_id, razao_social, cnpj) VALUES ($1, 'E', '11222333000181') RETURNING id", [tenantId]);
+      const tenantId = await one("INSERT INTO rh.contas (nome) VALUES ('Conta') RETURNING id", []);
+      const companyId = await one("INSERT INTO rh.empresas (conta_id, razao_social, cnpj) VALUES ($1, 'E', '11222333000181') RETURNING id", [tenantId]);
       const establishmentId = await one(
-        `INSERT INTO rh.estabelecimento (conta_id, empresa_id, nome, tipo_inscricao, inscricao, uf, municipio_ibge)
+        `INSERT INTO rh.estabelecimentos (conta_id, empresa_id, nome, tipo_inscricao, inscricao, uf, municipio_ibge)
          VALUES ($1, $2, 'Matriz', 'CNPJ', '11222333000181', 'SP', '3550308') RETURNING id`,
         [tenantId, companyId],
       );
-      const deviceId = await one("INSERT INTO rh.aparelho (conta_id, estabelecimento_id, nome) VALUES ($1, $2, 'Tablet 1') RETURNING id", [
+      const deviceId = await one("INSERT INTO rh.aparelhos (conta_id, estabelecimento_id, nome) VALUES ($1, $2, 'Tablet 1') RETURNING id", [
         tenantId,
         establishmentId,
       ]);
       const employeeId = await one(
-        `INSERT INTO rh.colaborador (conta_id, estabelecimento_id, cpf, nome, data_nascimento, data_admissao)
+        `INSERT INTO rh.colaboradores (conta_id, estabelecimento_id, cpf, nome, data_nascimento, data_admissao)
          VALUES ($1, $2, '12345678901', 'Pessoa Fictícia', '1990-01-01', '2025-01-01') RETURNING id`,
         [tenantId, establishmentId],
       );

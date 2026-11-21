@@ -5,3 +5,4 @@ export * from './interfaces.js';
 export * from './clock.js';
 export * from './logger.js';
 export * from './crypto.js';
+export * from './heartbeat.js';

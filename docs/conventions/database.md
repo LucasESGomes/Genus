@@ -23,6 +23,8 @@
 | `arp` | Armazenamento de Registro de Ponto (fiscal) | Só o `rep-core` tem INSERT. Trigger recusa `UPDATE`/`DELETE` em `registros` e `evidencias`. Demais serviços: somente leitura. Migrations escritas à mão em SQL, com teste da imutabilidade |
 | `app` | Operacional: cadastros, apuração, pedidos, atestados, banco de horas, fechamento | Tudo desta convenção. Acesso por Drizzle |
 
+**Uma instância, dois bancos.** Nos Tiers 1 e 2 os dois bancos moram no mesmo Postgres (um container, `genus-postgres-arp-app`); o isolamento é por banco e por papel (`arp_owner`, `arp_collector`, `arp_core`, `arp_reader` no `arp`; `rh_owner` e `rh_api` no `app`), nunca por container. Cada banco tem o seu dono, que só as migrations usam, e o papel de runtime não faz DDL. O serviço `db-roles` (`db/postgres/bootstrap.sh`) cria papéis e bancos a cada `docker compose up`, de forma idempotente. No Tier 3 o `app` pode ir para outro cluster trocando só a URL de conexão.
+
 O `app` nunca copia marcações do `arp`. Referencia por `(estabelecimento_id, nsr)` quando precisa apontar uma marcação original.
 
 ## 3. Nomes
@@ -264,27 +266,29 @@ export const employees = pgTable('colaboradores', {
 | `recusar_alteracao_fiscal` | `recusar_alteracao_fiscal` | Função SQL (trigger) em `registros` e `evidencias`. Nome de função, não é traduzido |
 | `exigir_registro_para_processar` | `exigir_registro_para_processar` | Função SQL (trigger) em `entradas`. Só deixa `entradas` ir a `processado` com evidência e os 3 eventos de `outbox` |
 
-**Schema `rh` do banco `app` (instância `postgres-rh`).** Criado de `apps/api/schema-rh.sql`. Segue a regra multi-tenant (`conta_id` em toda tabela, FKs compostas `(conta_id, x_id)`), mas mantém os nomes no **singular** do arquivo original: ver `apps/api/README.md`. Tradução no código (`apps/api/src/db/schema/`):
+**Schema `rh` do banco `app` (mesma instância Postgres do `arp`).** Criado de `apps/api/schema-rh.sql` (desenho original, em referência) e mantido pelas migrations do Drizzle. Segue a regra multi-tenant (`conta_id` em toda tabela, FKs compostas `(conta_id, x_id)`) e os nomes de tabela **no plural**. Quando a tabela é "X de Y", o substantivo principal vai ao plural e o qualificador fica como está, como em `sequencias_estabelecimento`: `dias_escala`, `vinculos_colaborador`, `analises_atestado`. Tabela de ligação leva os dois lados no plural: `usuarios_estabelecimentos`. Tradução no código (`apps/api/src/db/schema/`):
 
 | Banco (`rh.`) | Entidade no código | Banco (`rh.`) | Entidade no código |
 |---|---|---|---|
-| `conta` | `tenants` | `aparelho` | `devices` |
-| `empresa` | `companies` | `apuracao_dia` | `dailyTimesheets` |
-| `estabelecimento` | `establishments` | `apuracao_marcacao` | `timesheetPunches` |
-| `setor` | `departments` | `inconsistencia` | `timesheetIssues` |
-| `cargo` | `jobTitles` | `ajuste` | `timeAdjustments` |
-| `centro_custo` | `costCenters` | `atestado` | `medicalCertificates` |
-| `colaborador` | `employees` | `atestado_analise` | `certificateAnalyses` |
-| `colaborador_vinculo` | `employeeAssignments` | `afastamento` | `absences` |
-| `usuario` | `users` | `banco_horas_regra` | `timeBankPolicies` |
-| `usuario_estabelecimento` | `userEstablishments` | `banco_horas_lancamento` | `timeBankEntries` |
-| `escala` | `schedules` | `vw_banco_horas_saldo` (view) | `timeBankBalances` |
-| `escala_dia` | `scheduleDays` | `ferias_periodo_aquisitivo` | `vacationAccrualPeriods` |
-| `colaborador_escala` | `employeeSchedules` | `ferias_gozo` | `vacationInstallments` |
-| `troca_turno` | `scheduleOverrides` | `fechamento` | `closingPeriods` |
-| `feriado` | `holidays` | `espelho` | `timeMirrors` |
-| `estabelecimento_feriado` | `establishmentHolidays` | `auditoria` | `auditLogs` |
-| `parametro_legal` | `legalParameters` | | |
+| `contas` | `tenants` | `aparelhos` | `devices` |
+| `empresas` | `companies` | `apuracoes_dia` | `dailyTimesheets` |
+| `estabelecimentos` | `establishments` | `apuracoes_marcacoes` | `timesheetPunches` |
+| `setores` | `departments` | `inconsistencias` | `timesheetIssues` |
+| `cargos` | `jobTitles` | `ajustes` | `timeAdjustments` |
+| `centros_custo` | `costCenters` | `atestados` | `medicalCertificates` |
+| `colaboradores` | `employees` | `analises_atestado` | `certificateAnalyses` |
+| `vinculos_colaborador` | `employeeAssignments` | `afastamentos` | `absences` |
+| `usuarios` | `users` | `regras_banco_horas` | `timeBankPolicies` |
+| `usuarios_estabelecimentos` | `userEstablishments` | `lancamentos_banco_horas` | `timeBankEntries` |
+| `escalas` | `schedules` | `vw_saldos_banco_horas` (view) | `timeBankBalances` |
+| `dias_escala` | `scheduleDays` | `periodos_aquisitivos_ferias` | `vacationAccrualPeriods` |
+| `colaboradores_escalas` | `employeeSchedules` | `gozos_ferias` | `vacationInstallments` |
+| `trocas_turno` | `scheduleOverrides` | `fechamentos` | `closingPeriods` |
+| `feriados` | `holidays` | `espelhos` | `timeMirrors` |
+| `estabelecimentos_feriados` | `establishmentHolidays` | `auditorias` | `auditLogs` |
+| `parametros_legais` | `legalParameters` | | |
+
+**Ainda fora da convenção neste schema** (a pluralização das tabelas não mexeu nisto): colunas `ativo`, `folga`, `vigencia_inicio`/`vigencia_fim`, `criado_por`/`decidido_por` e `competencia` (o padrão pede `eh_ativo`, `data_inicio`/`data_fim`, `criado_por_id`/`decidido_por_id`), e nomes de constraint e índice no estilo do Postgres (`empresa_cnpj_unico`, `idx_ajuste_pendente`) em vez de `pk_`/`fk_`/`uq_`/`ck_`. Os nomes de constraint ainda levam o nome antigo, no singular, da tabela. Alinhar tudo é uma migration à parte, antes de existir dado.
 
 Colunas fora das regras de §12.1: `ativo` → `isActive`, `folga` → `isDayOff`, `vigencia_inicio`/`vigencia_fim` → `validFrom`/`validTo`, `criado_por`/`decidido_por` → `createdById`/`decidedById`, `competencia` → `referenceMonth`, `ciencia_em` → `acknowledgedAt`.
 

@@ -2,16 +2,20 @@
 /**
  * pnpm setup:dev
  *
- * Cria (ou completa) os dois arquivos de ambiente de desenvolvimento, com
+ * Cria (ou completa) os arquivos de ambiente de desenvolvimento, com
  * segredos gerados e COERENTES entre si:
  *
- *   infra/.env                   compose: senhas do Postgres e dos papéis do arp, Valkey, MASTER_KEY, ENGINE_API_KEY, portas
+ *   .env                         TODOS os docker-compose.yml: senhas do Postgres e dos papéis (arp e app), Valkey, MASTER_KEY, ENGINE_API_KEY, chaves do coletor, portas
  *   apps/collector-api/.env.dev  api do coletor: URLs do banco, Valkey, mesma MASTER_KEY e ENGINE_API_KEY
  *   apps/rep-core/.env.dev       rep-core: ARP_CORE_DATABASE_URL, Valkey (docs/SPEC-nsr-fila.md §9)
  *   apps/jobs/.env.dev           jobs: ARP_READER_DATABASE_URL, Valkey (docs/SPEC-nsr-fila.md §9)
+ *   apps/api/.env.dev            api do portal de RH: URLs do banco app (rh_api e rh_owner) e leitura do arp
  *
- * - infra/.env: se já existe, só troca valores vazios ou com TROQUE_ (e acrescenta as chaves novas no fim).
- * - .env.dev: as variáveis que DERIVAM do infra/.env (URLs, porta, chaves da
+ * Os .env.dev servem para rodar os processos FORA do Docker (`pnpm dev`). Dentro do Docker, o
+ * docker-compose.yml de cada app monta as variáveis a partir do .env da raiz.
+ *
+ * - .env: se já existe, só troca valores vazios ou com TROQUE_ (e acrescenta as chaves novas no fim).
+ * - .env.dev: as variáveis que DERIVAM do .env (URLs, porta, chaves da
  *   engine, Valkey) são sempre alinhadas a ele; o resto só é preenchido se faltar.
  * - Nenhum valor é impresso. Os arquivos estão no .gitignore.
  */
@@ -22,14 +26,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const INFRA = path.join(root, 'infra', '.env');
-const INFRA_EXAMPLE = path.join(root, 'infra', '.env.example');
+const ROOT_ENV = path.join(root, '.env');
+const ROOT_EXAMPLE = path.join(root, '.env.example');
 const API = path.join(root, 'apps', 'collector-api', '.env.dev');
 const API_EXAMPLE = path.join(root, 'apps', 'collector-api', '.env.dev.example');
 const REP_CORE = path.join(root, 'apps', 'rep-core', '.env.dev');
 const REP_CORE_EXAMPLE = path.join(root, 'apps', 'rep-core', '.env.dev.example');
 const JOBS = path.join(root, 'apps', 'jobs', '.env.dev');
 const JOBS_EXAMPLE = path.join(root, 'apps', 'jobs', '.env.dev.example');
+const PORTAL = path.join(root, 'apps', 'api', '.env.dev');
+const PORTAL_EXAMPLE = path.join(root, 'apps', 'api', '.env.dev.example');
 const PG_VOLUME = 'genus-postgres-arp-app-dados';
 
 const out = (line = '') => process.stdout.write(`${line}\n`);
@@ -51,9 +57,9 @@ function setVar(text, key, value) {
   return re.test(text) ? text.replace(re, `${key}=${value}`) : `${text.replace(/\n*$/, '\n')}${key}=${value}\n`;
 }
 
-// ---------------------------------------------------------------- infra/.env
-const infraCreated = !existsSync(INFRA);
-let infraText = readFileSync(infraCreated ? INFRA_EXAMPLE : INFRA, 'utf8');
+// ---------------------------------------------------------------- .env da raiz
+const infraCreated = !existsSync(ROOT_ENV);
+let infraText = readFileSync(infraCreated ? ROOT_EXAMPLE : ROOT_ENV, 'utf8');
 const infraBefore = parse(infraText);
 const infraGenerated = {
   POSTGRES_USER: () => 'genus_admin',
@@ -62,12 +68,18 @@ const infraGenerated = {
   ARP_COLLECTOR_PASSWORD: () => hex(16),
   ARP_CORE_PASSWORD: () => hex(16),
   ARP_READER_PASSWORD: () => hex(16),
+  RH_OWNER_PASSWORD: () => hex(16),
+  RH_API_PASSWORD: () => hex(16),
   VALKEY_PASSWORD: () => hex(16),
   VALKEY_PORT: () => '6379',
   MASTER_KEY: () => hex(32),
   ENGINE_API_KEY: () => hex(24),
   POSTGRES_PORT: () => '5432',
   ENGINE_PORT: () => '8001',
+  COLLECTOR_SERVICE_KEYS: () => hex(24),
+  COLLECTOR_PORT: () => '3001',
+  API_PORT: () => '3002',
+  CORS_ORIGINS: () => 'http://localhost:3000',
 };
 const infraChanged = [];
 for (const [key, gen] of Object.entries(infraGenerated)) {
@@ -78,10 +90,10 @@ for (const [key, gen] of Object.entries(infraGenerated)) {
 }
 const infra = parse(infraText);
 if (!/^[0-9a-f]{64}$/i.test(infra.MASTER_KEY)) {
-  out('Erro: MASTER_KEY em infra/.env precisa ter 64 caracteres hexadecimais. Corrija ou apague a linha e rode de novo.');
+  out('Erro: MASTER_KEY no .env precisa ter 64 caracteres hexadecimais. Corrija ou apague a linha e rode de novo.');
   process.exit(1);
 }
-writeFileSync(INFRA, infraText);
+writeFileSync(ROOT_ENV, infraText);
 
 // ------------------------------------------------------- apps/collector-api/.env.dev
 const apiCreated = !existsSync(API);
@@ -103,6 +115,7 @@ const derived = {
   ENGINE_URL: `http://localhost:${infra.ENGINE_PORT || '8001'}`,
   ENGINE_API_KEY: infra.ENGINE_API_KEY,
   MASTER_KEY: infra.MASTER_KEY,
+  COLLECTOR_SERVICE_KEYS: infra.COLLECTOR_SERVICE_KEYS,
 };
 const apiChanged = [];
 for (const [key, value] of Object.entries(derived)) {
@@ -110,11 +123,6 @@ for (const [key, value] of Object.entries(derived)) {
     apiText = setVar(apiText, key, value);
     apiChanged.push(key);
   }
-}
-const keys = (apiBefore.COLLECTOR_SERVICE_KEYS ?? '').split(',').map((k) => k.trim()).filter(Boolean);
-if (keys.length === 0 || keys.some((k) => k.includes('TROQUE'))) {
-  apiText = setVar(apiText, 'COLLECTOR_SERVICE_KEYS', hex(24));
-  apiChanged.push('COLLECTOR_SERVICE_KEYS');
 }
 // Chaves da fila com valor padrão: preenchidas só se faltarem (não sobrescrevem ajustes do dev).
 const API_QUEUE_DEFAULTS = { QUEUE_PUBLISH_TIMEOUT_MS: '250', QUEUE_ATTEMPTS: '5' };
@@ -129,7 +137,7 @@ writeFileSync(API, apiText);
 // ------------------------------------------- rep-core e jobs (mesmo padrão de derivação)
 /**
  * Escreve um .env.dev de um processo: base = o .env.dev existente, senão o .env.dev.example,
- * senão um texto mínimo embutido. Derivados são alinhados ao infra/.env; padrões só entram se faltarem.
+ * senão um texto mínimo embutido. Derivados são alinhados ao .env da raiz; padrões só entram se faltarem.
  */
 function syncEnv({ file, example, fallback, derived: values, defaults = {} }) {
   const created = !existsSync(file);
@@ -175,14 +183,30 @@ const jobsMsg = syncEnv({
   defaults: { RESCUE_INTERVAL_MS: '20000', RESCUE_MIN_AGE_MS: '30000', POST_PUNCH_DEPTH_WARN: '10000' },
 });
 
+// ------------------------------------------------- apps/api/.env.dev (portal de RH)
+const portalMsg = syncEnv({
+  file: PORTAL,
+  example: PORTAL_EXAMPLE,
+  fallback: '# Gerado por scripts/setup-dev.mjs.\n',
+  derived: {
+    // Mesma instância Postgres do arp: banco `app`, papéis rh_api (runtime) e rh_owner (migrations).
+    RH_DATABASE_URL: `postgres://rh_api:${encodeURIComponent(infra.RH_API_PASSWORD)}@localhost:${pgPort}/app`,
+    RH_MIGRATION_DATABASE_URL: `postgres://rh_owner:${encodeURIComponent(infra.RH_OWNER_PASSWORD)}@localhost:${pgPort}/app`,
+    ARP_READER_DATABASE_URL: `postgres://arp_reader:${encodeURIComponent(infra.ARP_READER_PASSWORD)}@localhost:${pgPort}/arp`,
+    PORT: infra.API_PORT || '3002',
+    CORS_ORIGINS: infra.CORS_ORIGINS || 'http://localhost:3000',
+  },
+});
+
 // -------------------------------------------------------------------- relatório
-out(`${infraCreated ? 'Criado' : 'Conferido'}: infra/.env${infraChanged.length ? ` (gerados: ${infraChanged.join(', ')})` : ' (nada a mudar)'}`);
+out(`${infraCreated ? 'Criado' : 'Conferido'}: .env${infraChanged.length ? ` (gerados: ${infraChanged.join(', ')})` : ' (nada a mudar)'}`);
 out(`${apiCreated ? 'Criado' : 'Conferido'}: apps/collector-api/.env.dev${apiChanged.length ? ` (ajustados: ${apiChanged.join(', ')})` : ' (nada a mudar)'}`);
 out(repCoreMsg);
 out(jobsMsg);
+out(portalMsg);
 
-// Só senhas do Postgres que já existiam no volume exigem recriar o volume. Papéis novos e o
-// Valkey são criados sem isso: o garantir-papeis.sh (rodado pelo dev:up) cria os papéis que faltam.
+// Só a senha do superusuário do Postgres que já existia no volume exige recriar o volume. Papéis novos
+// (e os do RH) são criados sem isso: o serviço db-roles (db/postgres/bootstrap.sh) cria o que falta.
 const PG_KEYS = ['POSTGRES_USER', 'POSTGRES_PASSWORD', 'ARP_OWNER_PASSWORD', 'ARP_COLLECTOR_PASSWORD'];
 const pgChanged = infraChanged.some((k) => PG_KEYS.includes(k));
 let volumeExists = false;
@@ -196,7 +220,7 @@ if (pgChanged && volumeExists) {
   out('');
   out(`ATENÇÃO: o volume ${PG_VOLUME} já existe e foi criado com OUTRAS senhas do Postgres (o init só roda na primeira subida).`);
   out('Recrie o volume (apaga os dados locais do Postgres de dev):');
-  out('  docker compose -f infra/docker-compose.yml --env-file infra/.env --profile dev down -v');
+  out('  docker compose down -v');
 }
 out('');
-out('Próximo passo: pnpm dev:up   (sobe Postgres, Valkey e engine, cria papéis que faltam e aplica a migration)');
+out('Próximo passo: docker compose up -d   (tudo no Docker)  ou  pnpm dev   (infra no Docker e processos Node no host)');

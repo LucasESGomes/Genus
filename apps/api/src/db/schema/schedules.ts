@@ -21,7 +21,7 @@ import { id, ref, rh, tenantId } from './rh';
 
 // RF07, RF08
 export const schedules = rh.table(
-  'escala',
+  'escalas',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -55,7 +55,7 @@ export const schedules = rh.table(
 );
 
 export const scheduleDays = rh.table(
-  'escala_dia',
+  'dias_escala',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -92,7 +92,7 @@ export const scheduleDays = rh.table(
 
 // RF09. Exclusion constraint colab_escala_sem_sobreposicao: migration 0002.
 export const employeeSchedules = rh.table(
-  'colaborador_escala',
+  'colaboradores_escalas',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -118,7 +118,7 @@ export const employeeSchedules = rh.table(
 
 // RF12: troca pontual de turno ou folga em um dia
 export const scheduleOverrides = rh.table(
-  'troca_turno',
+  'trocas_turno',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -149,7 +149,7 @@ export const scheduleOverrides = rh.table(
 // RF14, RF15. Catálogo: conta_id NULL = feriado oficial, vale para todas as contas;
 // com conta_id = feriado próprio da conta (ex.: ponto facultativo local).
 export const holidays = rh.table(
-  'feriado',
+  'feriados',
   {
     id: id(),
     tenantId: tenantId(),
@@ -176,7 +176,7 @@ export const holidays = rh.table(
 
 // RF16: o estabelecimento trabalha no feriado? como trata a hora?
 export const establishmentHolidays = rh.table(
-  'estabelecimento_feriado',
+  'estabelecimentos_feriados',
   {
     tenantId: tenantId().notNull(),
     establishmentId: ref('estabelecimento_id').notNull(),
@@ -201,7 +201,7 @@ export const establishmentHolidays = rh.table(
 // RF10, RN06, RNF06: nenhum valor legal fica fixo no código.
 // conta_id NULL = valor legal padrão do Genus. Exclusion constraint param_sem_sobreposicao: migration 0002.
 export const legalParameters = rh.table(
-  'parametro_legal',
+  'parametros_legais',
   {
     id: id(),
     tenantId: tenantId(),

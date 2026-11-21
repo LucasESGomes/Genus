@@ -18,7 +18,7 @@ SET search_path = rh, public;
 -- A. ORGANIZAÇÃO E PESSOAS
 -- ============================================================================
 
-CREATE TABLE empresa (
+CREATE TABLE empresas (
     id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     razao_social    text        NOT NULL,
     cnpj            char(14)    NOT NULL UNIQUE,
@@ -29,9 +29,9 @@ CREATE TABLE empresa (
 );
 
 -- [JÁ PODE EXISTIR] RF01
-CREATE TABLE estabelecimento (
+CREATE TABLE estabelecimentos (
     id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    empresa_id       bigint   NOT NULL REFERENCES empresa(id),
+    empresa_id       bigint   NOT NULL REFERENCES empresas(id),
     nome             text     NOT NULL,
     tipo_inscricao   text     NOT NULL,
     inscricao        text     NOT NULL,
@@ -46,9 +46,9 @@ CREATE TABLE estabelecimento (
 );
 
 -- RF02 — guarda o limite de férias simultâneas (regra do setor desfalcado)
-CREATE TABLE setor (
+CREATE TABLE setores (
     id                         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    estabelecimento_id         bigint   NOT NULL REFERENCES estabelecimento(id),
+    estabelecimento_id         bigint   NOT NULL REFERENCES estabelecimentos(id),
     nome                       text     NOT NULL,
     limite_ferias_simultaneas  smallint NOT NULL DEFAULT 1,
 
@@ -61,9 +61,9 @@ COMMENT ON COLUMN setor.limite_ferias_simultaneas IS
   'Padrão 1: ninguém do mesmo setor sobrepõe. Ver trigger trg_ferias_limite_setor.';
 
 -- RF02
-CREATE TABLE cargo (
+CREATE TABLE cargos (
     id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    empresa_id  bigint   NOT NULL REFERENCES empresa(id),
+    empresa_id  bigint   NOT NULL REFERENCES empresas(id),
     nome        text     NOT NULL,
     cbo         char(6),
 
@@ -72,9 +72,9 @@ CREATE TABLE cargo (
 );
 
 -- RF02
-CREATE TABLE centro_custo (
+CREATE TABLE centros_custo (
     id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    empresa_id  bigint NOT NULL REFERENCES empresa(id),
+    empresa_id  bigint NOT NULL REFERENCES empresas(id),
     codigo      text   NOT NULL,
     nome        text   NOT NULL,
 
@@ -82,9 +82,9 @@ CREATE TABLE centro_custo (
 );
 
 -- [JÁ PODE EXISTIR] RF03, RF05
-CREATE TABLE colaborador (
+CREATE TABLE colaboradores (
     id                   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    estabelecimento_id   bigint   NOT NULL REFERENCES estabelecimento(id),
+    estabelecimento_id   bigint   NOT NULL REFERENCES estabelecimentos(id),
     cpf                  char(11) NOT NULL UNIQUE,
     nome                 text     NOT NULL,
     matricula            text,
@@ -92,7 +92,7 @@ CREATE TABLE colaborador (
     data_admissao        date     NOT NULL,
     data_desligamento    date,
     motivo_desligamento  text,
-    gestor_id            bigint   REFERENCES colaborador(id),
+    gestor_id            bigint   REFERENCES colaboradores(id),
 
     CONSTRAINT colab_cpf_formato     CHECK (cpf ~ '^[0-9]{11}$'),
     CONSTRAINT colab_admissao_valida CHECK (data_admissao > data_nascimento),
@@ -106,12 +106,12 @@ CREATE TABLE colaborador (
 );
 
 -- RF06 — histórico de cargo, setor, centro de custo e salário
-CREATE TABLE colaborador_vinculo (
+CREATE TABLE vinculos_colaborador (
     id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    colaborador_id   bigint        NOT NULL REFERENCES colaborador(id),
-    cargo_id         bigint        NOT NULL REFERENCES cargo(id),
-    setor_id         bigint        NOT NULL REFERENCES setor(id),
-    centro_custo_id  bigint        REFERENCES centro_custo(id),
+    colaborador_id   bigint        NOT NULL REFERENCES colaboradores(id),
+    cargo_id         bigint        NOT NULL REFERENCES cargos(id),
+    setor_id         bigint        NOT NULL REFERENCES setores(id),
+    centro_custo_id  bigint        REFERENCES centros_custo(id),
     tipo_contrato    text          NOT NULL,
     salario_base     numeric(12,2),           -- (a confirmar com o contador)
     vigencia_inicio  date          NOT NULL,
@@ -130,9 +130,9 @@ CREATE TABLE colaborador_vinculo (
 );
 
 -- [JÁ PODE EXISTIR] perfis de acesso
-CREATE TABLE usuario (
+CREATE TABLE usuarios (
     id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    colaborador_id  bigint  UNIQUE REFERENCES colaborador(id),
+    colaborador_id  bigint  UNIQUE REFERENCES colaboradores(id),
     email           citext  NOT NULL UNIQUE,
     senha_hash      text    NOT NULL,
     papel           text    NOT NULL,
@@ -150,9 +150,9 @@ CREATE TABLE usuario (
 );
 
 -- RNF02 — escopo por estabelecimento
-CREATE TABLE usuario_estabelecimento (
-    usuario_id          bigint NOT NULL REFERENCES usuario(id) ON DELETE CASCADE,
-    estabelecimento_id  bigint NOT NULL REFERENCES estabelecimento(id),
+CREATE TABLE usuarios_estabelecimentos (
+    usuario_id          bigint NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    estabelecimento_id  bigint NOT NULL REFERENCES estabelecimentos(id),
     PRIMARY KEY (usuario_id, estabelecimento_id)
 );
 
@@ -162,9 +162,9 @@ CREATE TABLE usuario_estabelecimento (
 -- ============================================================================
 
 -- RF07, RF08
-CREATE TABLE escala (
+CREATE TABLE escalas (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    estabelecimento_id  bigint   NOT NULL REFERENCES estabelecimento(id),
+    estabelecimento_id  bigint   NOT NULL REFERENCES estabelecimentos(id),
     nome                text     NOT NULL,
     tipo                text     NOT NULL,
     ciclo_tipo          text     NOT NULL,
@@ -184,9 +184,9 @@ CREATE TABLE escala (
     )
 );
 
-CREATE TABLE escala_dia (
+CREATE TABLE dias_escala (
     id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    escala_id         bigint   NOT NULL REFERENCES escala(id) ON DELETE CASCADE,
+    escala_id         bigint   NOT NULL REFERENCES escalas(id) ON DELETE CASCADE,
     posicao           smallint NOT NULL,   -- 0-6 = dia da semana; 0..n = posição do ciclo
     folga             boolean  NOT NULL DEFAULT false,
     entrada           time,
@@ -210,10 +210,10 @@ CREATE TABLE escala_dia (
 );
 
 -- RF09
-CREATE TABLE colaborador_escala (
+CREATE TABLE colaboradores_escalas (
     id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    colaborador_id   bigint NOT NULL REFERENCES colaborador(id),
-    escala_id        bigint NOT NULL REFERENCES escala(id),
+    colaborador_id   bigint NOT NULL REFERENCES colaboradores(id),
+    escala_id        bigint NOT NULL REFERENCES escalas(id),
     vigencia_inicio  date   NOT NULL,
     vigencia_fim     date,
 
@@ -227,15 +227,15 @@ CREATE TABLE colaborador_escala (
 );
 
 -- RF12 — troca pontual de turno ou folga em um dia
-CREATE TABLE troca_turno (
+CREATE TABLE trocas_turno (
     id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    colaborador_id  bigint      NOT NULL REFERENCES colaborador(id),
+    colaborador_id  bigint      NOT NULL REFERENCES colaboradores(id),
     data            date        NOT NULL,
     folga           boolean     NOT NULL DEFAULT false,
     entrada         time,
     saida           time,
     motivo          text        NOT NULL,
-    criado_por      bigint      NOT NULL REFERENCES usuario(id),
+    criado_por      bigint      NOT NULL REFERENCES usuarios(id),
     criado_em       timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT troca_unica   UNIQUE (colaborador_id, data),
@@ -246,7 +246,7 @@ CREATE TABLE troca_turno (
 );
 
 -- RF14, RF15
-CREATE TABLE feriado (
+CREATE TABLE feriados (
     id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     abrangencia     text    NOT NULL,
     uf              char(2),
@@ -268,9 +268,9 @@ CREATE TABLE feriado (
 );
 
 -- RF16 — o estabelecimento trabalha no feriado? como trata a hora?
-CREATE TABLE estabelecimento_feriado (
-    estabelecimento_id  bigint NOT NULL REFERENCES estabelecimento(id),
-    feriado_id          bigint NOT NULL REFERENCES feriado(id),
+CREATE TABLE estabelecimentos_feriados (
+    estabelecimento_id  bigint NOT NULL REFERENCES estabelecimentos(id),
+    feriado_id          bigint NOT NULL REFERENCES feriados(id),
     trabalha            boolean NOT NULL DEFAULT false,
     tratamento          text,
 
@@ -284,7 +284,7 @@ CREATE TABLE estabelecimento_feriado (
 );
 
 -- RF10, RN06, RNF06 — nenhum valor legal fica fixo no código
-CREATE TABLE parametro_legal (
+CREATE TABLE parametros_legais (
     id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     empresa_id       bigint,                  -- NULL = valor legal padrão
     chave            text    NOT NULL,
@@ -293,7 +293,7 @@ CREATE TABLE parametro_legal (
     vigencia_inicio  date    NOT NULL,
     vigencia_fim     date,
 
-    CONSTRAINT param_empresa_fk FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    CONSTRAINT param_empresa_fk FOREIGN KEY (empresa_id) REFERENCES empresas(id),
     CONSTRAINT param_vigencia   CHECK (vigencia_fim IS NULL
                                        OR vigencia_fim >= vigencia_inicio),
     -- COALESCE porque EXCLUDE ignora NULL: sem ele, dois padrões globais passariam
@@ -304,7 +304,7 @@ CREATE TABLE parametro_legal (
     )
 );
 
-COMMENT ON TABLE parametro_legal IS
+COMMENT ON TABLE parametros_legais IS
   'Chaves: jornada_semanal_max_min, tolerancia_batida_min, tolerancia_dia_min, '
   'adicional_noturno_pct, noturno_inicio, noturno_fim, extra_pct_50, extra_pct_100, '
   'banco_prazo_meses, interjornada_min. A mudança de 44h para 42h (16/12/2026) e '
@@ -316,11 +316,11 @@ COMMENT ON TABLE parametro_legal IS
 -- ============================================================================
 
 -- RF18 a RF22 — resultado do dia já calculado
-CREATE TABLE apuracao_dia (
+CREATE TABLE apuracoes_dia (
     id                    bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    colaborador_id        bigint      NOT NULL REFERENCES colaborador(id),
+    colaborador_id        bigint      NOT NULL REFERENCES colaboradores(id),
     data                  date        NOT NULL,
-    escala_id             bigint      REFERENCES escala(id),
+    escala_id             bigint      REFERENCES escalas(id),
     situacao              text        NOT NULL,
     minutos_previstos     integer     NOT NULL DEFAULT 0,
     minutos_trabalhados   integer     NOT NULL DEFAULT 0,
@@ -347,9 +347,9 @@ CREATE TABLE apuracao_dia (
 
 -- As batidas originais vivem no banco arp e não são copiadas nem alteradas (RN01).
 -- Aqui fica a visão resolvida do dia: original + tratada.
-CREATE TABLE apuracao_marcacao (
+CREATE TABLE apuracoes_marcacoes (
     id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    apuracao_dia_id   bigint      NOT NULL REFERENCES apuracao_dia(id) ON DELETE CASCADE,
+    apuracao_dia_id   bigint      NOT NULL REFERENCES apuracoes_dia(id) ON DELETE CASCADE,
     sequencia         smallint    NOT NULL,
     hora              timestamptz NOT NULL,
     origem            text        NOT NULL,
@@ -367,12 +367,12 @@ CREATE TABLE apuracao_marcacao (
 );
 
 -- RF21
-CREATE TABLE inconsistencia (
+CREATE TABLE inconsistencias (
     id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    apuracao_dia_id  bigint  NOT NULL REFERENCES apuracao_dia(id) ON DELETE CASCADE,
+    apuracao_dia_id  bigint  NOT NULL REFERENCES apuracoes_dia(id) ON DELETE CASCADE,
     tipo             text    NOT NULL,
     resolvida        boolean NOT NULL DEFAULT false,
-    resolvida_por    bigint  REFERENCES usuario(id),
+    resolvida_por    bigint  REFERENCES usuarios(id),
     resolvida_em     timestamptz,
 
     CONSTRAINT inconsistencia_unica UNIQUE (apuracao_dia_id, tipo),
@@ -391,18 +391,18 @@ CREATE TABLE inconsistencia (
 -- ============================================================================
 
 -- RF23 a RF26
-CREATE TABLE ajuste (
+CREATE TABLE ajustes (
     id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    colaborador_id  bigint      NOT NULL REFERENCES colaborador(id),
+    colaborador_id  bigint      NOT NULL REFERENCES colaboradores(id),
     data            date        NOT NULL,
     tipo            text        NOT NULL,
     hora_proposta   timestamptz,
     motivo          text        NOT NULL,
     anexo_url       text,
     status          text        NOT NULL DEFAULT 'pendente',
-    solicitado_por  bigint      NOT NULL REFERENCES usuario(id),
+    solicitado_por  bigint      NOT NULL REFERENCES usuarios(id),
     solicitado_em   timestamptz NOT NULL DEFAULT now(),
-    decidido_por    bigint      REFERENCES usuario(id),
+    decidido_por    bigint      REFERENCES usuarios(id),
     decidido_em     timestamptz,
     motivo_decisao  text,
 
@@ -421,13 +421,13 @@ CREATE TABLE ajuste (
         CHECK (decidido_por IS NULL OR decidido_por <> solicitado_por)
 );
 
-ALTER TABLE apuracao_marcacao
-    ADD CONSTRAINT marcacao_ajuste_fk FOREIGN KEY (ajuste_id) REFERENCES ajuste(id);
+ALTER TABLE apuracoes_marcacoes
+    ADD CONSTRAINT marcacao_ajuste_fk FOREIGN KEY (ajuste_id) REFERENCES ajustes(id);
 
 -- RF27, RF28, RF32
-CREATE TABLE atestado (
+CREATE TABLE atestados (
     id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    colaborador_id  bigint      NOT NULL REFERENCES colaborador(id),
+    colaborador_id  bigint      NOT NULL REFERENCES colaboradores(id),
     data_inicio     date        NOT NULL,
     dias            smallint,
     horas           smallint,
@@ -439,7 +439,7 @@ CREATE TABLE atestado (
     cid             text,                    -- dado sensível: só RH lê (RN15)
     status          text        NOT NULL DEFAULT 'pendente',
     enviado_em      timestamptz NOT NULL DEFAULT now(),
-    decidido_por    bigint      REFERENCES usuario(id),
+    decidido_por    bigint      REFERENCES usuarios(id),
     decidido_em     timestamptz,
     motivo_decisao  text,
 
@@ -460,9 +460,9 @@ CREATE TABLE atestado (
 );
 
 -- RF61 a RF67 — a heurística só sinaliza; quem decide é o RH
-CREATE TABLE atestado_analise (
+CREATE TABLE analises_atestado (
     id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    atestado_id   bigint      NOT NULL UNIQUE REFERENCES atestado(id) ON DELETE CASCADE,
+    atestado_id   bigint      NOT NULL UNIQUE REFERENCES atestados(id) ON DELETE CASCADE,
     ocr_texto     text,
     score         smallint    NOT NULL,
     nota_risco    text        NOT NULL,
@@ -479,13 +479,13 @@ COMMENT ON COLUMN atestado_analise.motivos IS
   '"fora_do_prazo","recorrencia_segunda"]. Nenhuma recusa o atestado sozinha.';
 
 -- RF29, RF30, RF31
-CREATE TABLE afastamento (
+CREATE TABLE afastamentos (
     id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    colaborador_id  bigint NOT NULL REFERENCES colaborador(id),
+    colaborador_id  bigint NOT NULL REFERENCES colaboradores(id),
     tipo            text   NOT NULL,
     data_inicio     date   NOT NULL,
     data_fim        date   NOT NULL,
-    atestado_id     bigint UNIQUE REFERENCES atestado(id),
+    atestado_id     bigint UNIQUE REFERENCES atestados(id),
 
     CONSTRAINT afast_tipo CHECK (tipo IN (
         'atestado','maternidade','paternidade','casamento','obito',
@@ -508,10 +508,10 @@ CREATE TABLE afastamento (
 -- ============================================================================
 
 -- RF34, RN09
-CREATE TABLE banco_horas_regra (
+CREATE TABLE regras_banco_horas (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    estabelecimento_id  bigint        REFERENCES estabelecimento(id),
-    colaborador_id      bigint        REFERENCES colaborador(id),
+    estabelecimento_id  bigint        REFERENCES estabelecimentos(id),
+    colaborador_id      bigint        REFERENCES colaboradores(id),
     modalidade          text          NOT NULL,
     peso_domingo        numeric(3,2)  NOT NULL DEFAULT 1.00,
     peso_feriado        numeric(3,2)  NOT NULL DEFAULT 1.00,
@@ -528,15 +528,15 @@ CREATE TABLE banco_horas_regra (
 );
 
 -- RF33, RF35 a RF38 — o saldo é a soma dos lançamentos, nunca um campo editável
-CREATE TABLE banco_horas_lancamento (
+CREATE TABLE lancamentos_banco_horas (
     id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    colaborador_id    bigint      NOT NULL REFERENCES colaborador(id),
-    apuracao_dia_id   bigint      REFERENCES apuracao_dia(id),
+    colaborador_id    bigint      NOT NULL REFERENCES colaboradores(id),
+    apuracao_dia_id   bigint      REFERENCES apuracoes_dia(id),
     tipo              text        NOT NULL,
     minutos           integer     NOT NULL,   -- positivo credita, negativo debita
     data_competencia  date        NOT NULL,
     data_vencimento   date,
-    criado_por        bigint      NOT NULL REFERENCES usuario(id),
+    criado_por        bigint      NOT NULL REFERENCES usuarios(id),
     criado_em         timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT bh_tipo CHECK (tipo IN
@@ -551,7 +551,7 @@ CREATE TABLE banco_horas_lancamento (
                                     OR data_vencimento > data_competencia)
 );
 
-CREATE VIEW vw_banco_horas_saldo AS
+CREATE VIEW vw_saldos_banco_horas AS
 SELECT colaborador_id,
        sum(minutos) AS saldo_minutos,
        sum(minutos) FILTER (
@@ -559,7 +559,7 @@ SELECT colaborador_id,
              AND data_vencimento IS NOT NULL
              AND data_vencimento <= current_date + 30
        ) AS minutos_vencendo_30d
-  FROM banco_horas_lancamento
+  FROM lancamentos_banco_horas
  GROUP BY colaborador_id;
 
 
@@ -568,9 +568,9 @@ SELECT colaborador_id,
 -- ============================================================================
 
 -- RF39, RF40, RN10
-CREATE TABLE ferias_periodo_aquisitivo (
+CREATE TABLE periodos_aquisitivos_ferias (
     id                     bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    colaborador_id         bigint   NOT NULL REFERENCES colaborador(id),
+    colaborador_id         bigint   NOT NULL REFERENCES colaboradores(id),
     inicio                 date     NOT NULL,
     fim                    date     NOT NULL,
     concessivo_fim         date     NOT NULL,
@@ -600,20 +600,20 @@ CREATE TABLE ferias_periodo_aquisitivo (
 );
 
 -- RF41 a RF43 — aqui mora a regra do setor desfalcado
-CREATE TABLE ferias_gozo (
+CREATE TABLE gozos_ferias (
     id                      bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    periodo_aquisitivo_id   bigint      NOT NULL REFERENCES ferias_periodo_aquisitivo(id),
-    colaborador_id          bigint      NOT NULL REFERENCES colaborador(id),
-    setor_id                bigint      NOT NULL REFERENCES setor(id),
+    periodo_aquisitivo_id   bigint      NOT NULL REFERENCES periodos_aquisitivos_ferias(id),
+    colaborador_id          bigint      NOT NULL REFERENCES colaboradores(id),
+    setor_id                bigint      NOT NULL REFERENCES setores(id),
     data_inicio             date        NOT NULL,
     data_fim                date        NOT NULL,
     dias                    smallint    GENERATED ALWAYS AS
                                         (data_fim - data_inicio + 1) STORED,
     abono_pecuniario_dias   smallint    NOT NULL DEFAULT 0,
     status                  text        NOT NULL DEFAULT 'solicitada',
-    solicitado_por          bigint      NOT NULL REFERENCES usuario(id),
+    solicitado_por          bigint      NOT NULL REFERENCES usuarios(id),
     solicitado_em           timestamptz NOT NULL DEFAULT now(),
-    decidido_por            bigint      REFERENCES usuario(id),
+    decidido_por            bigint      REFERENCES usuarios(id),
     decidido_em             timestamptz,
     motivo_decisao          text,
 
@@ -670,13 +670,13 @@ BEGIN
     -- aprovações simultâneas leriam a mesma contagem e as duas passariam.
     SELECT limite_ferias_simultaneas, nome
       INTO v_limite, v_setor
-      FROM setor
+      FROM setores
      WHERE id = NEW.setor_id
        FOR UPDATE;
 
     SELECT count(*)
       INTO v_em_ferias
-      FROM ferias_gozo g
+      FROM gozos_ferias g
      WHERE g.setor_id = NEW.setor_id
        AND g.id IS DISTINCT FROM NEW.id
        AND g.status IN ('aprovada','gozada')
@@ -695,7 +695,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_ferias_limite_setor
-    BEFORE INSERT OR UPDATE ON ferias_gozo
+    BEFORE INSERT OR UPDATE ON gozos_ferias
     FOR EACH ROW EXECUTE FUNCTION fn_ferias_limite_setor();
 
 
@@ -718,14 +718,14 @@ BEGIN
     v_dias := NEW.data_fim - NEW.data_inicio + 1;
 
     SELECT dias_direito INTO v_direito
-      FROM ferias_periodo_aquisitivo
+      FROM periodos_aquisitivos_ferias
      WHERE id = NEW.periodo_aquisitivo_id
        FOR UPDATE;
 
     SELECT count(*), coalesce(sum(data_fim - data_inicio + 1), 0),
            coalesce(bool_or(data_fim - data_inicio + 1 >= 14), false)
       INTO v_periodos, v_dias_outros, v_tem_14
-      FROM ferias_gozo
+      FROM gozos_ferias
      WHERE periodo_aquisitivo_id = NEW.periodo_aquisitivo_id
        AND id IS DISTINCT FROM NEW.id
        AND status IN ('aprovada','gozada');
@@ -762,7 +762,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_ferias_fracionamento
-    BEFORE INSERT OR UPDATE ON ferias_gozo
+    BEFORE INSERT OR UPDATE ON gozos_ferias
     FOR EACH ROW EXECUTE FUNCTION fn_ferias_fracionamento();
 
 
@@ -779,7 +779,7 @@ BEGIN
     END IF;
 
     IF EXISTS (
-        SELECT 1 FROM feriado f
+        SELECT 1 FROM feriados f
          WHERE NOT f.facultativo
            AND f.data BETWEEN NEW.data_inicio AND NEW.data_inicio + 2
     ) OR extract(isodow FROM NEW.data_inicio) IN (6,7)
@@ -796,7 +796,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_ferias_inicio_valido
-    BEFORE INSERT OR UPDATE ON ferias_gozo
+    BEFORE INSERT OR UPDATE ON gozos_ferias
     FOR EACH ROW EXECUTE FUNCTION fn_ferias_inicio_valido();
 
 
@@ -805,16 +805,16 @@ CREATE TRIGGER trg_ferias_inicio_valido
 -- ============================================================================
 
 -- RF46, RF49
-CREATE TABLE fechamento (
+CREATE TABLE fechamentos (
     id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    estabelecimento_id  bigint      NOT NULL REFERENCES estabelecimento(id),
+    estabelecimento_id  bigint      NOT NULL REFERENCES estabelecimentos(id),
     competencia         date        NOT NULL,     -- primeiro dia do mês
     data_inicio         date        NOT NULL,
     data_fim            date        NOT NULL,
     status              text        NOT NULL DEFAULT 'aberto',
-    fechado_por         bigint      REFERENCES usuario(id),
+    fechado_por         bigint      REFERENCES usuarios(id),
     fechado_em          timestamptz,
-    reaberto_por        bigint      REFERENCES usuario(id),
+    reaberto_por        bigint      REFERENCES usuarios(id),
     reaberto_em         timestamptz,
     motivo_reabertura   text,
 
@@ -835,10 +835,10 @@ CREATE TABLE fechamento (
 );
 
 -- RF47, RF48
-CREATE TABLE espelho (
+CREATE TABLE espelhos (
     id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    fechamento_id   bigint NOT NULL REFERENCES fechamento(id) ON DELETE CASCADE,
-    colaborador_id  bigint NOT NULL REFERENCES colaborador(id),
+    fechamento_id   bigint NOT NULL REFERENCES fechamentos(id) ON DELETE CASCADE,
+    colaborador_id  bigint NOT NULL REFERENCES colaboradores(id),
     pdf_url         text,
     ciencia_em      timestamptz,
     ciencia_ip      inet,
@@ -848,9 +848,9 @@ CREATE TABLE espelho (
 );
 
 -- RF60, RNF03
-CREATE TABLE auditoria (
+CREATE TABLE auditorias (
     id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    usuario_id    bigint      REFERENCES usuario(id),
+    usuario_id    bigint      REFERENCES usuarios(id),
     entidade      text        NOT NULL,
     entidade_id   bigint      NOT NULL,
     acao          text        NOT NULL,
@@ -864,7 +864,7 @@ CREATE TABLE auditoria (
         'aprovacao','recusa','fechamento','reabertura'))
 );
 
-COMMENT ON TABLE auditoria IS
+COMMENT ON TABLE auditorias IS
   'Inclui a leitura de dado sensível (acao = leitura_sensivel), que é como a '
   'LGPD é atendida para CID e arquivo de atestado (RN15, RNF04).';
 
@@ -877,7 +877,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_auditoria_imutavel
-    BEFORE UPDATE OR DELETE ON auditoria
+    BEFORE UPDATE OR DELETE ON auditorias
     FOR EACH ROW EXECUTE FUNCTION fn_auditoria_imutavel();
 
 
@@ -891,8 +891,8 @@ DECLARE
 BEGIN
     IF EXISTS (
         SELECT 1
-          FROM fechamento f
-          JOIN colaborador c ON c.estabelecimento_id = f.estabelecimento_id
+          FROM fechamentos f
+          JOIN colaboradores c ON c.estabelecimento_id = f.estabelecimento_id
          WHERE c.id = v_colaborador
            AND f.status = 'fechado'
            AND v_data BETWEEN f.data_inicio AND f.data_fim
@@ -906,11 +906,11 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_apuracao_periodo_fechado
-    BEFORE INSERT OR UPDATE OR DELETE ON apuracao_dia
+    BEFORE INSERT OR UPDATE OR DELETE ON apuracoes_dia
     FOR EACH ROW EXECUTE FUNCTION fn_bloqueia_periodo_fechado();
 
 CREATE TRIGGER trg_ajuste_periodo_fechado
-    BEFORE INSERT OR UPDATE ON ajuste
+    BEFORE INSERT OR UPDATE ON ajustes
     FOR EACH ROW EXECUTE FUNCTION fn_bloqueia_periodo_fechado();
 
 
@@ -918,22 +918,22 @@ CREATE TRIGGER trg_ajuste_periodo_fechado
 -- ÍNDICES DE APOIO
 -- ============================================================================
 
-CREATE INDEX idx_colaborador_estab      ON colaborador (estabelecimento_id)
+CREATE INDEX idx_colaborador_estab      ON colaboradores (estabelecimento_id)
     WHERE data_desligamento IS NULL;
-CREATE INDEX idx_colaborador_gestor     ON colaborador (gestor_id);
-CREATE INDEX idx_vinculo_colab_vigencia ON colaborador_vinculo (colaborador_id, vigencia_inicio DESC);
-CREATE INDEX idx_apuracao_colab_data    ON apuracao_dia (colaborador_id, data DESC);
-CREATE INDEX idx_apuracao_data          ON apuracao_dia (data);
-CREATE INDEX idx_marcacao_dia           ON apuracao_marcacao (apuracao_dia_id, sequencia);
-CREATE INDEX idx_ajuste_pendente        ON ajuste (colaborador_id) WHERE status = 'pendente';
-CREATE INDEX idx_atestado_pendente      ON atestado (colaborador_id) WHERE status = 'pendente';
-CREATE INDEX idx_bh_colab               ON banco_horas_lancamento (colaborador_id, data_competencia);
-CREATE INDEX idx_bh_vencimento          ON banco_horas_lancamento (data_vencimento)
+CREATE INDEX idx_colaborador_gestor     ON colaboradores (gestor_id);
+CREATE INDEX idx_vinculo_colab_vigencia ON vinculos_colaborador (colaborador_id, vigencia_inicio DESC);
+CREATE INDEX idx_apuracao_colab_data    ON apuracoes_dia (colaborador_id, data DESC);
+CREATE INDEX idx_apuracao_data          ON apuracoes_dia (data);
+CREATE INDEX idx_marcacao_dia           ON apuracoes_marcacoes (apuracao_dia_id, sequencia);
+CREATE INDEX idx_ajuste_pendente        ON ajustes (colaborador_id) WHERE status = 'pendente';
+CREATE INDEX idx_atestado_pendente      ON atestados (colaborador_id) WHERE status = 'pendente';
+CREATE INDEX idx_bh_colab               ON lancamentos_banco_horas (colaborador_id, data_competencia);
+CREATE INDEX idx_bh_vencimento          ON lancamentos_banco_horas (data_vencimento)
     WHERE data_vencimento IS NOT NULL;
-CREATE INDEX idx_ferias_setor_periodo   ON ferias_gozo (setor_id, data_inicio, data_fim)
+CREATE INDEX idx_ferias_setor_periodo   ON gozos_ferias (setor_id, data_inicio, data_fim)
     WHERE status IN ('aprovada','gozada');
-CREATE INDEX idx_feriado_data           ON feriado (data);
-CREATE INDEX idx_auditoria_entidade     ON auditoria (entidade, entidade_id, criado_em DESC);
+CREATE INDEX idx_feriado_data           ON feriados (data);
+CREATE INDEX idx_auditoria_entidade     ON auditorias (entidade, entidade_id, criado_em DESC);
 
 
 -- ============================================================================

@@ -1,97 +1,27 @@
-# Compose da raiz do Genus: sobe o projeto inteiro com um comando.
+# Compose principal do Genus: sobe o projeto inteiro com um comando.
 #
-#   pnpm setup:all             # só na primeira vez: cria infra/.env e .env com senhas geradas
-#   docker compose up -d       # tudo; `docker compose watch` recarrega a api ao salvar
+#   pnpm setup:dev            # só na primeira vez: cria o .env (senhas geradas) e os .env.dev dos apps
+#   docker compose up -d      # tudo
+#   docker compose ps         # estado e saúde de cada contêiner
 #
-# Duas partes, cada uma com seu banco:
-#   - infra/docker-compose.yml (incluído SEM alteração): Postgres do arp (ponto/fiscal),
-#     Valkey e face-engine. Variáveis em infra/.env. O perfil "dev" dele continua valendo:
-#     `docker compose --profile dev up -d` publica a engine e o Valkey em 127.0.0.1.
-#   - abaixo, a parte de RH: instância Postgres própria (banco `app`, schema `rh`),
-#     migrations do Drizzle e a api do portal. Variáveis no .env da raiz.
+# O que sobe (cada peça tem o próprio docker-compose.yml de entrada e um service.compose.yml com a definição):
+#   db/                        postgres (arp + app) → db-roles → arp-migrate
+#   packages/queue/            valkey (fila BullMQ)
+#   services/face-engine/      face-engine
+#   apps/rep-core/             rep-core (NSR)
+#   apps/jobs/                 jobs (resgate)
+#   apps/collector-api/        api do coletor (inclui db, valkey, engine, rep-core e jobs)
+#   apps/api/                  api do portal de RH (inclui db) → rh-migrate
+#
+# Para subir só uma parte, entre na pasta dela e rode `docker compose up`.
+# O Compose deduplica o que várias partes incluem (um Postgres, um Valkey, uma engine).
+#
+# Prioridade de recursos: banco e engine têm a maior fatia de CPU em disputa (cpu_shares 2048),
+# memória reservada e oom_score_adj negativo; Valkey, rep-core, apis vêm depois; jobs por último.
 name: genus
 
 include:
-  - path: infra/docker-compose.yml
-    env_file: infra/.env
-
-services:
-  # Banco do RH: instância separada do Postgres do arp, mesma versão.
-  postgres-rh:
-    image: postgres:17.6-alpine
-    container_name: genus-postgres-rh
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${RH_POSTGRES_USER:?Defina RH_POSTGRES_USER no .env da raiz (pnpm setup:rh)}
-      POSTGRES_PASSWORD: ${RH_POSTGRES_PASSWORD:?Defina RH_POSTGRES_PASSWORD no .env da raiz}
-      # Lidas pelo init (primeira subida do volume) para criar rh_owner e rh_api.
-      RH_OWNER_PASSWORD: ${RH_OWNER_PASSWORD:?Defina RH_OWNER_PASSWORD no .env da raiz}
-      RH_API_PASSWORD: ${RH_API_PASSWORD:?Defina RH_API_PASSWORD no .env da raiz}
-    volumes:
-      - pgdata-rh:/var/lib/postgresql/data
-      - ./apps/api/docker/postgres-init:/docker-entrypoint-initdb.d:ro
-    ports:
-      - "127.0.0.1:${RH_POSTGRES_PORT:-5433}:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d app"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Aplica as migrations do Drizzle (apps/api/drizzle) como rh_owner e sai.
-  api-migrate:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    image: genus-api
-    container_name: genus-api-migrate
-    command: ["node_modules/.bin/tsx", "src/db/migrate.ts"]
-    environment:
-      RH_MIGRATION_DATABASE_URL: postgres://rh_owner:${RH_OWNER_PASSWORD}@postgres-rh:5432/app
-    depends_on:
-      postgres-rh:
-        condition: service_healthy
-    restart: "no"
-
-  # API do portal de RH (Fastify).
-  api:
-    # Mesma imagem do api-migrate (o build fica em cache: sai uma vez só).
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    image: genus-api
-    container_name: genus-api
-    restart: unless-stopped
-    environment:
-      APP_ENV: dev
-      PORT: "3002"
-      LOG_LEVEL: debug
-      RH_DATABASE_URL: postgres://rh_api:${RH_API_PASSWORD}@postgres-rh:5432/app
-      CORS_ORIGINS: http://localhost:3000
-    ports:
-      - "127.0.0.1:${API_PORT:-3002}:3002"
-    depends_on:
-      api-migrate:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3002/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    # `docker compose watch`: código copiado para o contêiner e a api reinicia; dependências novas recriam a imagem.
-    # Migration nova: `docker compose up --build api-migrate`.
-    develop:
-      watch:
-        - action: sync+restart
-          path: ./apps/api/src
-          target: /repo/apps/api/src
-        - action: sync+restart
-          path: ./packages/shared/src
-          target: /repo/packages/shared/src
-        - action: rebuild
-          path: ./apps/api/package.json
-
-volumes:
-  pgdata-rh:
-    name: genus-postgres-rh-dados
+  - path: apps/collector-api/docker-compose.yml
+    env_file: .env
+  - path: apps/api/docker-compose.yml
+    env_file: .env

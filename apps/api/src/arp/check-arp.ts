@@ -29,15 +29,15 @@ async function readRh(client: pg.ClientBase, tenantIds: number[]): Promise<RhSna
   // Toda consulta filtra por conta: só as contas que aparecem no arp.
   // Em sequência: um pg.Client não executa duas consultas ao mesmo tempo.
   const establishments = await client.query<{ c: string; id: string }>(
-    'SELECT conta_id AS c, id FROM rh.estabelecimento WHERE conta_id = ANY($1)',
+    'SELECT conta_id AS c, id FROM rh.estabelecimentos WHERE conta_id = ANY($1)',
     [tenantIds],
   );
   const devices = await client.query<{ c: string; id: string; e: string }>(
-    'SELECT conta_id AS c, id, estabelecimento_id AS e FROM rh.aparelho WHERE conta_id = ANY($1)',
+    'SELECT conta_id AS c, id, estabelecimento_id AS e FROM rh.aparelhos WHERE conta_id = ANY($1)',
     [tenantIds],
   );
   const employees = await client.query<{ c: string; id: string; cpf: string }>(
-    'SELECT conta_id AS c, id, cpf FROM rh.colaborador WHERE conta_id = ANY($1)',
+    'SELECT conta_id AS c, id, cpf FROM rh.colaboradores WHERE conta_id = ANY($1)',
     [tenantIds],
   );
   return {

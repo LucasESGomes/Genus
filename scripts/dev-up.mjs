@@ -2,48 +2,42 @@
 /**
  * pnpm dev:up
  *
- * Deixa o ambiente de dev pronto para a api do coletor:
- *   1. pnpm setup:dev (cria/completa infra/.env e apps/collector-api/.env.dev);
- *   2. docker compose --profile dev up -d --wait (Postgres + Valkey + engine + portas dev);
- *      a primeira subida da engine baixa os modelos: alguns minutos;
- *   3. garante os papéis do banco arp (idempotente; cria só os que faltam em volume antigo);
- *   4. aplica as migrations do banco arp.
- * Depois: pnpm dev (sobe api, rep-core e resgate) e, em outro terminal, pnpm dev:punch.
- * `pnpm dev` já roda este preparo antes de subir os processos.
+ * Deixa a INFRAESTRUTURA de dev pronta para rodar os processos Node no host (pnpm dev):
+ *   1. pnpm setup:dev (cria/completa o .env da raiz e os .env.dev dos apps);
+ *   2. docker compose up -d --wait só da infra: Postgres, Valkey e engine; depois os papéis
+ *      e bancos (db-roles) e as migrations do arp (arp-migrate) e do RH (rh-migrate).
+ *      A primeira subida da engine baixa os modelos: alguns minutos.
+ * As APIs, o rep-core e o resgate NÃO sobem no Docker aqui: rodam no host com `pnpm dev`.
+ * Para subir tudo no Docker, use `docker compose up -d` (e não rode `pnpm dev` ao mesmo tempo:
+ * as portas 3001 e 3002 são as mesmas).
  */
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = (line = '') => process.stdout.write(`${line}\n`);
 
-/** `input` (Buffer/string) vai para a entrada padrão do processo: senhas não aparecem na linha de comando. */
-function run(title, cmd, args, input) {
+function run(title, cmd, args) {
   out(`\n==> ${title}`);
-  const r = spawnSync(cmd, args, {
-    cwd: root,
-    stdio: input === undefined ? 'inherit' : ['pipe', 'inherit', 'inherit'],
-    input,
-    shell: process.platform === 'win32',
-  });
+  const r = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
   if (r.status !== 0) {
     out(`\nFalhou: ${title}.`);
     process.exit(r.status ?? 1);
   }
 }
 
-const compose = ['compose', '-f', 'infra/docker-compose.yml', '--env-file', 'infra/.env', '--profile', 'dev'];
-const garantirPapeis = readFileSync(path.join(root, 'infra', 'postgres', 'garantir-papeis.sh'));
+// Serviços da infraestrutura (nomes do docker-compose.yml da raiz). Os migradores saem sozinhos ao terminar.
+const infraServices = ['postgres', 'valkey', 'face-engine', 'db-roles', 'arp-migrate', 'rh-migrate'];
 
 run('Arquivos de ambiente', 'node', ['scripts/setup-dev.mjs']);
-run('Postgres, Valkey e engine (a primeira vez baixa os modelos da engine: alguns minutos)', 'docker', [...compose, 'up', '-d', '--build', '--wait']);
-// As senhas dos papéis já estão no ambiente do contêiner postgres (o compose as passa): o script as lê de lá.
-run('Papéis do banco arp (idempotente: cria só o que falta)', 'docker', [...compose, 'exec', '-T', 'postgres', 'bash', '-s'], garantirPapeis);
-run('Migrations do banco arp', 'pnpm', ['db:migrate:arp']);
+run(
+  'Postgres, Valkey e engine, papéis e migrations (a primeira vez baixa os modelos da engine: alguns minutos)',
+  'docker',
+  ['compose', 'up', '-d', '--build', '--wait', ...infraServices],
+);
 
 out('\nAmbiente pronto. Agora:');
-out('  pnpm dev                 # sobe api, rep-core e resgate (Swagger em http://localhost:3001/docs)');
+out('  pnpm dev                 # sobe api do coletor, rep-core, resgate e api do RH (Swagger em http://localhost:3001/docs)');
 out('  pnpm dev:enroll-fake     # galeria: suas fotos em dev-data/faces/<nome>/ + 50 candidatos fictícios');
 out('  pnpm dev:punch           # uma batida com uma foto de dev-data/probes/');

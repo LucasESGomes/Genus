@@ -18,7 +18,7 @@ import { citext, id, ref, rh, tenantId } from './rh';
 
 // Conta (tenant) do SaaS: conta → empresa → estabelecimento → colaborador (04 §G1).
 // É o mesmo `conta_id` que o banco arp grava em cada batida.
-export const tenants = rh.table('conta', {
+export const tenants = rh.table('contas', {
   id: id(),
   name: text('nome').notNull(),
   isActive: boolean('ativo').notNull().default(true),
@@ -26,7 +26,7 @@ export const tenants = rh.table('conta', {
 });
 
 export const companies = rh.table(
-  'empresa',
+  'empresas',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -46,7 +46,7 @@ export const companies = rh.table(
 
 // [JÁ PODE EXISTIR] RF01. É a unidade da sequência de NSR no arp (estabelecimento_id).
 export const establishments = rh.table(
-  'estabelecimento',
+  'estabelecimentos',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -76,7 +76,7 @@ export const establishments = rh.table(
 // Aparelho coletor do estabelecimento. O arp grava `aparelho_id` em cada batida;
 // a autenticação do aparelho (certificado, chave) é da parte do ponto e entra depois.
 export const devices = rh.table(
-  'aparelho',
+  'aparelhos',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -98,7 +98,7 @@ export const devices = rh.table(
 
 // RF02: guarda o limite de férias simultâneas (regra do setor desfalcado)
 export const departments = rh.table(
-  'setor',
+  'setores',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -121,7 +121,7 @@ export const departments = rh.table(
 
 // RF02
 export const jobTitles = rh.table(
-  'cargo',
+  'cargos',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -143,7 +143,7 @@ export const jobTitles = rh.table(
 
 // RF02
 export const costCenters = rh.table(
-  'centro_custo',
+  'centros_custo',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -164,7 +164,7 @@ export const costCenters = rh.table(
 
 // [JÁ PODE EXISTIR] RF03, RF05. O arp grava `colaborador_id` e `cpf` de cada batida.
 export const employees = rh.table(
-  'colaborador',
+  'colaboradores',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -203,7 +203,7 @@ export const employees = rh.table(
 // RF06: histórico de cargo, setor, centro de custo e salário.
 // A exclusion constraint vinculo_sem_sobreposicao está na migration 0002 (o Drizzle não declara EXCLUDE).
 export const employeeAssignments = rh.table(
-  'colaborador_vinculo',
+  'vinculos_colaborador',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -247,7 +247,7 @@ export const employeeAssignments = rh.table(
 
 // [JÁ PODE EXISTIR] perfis de acesso
 export const users = rh.table(
-  'usuario',
+  'usuarios',
   {
     id: id(),
     /** NULL só para super_admin (operador da plataforma, fora de qualquer conta). */
@@ -280,7 +280,7 @@ export const users = rh.table(
 
 // RNF02: escopo por estabelecimento
 export const userEstablishments = rh.table(
-  'usuario_estabelecimento',
+  'usuarios_estabelecimentos',
   {
     tenantId: tenantId().notNull(),
     userId: ref('usuario_id').notNull(),

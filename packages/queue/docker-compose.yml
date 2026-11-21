@@ -1,0 +1,8 @@
+# Entrada para subir ESTE serviço isolado, com as dependências dele: docker compose up
+# A definição de cada peça está no service.compose.yml da pasta dela. O .env da raiz entra pelo
+# env_file de cada include (o Compose só interpola o arquivo de entrada com o .env da pasta atual).
+name: genus
+
+include:
+  - path: service.compose.yml
+    env_file: ../../.env

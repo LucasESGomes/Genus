@@ -15,9 +15,24 @@
 
 ## 2. Começo rápido (do zero a uma batida reconhecida)
 
+Há duas formas de rodar. **Não misture as duas**: as portas 3001 e 3002 são as mesmas.
+
+**A. Tudo no Docker (um comando).** Cada contêiner tem healthcheck e limite de recursos; o banco e a engine têm prioridade.
+
 ```bash
 pnpm install
-pnpm dev           # prepara tudo (dev:up) e sobe api, rep-core e resgate num terminal só (Ctrl+C encerra os três)
+pnpm setup:dev          # só na primeira vez: cria o .env da raiz (senhas geradas) e os .env.dev dos apps
+docker compose up -d --build
+docker compose ps       # tudo "healthy"; db-roles, arp-migrate e rh-migrate saem sozinhos (Exited 0)
+```
+
+Sobem: Postgres (bancos `arp` e `app`), Valkey, face-engine, rep-core, jobs (resgate), api do coletor (`http://localhost:3001`) e api do RH (`http://localhost:3002`). Para subir só uma parte, entre na pasta dela e rode `docker compose up -d` (ver §3).
+
+**B. Infra no Docker e processos Node no host** (para depurar e recarregar ao salvar):
+
+```bash
+pnpm install
+pnpm dev           # prepara a infra (dev:up) e sobe coletor, rep-core, resgate e api do RH num terminal só (Ctrl+C encerra os quatro)
 ```
 
 Em outro terminal:
@@ -26,7 +41,7 @@ Em outro terminal:
 # suas fotos: uma pasta por pessoa (dev-data/ nunca vai ao Git)
 #   dev-data/faces/<seu-nome>/1.jpg, 2.jpg, ...
 pnpm dev:enroll-fake   # embedding de 3 fotos sorteadas + 50 candidatos fictícios
-# reinicie o pnpm dev (Ctrl+C e de novo) para a api carregar a galeria
+# a api do coletor lê a galeria ao subir: reinicie o pnpm dev (forma B) ou `docker compose restart collector-api` (forma A)
 pnpm dev:punch         # uma batida com uma foto que a engine nunca viu
 ```
 
@@ -39,9 +54,9 @@ Para acompanhar uma batida (mesma chave `X-Service-Key`):
 
 | Comando | O que faz |
 |---|---|
-| `pnpm setup:dev` | Cria `infra/.env` e `apps/collector-api/.env.dev` com segredos gerados e coerentes entre si (mesma `MASTER_KEY` e `ENGINE_API_KEY`, senhas dos papéis nas URLs). Se já existem, só completa o que falta. Não imprime nenhum valor |
-| `pnpm dev:up` | `setup:dev` + `docker compose ... --profile dev up -d --wait` + `pnpm db:migrate:arp`. A primeira vez baixa os modelos da engine (alguns minutos) |
-| `pnpm dev` | Prepara (`pnpm dev:up`) e sobe api, rep-core e resgate. Log de cada um com prefixo `[api]`, `[rep-core]`, `[resgate]`. `pnpm dev -- --sem-preparo` pula o preparo |
+| `pnpm setup:dev` | Cria o `.env` da raiz (lido por todos os `docker-compose.yml`) e os `.env.dev` de `apps/collector-api`, `rep-core`, `jobs` e `api`, com segredos gerados e coerentes entre si (mesma `MASTER_KEY` e `ENGINE_API_KEY`, senhas dos papéis nas URLs). Se já existem, só completa o que falta. Não imprime nenhum valor |
+| `pnpm dev:up` | `setup:dev` + `docker compose up -d --wait` só da infra (Postgres, Valkey, engine, `db-roles`, `arp-migrate`, `rh-migrate`). A primeira vez baixa os modelos da engine (alguns minutos) |
+| `pnpm dev` | Prepara (`pnpm dev:up`) e sobe, no host, coletor, rep-core, resgate e api do RH. Log de cada um com prefixo `[api]`, `[rep-core]`, `[resgate]`, `[rh]`. `pnpm dev -- --sem-preparo` pula o preparo |
 | `pnpm dev:enroll-fake` | Galeria `dev-data/gallery.json`: cada subpasta de `dev-data/faces/` é uma pessoa; sorteia `--photos` fotos (padrão 3) para a engine gerar o embedding cifrado; cria `--fakes` candidatos fictícios (padrão 50). As fotos não sorteadas vão para `dev-data/probes/<pessoa>/` (para testar) e uma delas para `dev-data/probes/proxima-batida.jpg` (usada pelo Postman) |
 | `pnpm dev:punch` | Uma batida contra a api rodando. Opções: `--image <arquivo>`, `--sequence N` (repetir a mesma = teste de idempotência), `--captured-at <ISO>` |
 
@@ -57,38 +72,54 @@ pnpm dev:punch -- --sequence 42     # rode duas vezes: mesmo receiptId, sem linh
 
 ### 2.1 Configuração manual (se não quiser o `setup:dev`)
 
-Copie `infra/.env.example` → `infra/.env` e `apps/collector-api/.env.dev.example` → `apps/collector-api/.env.dev`, e troque todo `TROQUE_` (a api recusa subir com placeholder):
+Copie `.env.example` → `.env` (raiz) e `apps/collector-api/.env.dev.example` → `apps/collector-api/.env.dev`, e troque todo `TROQUE_` (a api recusa subir com placeholder):
 
 - `MASTER_KEY`: 64 hex (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`), **igual** nos dois arquivos.
 - `ENGINE_API_KEY`: igual nos dois arquivos.
 - `COLLECTOR_SERVICE_KEYS`: uma ou mais chaves (≥ 32 caracteres), separadas por vírgula.
-- `ARP_OWNER_PASSWORD` e `ARP_COLLECTOR_PASSWORD` entram nas URLs `ARP_MIGRATION_DATABASE_URL` e `ARP_DATABASE_URL`, com a porta `POSTGRES_PORT`.
+- Senhas dos papéis: `ARP_OWNER_PASSWORD`, `ARP_COLLECTOR_PASSWORD`, `ARP_CORE_PASSWORD`, `ARP_READER_PASSWORD` (banco `arp`), `RH_OWNER_PASSWORD` e `RH_API_PASSWORD` (banco `app`). Entram nas URLs do `.env.dev`, com a porta `POSTGRES_PORT`. Use só `[0-9a-f]`.
 
-## 3. Subir o banco e a engine
+## 3. Subir pelo Docker: tudo ou uma parte
+
+Todos os composes leem o **mesmo** `.env` da raiz. Cada pasta de serviço tem um `docker-compose.yml` de entrada (que inclui as dependências) e um `service.compose.yml` com a definição:
 
 ```bash
-# Só o Postgres (a api sobe, mas sem a engine responde `fallback_required`)
-docker compose -f infra/docker-compose.yml --env-file infra/.env up -d postgres
-
-# Com a engine exposta em 127.0.0.1:8001 (necessário para o fluxo de reconhecimento)
-docker compose -f infra/docker-compose.yml --env-file infra/.env --profile dev up -d
+docker compose up -d                              # da raiz: tudo
+cd apps/collector-api   && docker compose up -d   # coletor + postgres, valkey, engine, rep-core e jobs
+cd apps/api             && docker compose up -d   # api do RH + postgres e migrations do Drizzle
+cd apps/rep-core        && docker compose up -d   # rep-core + postgres e valkey
+cd apps/jobs            && docker compose up -d   # resgate + postgres e valkey
+cd services/face-engine && docker compose up -d   # só a engine
+cd db                   && docker compose up -d   # só o Postgres (papéis, bancos, migrations do arp)
+cd packages/queue       && docker compose up -d   # só o Valkey
 ```
+
+O Compose deduplica o que várias partes incluem: sempre **um** Postgres, **um** Valkey, **uma** engine. As portas ficam em `127.0.0.1`: Postgres 5432, Valkey 6379, engine 8001, coletor 3001, api do RH 3002 (mudam pelo `.env`).
 
 Containers e volumes (`docker ps`, `docker volume ls`):
 
 | Container | O que é |
 |---|---|
-| `genus-postgres-arp-app` | Um único Postgres com os **dois** bancos: `arp` (fiscal, REP-P: batidas) e `app` (operacional, portais de RH). Eles se separam por banco e por papel, não por container. Dados no volume `genus-postgres-arp-app-dados` |
-| `genus-face-engine` | Motor facial. Só na rede interna do Compose. Modelos no volume `genus-face-engine-modelos` |
-| `genus-face-engine-porta-dev` | Só no perfil `dev`: publica a engine em `127.0.0.1:8001` |
+| `genus-postgres-arp-app` | Um único Postgres com os **dois** bancos: `arp` (fiscal, REP-P: batidas) e `app` (operacional, portais de RH). Separados por banco e por papel, não por container. Dados no volume `genus-postgres-arp-app-dados` |
+| `genus-db-roles` | Roda a cada `up`, sai sozinho: cria os papéis e os bancos que faltam (`db/postgres/bootstrap.sh`, idempotente) |
+| `genus-arp-migrate` · `genus-rh-migrate` | Aplicam as migrations do `arp` (`db/arp`) e do `app` (Drizzle, `apps/api/drizzle`) e saem |
+| `genus-valkey` | Fila das batidas. Volume `genus-valkey-dados` |
+| `genus-face-engine` | Motor facial. Modelos no volume `genus-face-engine-modelos` |
+| `genus-rep-core` · `genus-jobs` | Worker do NSR e resgate. Sem HTTP: o healthcheck lê o arquivo de sinal de vida que o processo atualiza a cada 5 s |
+| `genus-collector-api` · `genus-api` | API do coletor e API do portal de RH |
+
+**Ordem e saúde.** `postgres` (saudável) → `db-roles` → migrations → apps. A engine tem de estar saudável antes de a api do coletor subir. `docker compose ps` mostra `healthy` quando o healthcheck passa.
+
+**Recursos (prioridade para o banco e a engine).** Banco e engine: `cpu_shares: 2048`, memória reservada e `oom_score_adj: -500` (os últimos a serem mortos por falta de RAM); a engine tem teto de 1 vCPU (a medida do benchmark). Valkey, rep-core e as apis: `cpu_shares: 1024`. O resgate: 256. Ajustes pelo `.env`: `POSTGRES_MEM_LIMIT`, `ENGINE_MEM_LIMIT`, `ENGINE_CPUS`. Os processos Node rodam com sistema de arquivos somente leitura, sem capacidades e sem privilégios novos.
 
 Para abrir um dos bancos: `docker exec -it genus-postgres-arp-app psql -U <POSTGRES_USER> -d arp` (ou `-d app`).
 
 Pontos de atenção:
 
-- O script `infra/postgres/init` cria os papéis `arp_owner` e `arp_collector` e os bancos `arp` e `app`. Ele roda **só na primeira subida** do volume `genus-postgres-arp-app-dados`. Se trocar uma senha depois, o volume precisa ser recriado (`docker compose ... down -v`). Isso apaga os dados locais. Sintoma de senha trocada sem recriar o volume: a migration falha com "senha recusada (28P01)".
+- **Senha do superusuário (`POSTGRES_PASSWORD`) trocada com o volume já criado:** o Postgres só a lê na primeira subida. Recrie o volume (`docker compose down -v`, apaga os dados locais) ou mantenha a senha antiga no `.env`. Papéis de aplicação novos (ou os do RH) não pedem isso: o `db-roles` cria o que falta e **não altera** senha de papel existente. Sintoma de senha trocada: a migration falha com "senha recusada (28P01)".
 - A primeira subida da engine baixa os modelos ONNX. Pode levar alguns minutos. O healthcheck tem tolerância de 300 s.
 - Verifique a engine com `curl http://127.0.0.1:8001/health`. O esperado é `"status": "ok"`. Veja também `docs/face-engine.md` §3.
+- Migration nova do RH: `docker compose up --build rh-migrate` (dentro de `apps/api`). Migration nova do arp: `docker compose up --build arp-migrate` (dentro de `db`).
 
 ## 4. Aplicar a migration do banco arp
 
@@ -100,7 +131,7 @@ pnpm db:migrate:arp -- --env prod        # lê apps/collector-api/.env.prod
 pnpm db:migrate:arp -- --env-file <arq>  # arquivo explícito
 ```
 
-O comando lê `ARP_MIGRATION_DATABASE_URL` do arquivo do ambiente escolhido (padrão: `APP_ENV` do shell ou `dev`). Se a variável estiver exportada no shell, ela vence o arquivo. A URL usa o papel `arp_owner` e a porta `POSTGRES_PORT` do `infra/.env`. Nunca use `arp_collector` para migrar. O comando mostra de qual arquivo leu a URL, sem imprimir o valor.
+O comando lê `ARP_MIGRATION_DATABASE_URL` do arquivo do ambiente escolhido (padrão: `APP_ENV` do shell ou `dev`). Se a variável estiver exportada no shell, ela vence o arquivo. A URL usa o papel `arp_owner` e a porta `POSTGRES_PORT` do `.env` da raiz. Nunca use `arp_collector` para migrar. O comando mostra de qual arquivo leu a URL, sem imprimir o valor.
 
 A migration aplicada não muda mais. Nova alteração de banco vira uma nova migration.
 
@@ -130,7 +161,7 @@ pnpm -r lint
 pnpm -r test
 ```
 
-`pnpm -r test` exige o Docker em execução. Os testes de banco sobem um Postgres temporário com Testcontainers. Ele não usa o `infra/`.
+`pnpm -r test` exige o Docker em execução. Os testes de banco sobem um Postgres temporário com Testcontainers. Ele não usa o Compose do projeto.
 
 ## 7. Postman
 
@@ -192,11 +223,11 @@ Com `EXPOSE_TIMINGS=true` (só dev), o corpo da resposta também traz `meta.timi
 
 ## 11. Papéis e Valkey
 
-- **Papéis do banco arp.** `arp_owner` (só migrations), `arp_collector` (api do coletor), `arp_core` (rep-core, única escrita em `registros`, `evidencias` e `outbox`) e `arp_reader` (leitura, resgate e verificação). As senhas estão em `infra/.env`: `ARP_OWNER_PASSWORD`, `ARP_COLLECTOR_PASSWORD`, `ARP_CORE_PASSWORD`, `ARP_READER_PASSWORD`.
-- **O init só roda no primeiro volume.** O `infra/postgres/init` cria os papéis apenas na primeira subida do volume `genus-postgres-arp-app-dados`. Em um ambiente que já existe, use o script idempotente `infra/postgres/garantir-papeis.sh`: ele cria só os papéis que faltam, não altera senhas já existentes nem dados. Você não precisa rodá-lo à mão: `pnpm dev:up` já o executa depois de o Postgres ficar saudável.
-- **Valkey (fila das batidas).** `pnpm dev:up` sobe também o serviço `valkey` (`genus-valkey`, versão fixada, AOF e `noeviction`). A senha é `VALKEY_PASSWORD` em `infra/.env`. Ela é obrigatória: o servidor exige autenticação.
-- **Porta do Valkey no host.** Só existe com o perfil `dev`, em `127.0.0.1:${VALKEY_PORT}` (padrão 6379). Sem o perfil, o Valkey só é alcançado pela rede interna do Compose.
-- Se trocar `POSTGRES_PASSWORD` ou as senhas de `arp_owner`/`arp_collector` depois da primeira subida, o volume precisa ser recriado (`down -v`, como descrito em §3). Papéis novos (`arp_core`, `arp_reader`) entram sem recriar o volume. Mas o `garantir-papeis.sh` não troca a senha de um papel que já existe: se mudar `ARP_CORE_PASSWORD` ou `ARP_READER_PASSWORD` depois, recrie o volume.
+- **Papéis dos bancos.** `arp_owner` (só migrations), `arp_collector` (api do coletor), `arp_core` (rep-core, única escrita em `registros`, `evidencias` e `outbox`) e `arp_reader` (leitura, resgate e verificação) no banco `arp`; `rh_owner` (migrations) e `rh_api` (runtime) no banco `app`. As senhas estão no `.env` da raiz (`ARP_OWNER_PASSWORD`, ..., `RH_OWNER_PASSWORD`, `RH_API_PASSWORD`).
+- **Papéis e bancos novos em volume antigo.** O serviço `db-roles` (`db/postgres/bootstrap.sh`) roda a cada `docker compose up`: cria só o que falta e não altera senha existente. Você não precisa rodá-lo à mão.
+- **Valkey (fila das batidas).** Serviço `valkey` (`genus-valkey`, versão fixada, AOF e `noeviction`). A senha é `VALKEY_PASSWORD` no `.env` da raiz. Ela é obrigatória: o servidor exige autenticação.
+- **Porta do Valkey no host.** Publicada só em `127.0.0.1:${VALKEY_PORT}` (padrão 6379), para os processos que rodam no host (`pnpm dev`, `pnpm queue:inspect`).
+- Se trocar `POSTGRES_PASSWORD` ou a senha de um papel que já existe depois da primeira subida, o volume precisa ser recriado (`down -v`, como descrito em §3): o `db-roles` só cria o que falta e não troca senha de papel existente.
 
 ## 12. Fila, worker e resgate
 

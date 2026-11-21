@@ -8,7 +8,7 @@ import { schedules } from './schedules';
 
 // RF18 a RF22: resultado do dia já calculado. Trigger trg_apuracao_periodo_fechado: migration 0002.
 export const dailyTimesheets = rh.table(
-  'apuracao_dia',
+  'apuracoes_dia',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -56,7 +56,7 @@ export const dailyTimesheets = rh.table(
 // As batidas originais vivem no banco arp e não são copiadas nem alteradas (RN01).
 // Aqui fica a visão resolvida do dia: original + tratada.
 export const timesheetPunches = rh.table(
-  'apuracao_marcacao',
+  'apuracoes_marcacoes',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -93,7 +93,7 @@ export const timesheetPunches = rh.table(
 
 // RF21
 export const timesheetIssues = rh.table(
-  'inconsistencia',
+  'inconsistencias',
   {
     id: id(),
     tenantId: tenantId().notNull(),

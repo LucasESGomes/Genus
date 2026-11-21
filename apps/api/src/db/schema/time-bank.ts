@@ -7,7 +7,7 @@ import { dailyTimesheets } from './timesheets';
 
 // RF34, RN09
 export const timeBankPolicies = rh.table(
-  'banco_horas_regra',
+  'regras_banco_horas',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -40,7 +40,7 @@ export const timeBankPolicies = rh.table(
 
 // RF33, RF35 a RF38: o saldo é a soma dos lançamentos, nunca um campo editável
 export const timeBankEntries = rh.table(
-  'banco_horas_lancamento',
+  'lancamentos_banco_horas',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -78,7 +78,7 @@ export const timeBankEntries = rh.table(
 
 /** Saldo por colaborador. A view é criada na migration 0002; aqui só é declarada para leitura tipada. */
 export const timeBankBalances = rh
-  .view('vw_banco_horas_saldo', {
+  .view('vw_saldos_banco_horas', {
     tenantId: bigint('conta_id', { mode: 'number' }).notNull(),
     employeeId: bigint('colaborador_id', { mode: 'number' }).notNull(),
     balanceMinutes: bigint('saldo_minutos', { mode: 'number' }),

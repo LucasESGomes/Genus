@@ -16,15 +16,17 @@ O motor facial vem da **Visage** (produto irmão, em `../visage`). A Visage **n�
 services/face-engine/   Motor facial (Python). Cópia de REP-P/engine @ d80c5dd, que veio de visage/face_engine
 bench/                  Benchmark de capacidade da engine (scripts; dados, chaves e resultados ficam fora do git)
 apps/collector-api/     API do coletor (Fastify). Existe: POST /coletor/batidas (devolve receiptId e jobId), GET /coletor/batidas/jobs/:jobId e GET /coletor/batidas?employeeId= (ver docs/SPEC-primeira-entrega.md)
-apps/api/               API do portal de RH (Fastify + Drizzle). Banco `app`, schema `rh`, instância própria `postgres-rh`. Migrations em apps/api/drizzle. Ver apps/api/README.md
+apps/api/               API do portal de RH (Fastify + Drizzle). Banco `app`, schema `rh` (tabelas no plural), na mesma instância Postgres do arp. Migrations em apps/api/drizzle. Ver apps/api/README.md
 apps/rep-core/          Motor de NSR e worker da fila `punches` (consome, grava `registros`, `evidencias`, `outbox`). Verificação da cadeia: `pnpm arp:verify-chain`. Existe
 apps/jobs/              Resgate: republica `entradas` e `outbox` pendentes há mais de 30 s. Existe
 packages/shared/        Contratos Zod, Clock, logger e cripto, compartilhados entre os apps. Existe
 packages/queue/         `@genus/queue`: filas `punches` e `post-punch`, jobId, payloads e publicador. Existe
 tests/e2e/              Testes ponta a ponta e benchmark do NSR (`bench:nsr`). (a criar: ainda não existe)
 db/arp/                 Migrations SQL do banco arp (fiscal) e o executor (pnpm db:migrate:arp)
-infra/                  Compose do ponto: Postgres do arp, Valkey e face-engine (incluído pelo docker-compose.yml da raiz)
-docker-compose.yml      Compose da raiz: `docker compose up` sobe tudo (infra/ + postgres-rh, api-migrate, api)
+db/postgres/            `bootstrap.sh`: papéis, bancos e acessos, idempotente (serviço `db-roles`)
+docker-compose.yml      Compose principal: `docker compose up` sobe tudo (um Postgres com os bancos arp e app, Valkey, engine, rep-core, jobs, api do coletor e api do RH)
+**/docker-compose.yml   Entrada de cada serviço (db/, packages/queue/, services/face-engine/, apps/*): `docker compose up` na pasta liga o serviço e as dependências dele. A definição fica em `service.compose.yml` ao lado
+docker/                 `node.Dockerfile`: imagem única dos processos Node (args PKG e DIR por serviço)
 postman/                Coleção da API em YAML (Postman v3, um request por arquivo) e environments. Ver docs/conventions/api-testing.md
 dev-data/               (fora do Git) fotos de teste, galeria de candidatos e probes. Nunca versionar
 docs/
@@ -177,10 +179,22 @@ python bench.py init | set-url | check | capture | enroll | gen | micro | seq | 
 ```
 
 ```bash
+# Tudo no Docker, da raiz. Primeira vez: pnpm install && pnpm setup:dev (cria o .env com as senhas)
+docker compose up -d --build         # postgres (arp + app), db-roles, migrations, valkey, engine, rep-core, jobs, api do coletor (3001) e api do RH (3002)
+docker compose ps                    # estado e saúde (healthcheck) de cada contêiner
+docker compose down                  # para tudo; os volumes (dados) ficam. `down -v` apaga os dados locais
+# Um serviço isolado, com as dependências dele (entrada em cada pasta):
+cd apps/collector-api && docker compose up -d   # + postgres, valkey, engine, rep-core e jobs
+cd apps/api && docker compose up -d             # + postgres e as migrations do Drizzle
+cd apps/rep-core && docker compose up -d        # + postgres e valkey (idem apps/jobs)
+cd services/face-engine && docker compose up -d # só a engine (idem db/ e packages/queue/)
+```
+
+```bash
 # API do coletor (da raiz do repositório). Node 24 (.nvmrc), pnpm 10, Docker e Postman CLI. Passo a passo: docs/desenvolvimento.md
 pnpm install
-pnpm dev:up                          # cria os .env (setup:dev), sobe Postgres + engine e aplica a migration
-pnpm dev                             # api em http://localhost:3001; Swagger em /docs (só APP_ENV=dev e só localhost)
+pnpm dev:up                          # cria os .env (setup:dev) e sobe só a infra no Docker (Postgres, Valkey, engine, migrations)
+pnpm dev                             # processos Node no host: coletor (3001), rep-core, resgate e api do RH (3002); Swagger em /docs. Não use junto com as apis no Docker (mesmas portas)
 pnpm dev:enroll-fake                 # galeria: dev-data/faces/<pessoa>/ (3 fotos sorteadas) + 50 fictícios; lista em dev-data/candidatos.csv
 pnpm dev:punch                       # uma batida com uma foto de dev-data/probes/
 pnpm db:migrate:arp [-- --env prod]  # lê ARP_MIGRATION_DATABASE_URL de apps/collector-api/.env.<ambiente>
@@ -194,8 +208,7 @@ pnpm dev:jobs                        # resgate (republica `entradas` e `outbox` 
 pnpm arp:verify-chain -- --establishment <id> --tenant <id>   # verifica NSR, hash encadeado e cadeia
 
 # Parte de RH (apps/api)
-pnpm setup:all                       # infra/.env + .env da raiz (senhas geradas); só na primeira vez
-docker compose up -d                 # da raiz: tudo, inclusive postgres-rh, migrations do Drizzle e a api (porta 3002)
+docker compose up -d                 # da raiz: tudo (precisa do .env: pnpm setup:dev, só na primeira vez). Cada pasta de serviço tem o próprio `docker compose up`
 pnpm db:generate:rh -- --name <x>    # migration nova a partir de apps/api/src/db/schema
 pnpm db:migrate:rh                   # aplica as migrations do banco app (lê apps/api/.env.dev)
 pnpm dev:api                         # api fora do Docker, com Swagger em /docs

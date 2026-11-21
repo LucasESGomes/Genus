@@ -20,21 +20,21 @@
 -- ============================================================================
 
 -- um colaborador não pode ter dois vínculos valendo no mesmo dia
-ALTER TABLE rh.colaborador_vinculo ADD CONSTRAINT vinculo_sem_sobreposicao EXCLUDE USING gist (
+ALTER TABLE rh.vinculos_colaborador ADD CONSTRAINT vinculo_sem_sobreposicao EXCLUDE USING gist (
     colaborador_id WITH =,
     daterange(vigencia_inicio, vigencia_fim, '[]') WITH &&
 );
 --> statement-breakpoint
 
 -- duas escalas valendo no mesmo dia tornariam a apuração ambígua
-ALTER TABLE rh.colaborador_escala ADD CONSTRAINT colab_escala_sem_sobreposicao EXCLUDE USING gist (
+ALTER TABLE rh.colaboradores_escalas ADD CONSTRAINT colab_escala_sem_sobreposicao EXCLUDE USING gist (
     colaborador_id WITH =,
     daterange(vigencia_inicio, vigencia_fim, '[]') WITH &&
 );
 --> statement-breakpoint
 
 -- COALESCE porque EXCLUDE ignora NULL: sem ele, dois padrões globais passariam
-ALTER TABLE rh.parametro_legal ADD CONSTRAINT param_sem_sobreposicao EXCLUDE USING gist (
+ALTER TABLE rh.parametros_legais ADD CONSTRAINT param_sem_sobreposicao EXCLUDE USING gist (
     (COALESCE(conta_id, 0)) WITH =,
     (COALESCE(empresa_id, 0)) WITH =,
     chave WITH =,
@@ -43,13 +43,13 @@ ALTER TABLE rh.parametro_legal ADD CONSTRAINT param_sem_sobreposicao EXCLUDE USI
 --> statement-breakpoint
 
 -- ninguém fica afastado por dois motivos no mesmo dia
-ALTER TABLE rh.afastamento ADD CONSTRAINT afast_sem_sobreposicao EXCLUDE USING gist (
+ALTER TABLE rh.afastamentos ADD CONSTRAINT afast_sem_sobreposicao EXCLUDE USING gist (
     colaborador_id WITH =,
     daterange(data_inicio, data_fim, '[]') WITH &&
 );
 --> statement-breakpoint
 
-ALTER TABLE rh.ferias_periodo_aquisitivo ADD CONSTRAINT pa_sem_sobreposicao EXCLUDE USING gist (
+ALTER TABLE rh.periodos_aquisitivos_ferias ADD CONSTRAINT pa_sem_sobreposicao EXCLUDE USING gist (
     colaborador_id WITH =,
     daterange(inicio, fim, '[]') WITH &&
 );
@@ -57,7 +57,7 @@ ALTER TABLE rh.ferias_periodo_aquisitivo ADD CONSTRAINT pa_sem_sobreposicao EXCL
 
 -- REGRA 1: a mesma pessoa nunca tem dois períodos de férias no mesmo dia.
 -- Vale só para férias que de fato acontecem; recusada e cancelada não contam.
-ALTER TABLE rh.ferias_gozo ADD CONSTRAINT fg_pessoa_sem_sobreposicao EXCLUDE USING gist (
+ALTER TABLE rh.gozos_ferias ADD CONSTRAINT fg_pessoa_sem_sobreposicao EXCLUDE USING gist (
     colaborador_id WITH =,
     daterange(data_inicio, data_fim, '[]') WITH &&
 ) WHERE (status IN ('aprovada','gozada'));
@@ -67,39 +67,39 @@ ALTER TABLE rh.ferias_gozo ADD CONSTRAINT fg_pessoa_sem_sobreposicao EXCLUDE USI
 -- Comentários
 -- ============================================================================
 
-COMMENT ON COLUMN rh.setor.limite_ferias_simultaneas IS
+COMMENT ON COLUMN rh.setores.limite_ferias_simultaneas IS
   'Quantas pessoas do setor podem estar de férias ao mesmo tempo. '
   'Padrão 1: ninguém do mesmo setor sobrepõe. Ver trigger trg_ferias_limite_setor.';
 --> statement-breakpoint
 
-COMMENT ON TABLE rh.parametro_legal IS
+COMMENT ON TABLE rh.parametros_legais IS
   'Chaves: jornada_semanal_max_min, tolerancia_batida_min, tolerancia_dia_min, '
   'adicional_noturno_pct, noturno_inicio, noturno_fim, extra_pct_50, extra_pct_100, '
   'banco_prazo_meses, interjornada_min. A mudança de 44h para 42h (16/12/2026) e '
   'para 40h (16/12/2027) é uma linha nova aqui, não uma alteração de código.';
 --> statement-breakpoint
 
-COMMENT ON COLUMN rh.atestado.cid_cifrado IS
+COMMENT ON COLUMN rh.atestados.cid_cifrado IS
   'CID cifrado na aplicação (AES-GCM). Dado de saúde: só o RH lê (RN15) e toda leitura '
   'gera auditoria com acao = leitura_sensivel.';
 --> statement-breakpoint
 
-COMMENT ON COLUMN rh.atestado_analise.ocr_texto_cifrado IS
+COMMENT ON COLUMN rh.analises_atestado.ocr_texto_cifrado IS
   'Texto do OCR cifrado na aplicação (AES-GCM). Mesmo tratamento do CID.';
 --> statement-breakpoint
 
-COMMENT ON COLUMN rh.atestado_analise.motivos IS
+COMMENT ON COLUMN rh.analises_atestado.motivos IS
   'Lista das regras disparadas, ex.: ["nome_divergente","crm_invalido",'
   '"fora_do_prazo","recorrencia_segunda"]. Nenhuma recusa o atestado sozinha.';
 --> statement-breakpoint
 
-COMMENT ON COLUMN rh.ferias_gozo.setor_id IS
+COMMENT ON COLUMN rh.gozos_ferias.setor_id IS
   'Setor vigente no momento da solicitação, copiado de colaborador_vinculo. '
   'Fica aqui porque o vínculo muda com o tempo e a regra do setor precisa saber '
   'qual setor ficaria desfalcado naquelas datas.';
 --> statement-breakpoint
 
-COMMENT ON TABLE rh.auditoria IS
+COMMENT ON TABLE rh.auditorias IS
   'Inclui a leitura de dado sensível (acao = leitura_sensivel), que é como a '
   'LGPD é atendida para CID e arquivo de atestado (RN15, RNF04).';
 --> statement-breakpoint
@@ -108,7 +108,7 @@ COMMENT ON TABLE rh.auditoria IS
 -- E. Banco de horas: saldo
 -- ============================================================================
 
-CREATE VIEW rh.vw_banco_horas_saldo AS
+CREATE VIEW rh.vw_saldos_banco_horas AS
 SELECT conta_id,
        colaborador_id,
        sum(minutos) AS saldo_minutos,
@@ -117,7 +117,7 @@ SELECT conta_id,
              AND data_vencimento IS NOT NULL
              AND data_vencimento <= current_date + 30
        ) AS minutos_vencendo_30d
-  FROM rh.banco_horas_lancamento
+  FROM rh.lancamentos_banco_horas
  GROUP BY conta_id, colaborador_id;
 --> statement-breakpoint
 
@@ -152,13 +152,13 @@ BEGIN
     -- aprovações simultâneas leriam a mesma contagem e as duas passariam.
     SELECT limite_ferias_simultaneas, nome
       INTO v_limite, v_setor
-      FROM setor
+      FROM setores
      WHERE id = NEW.setor_id
        FOR UPDATE;
 
     SELECT count(*)
       INTO v_em_ferias
-      FROM ferias_gozo g
+      FROM gozos_ferias g
      WHERE g.setor_id = NEW.setor_id
        AND g.id IS DISTINCT FROM NEW.id
        AND g.status IN ('aprovada','gozada')
@@ -178,7 +178,7 @@ $$;
 --> statement-breakpoint
 
 CREATE TRIGGER trg_ferias_limite_setor
-    BEFORE INSERT OR UPDATE ON rh.ferias_gozo
+    BEFORE INSERT OR UPDATE ON rh.gozos_ferias
     FOR EACH ROW EXECUTE FUNCTION rh.fn_ferias_limite_setor();
 --> statement-breakpoint
 
@@ -204,14 +204,14 @@ BEGIN
     v_dias := NEW.data_fim - NEW.data_inicio + 1;
 
     SELECT dias_direito INTO v_direito
-      FROM ferias_periodo_aquisitivo
+      FROM periodos_aquisitivos_ferias
      WHERE id = NEW.periodo_aquisitivo_id
        FOR UPDATE;
 
     SELECT count(*), coalesce(sum(data_fim - data_inicio + 1), 0),
            coalesce(bool_or(data_fim - data_inicio + 1 >= 14), false)
       INTO v_periodos, v_dias_outros, v_tem_14
-      FROM ferias_gozo
+      FROM gozos_ferias
      WHERE periodo_aquisitivo_id = NEW.periodo_aquisitivo_id
        AND id IS DISTINCT FROM NEW.id
        AND status IN ('aprovada','gozada');
@@ -249,7 +249,7 @@ $$;
 --> statement-breakpoint
 
 CREATE TRIGGER trg_ferias_fracionamento
-    BEFORE INSERT OR UPDATE ON rh.ferias_gozo
+    BEFORE INSERT OR UPDATE ON rh.gozos_ferias
     FOR EACH ROW EXECUTE FUNCTION rh.fn_ferias_fracionamento();
 --> statement-breakpoint
 
@@ -272,9 +272,9 @@ BEGIN
 
     IF EXISTS (
         SELECT 1
-          FROM feriado f
-          JOIN colaborador c     ON c.id = NEW.colaborador_id
-          JOIN estabelecimento e ON e.id = c.estabelecimento_id
+          FROM feriados f
+          JOIN colaboradores c     ON c.id = NEW.colaborador_id
+          JOIN estabelecimentos e ON e.id = c.estabelecimento_id
          WHERE NOT f.facultativo
            AND (f.conta_id IS NULL OR f.conta_id = NEW.conta_id)
            AND f.data BETWEEN NEW.data_inicio AND NEW.data_inicio + 2
@@ -296,7 +296,7 @@ $$;
 --> statement-breakpoint
 
 CREATE TRIGGER trg_ferias_inicio_valido
-    BEFORE INSERT OR UPDATE ON rh.ferias_gozo
+    BEFORE INSERT OR UPDATE ON rh.gozos_ferias
     FOR EACH ROW EXECUTE FUNCTION rh.fn_ferias_inicio_valido();
 --> statement-breakpoint
 
@@ -317,13 +317,13 @@ $$;
 --> statement-breakpoint
 
 CREATE TRIGGER trg_auditoria_imutavel
-    BEFORE UPDATE OR DELETE ON rh.auditoria
+    BEFORE UPDATE OR DELETE ON rh.auditorias
     FOR EACH ROW EXECUTE FUNCTION rh.fn_auditoria_imutavel();
 --> statement-breakpoint
 
 -- Ajuste: TRUNCATE não dispara trigger de linha; sem este, apagaria a auditoria inteira.
 CREATE TRIGGER trg_auditoria_sem_truncate
-    BEFORE TRUNCATE ON rh.auditoria
+    BEFORE TRUNCATE ON rh.auditorias
     FOR EACH STATEMENT EXECUTE FUNCTION rh.fn_auditoria_imutavel();
 --> statement-breakpoint
 
@@ -336,8 +336,8 @@ SET search_path = rh, public
 AS $$
     SELECT EXISTS (
         SELECT 1
-          FROM fechamento f
-          JOIN colaborador c ON c.estabelecimento_id = f.estabelecimento_id
+          FROM fechamentos f
+          JOIN colaboradores c ON c.estabelecimento_id = f.estabelecimento_id
          WHERE c.id = p_colaborador
            AND f.status = 'fechado'
            AND p_data BETWEEN f.data_inicio AND f.data_fim
@@ -371,12 +371,12 @@ $$;
 --> statement-breakpoint
 
 CREATE TRIGGER trg_apuracao_periodo_fechado
-    BEFORE INSERT OR UPDATE OR DELETE ON rh.apuracao_dia
+    BEFORE INSERT OR UPDATE OR DELETE ON rh.apuracoes_dia
     FOR EACH ROW EXECUTE FUNCTION rh.fn_bloqueia_periodo_fechado();
 --> statement-breakpoint
 
 CREATE TRIGGER trg_ajuste_periodo_fechado
-    BEFORE INSERT OR UPDATE ON rh.ajuste
+    BEFORE INSERT OR UPDATE ON rh.ajustes
     FOR EACH ROW EXECUTE FUNCTION rh.fn_bloqueia_periodo_fechado();
 --> statement-breakpoint
 
@@ -391,7 +391,7 @@ BEGIN
         GRANT USAGE ON SCHEMA rh TO rh_api;
         GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA rh TO rh_api;
         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA rh TO rh_api;
-        REVOKE UPDATE, DELETE, TRUNCATE ON rh.auditoria FROM rh_api;
+        REVOKE UPDATE, DELETE, TRUNCATE ON rh.auditorias FROM rh_api;
         -- Tabelas e sequências criadas por migrations futuras (como o dono) já nascem liberadas.
         ALTER DEFAULT PRIVILEGES IN SCHEMA rh GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO rh_api;
         ALTER DEFAULT PRIVILEGES IN SCHEMA rh GRANT USAGE, SELECT ON SEQUENCES TO rh_api;

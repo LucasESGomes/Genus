@@ -1,4 +1,4 @@
-# Usado só pelo build de apps/api/Dockerfile (BuildKit lê <Dockerfile>.dockerignore).
+# Usado pelo build de docker/node.Dockerfile (BuildKit lê <Dockerfile>.dockerignore).
 **/node_modules
 **/dist
 **/coverage

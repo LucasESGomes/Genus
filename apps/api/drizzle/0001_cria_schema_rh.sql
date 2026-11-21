@@ -1,7 +1,7 @@
 CREATE SCHEMA "rh";
 --> statement-breakpoint
-CREATE TABLE "rh"."empresa" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."empresa_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."empresas" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."empresas_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"razao_social" text NOT NULL,
 	"cnpj" char(14) NOT NULL,
@@ -12,8 +12,8 @@ CREATE TABLE "rh"."empresa" (
 	CONSTRAINT "empresa_cnpj_formato" CHECK (cnpj ~ '^[0-9]{14}$')
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."centro_custo" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."centro_custo_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."centros_custo" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."centros_custo_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"empresa_id" bigint NOT NULL,
 	"codigo" text NOT NULL,
@@ -22,8 +22,8 @@ CREATE TABLE "rh"."centro_custo" (
 	CONSTRAINT "cc_codigo_unico" UNIQUE("empresa_id","codigo")
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."setor" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."setor_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."setores" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."setores_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"estabelecimento_id" bigint NOT NULL,
 	"nome" text NOT NULL,
@@ -33,8 +33,8 @@ CREATE TABLE "rh"."setor" (
 	CONSTRAINT "setor_limite_positivo" CHECK (limite_ferias_simultaneas >= 1)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."aparelho" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."aparelho_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."aparelhos" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."aparelhos_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"estabelecimento_id" bigint NOT NULL,
 	"nome" text NOT NULL,
@@ -44,8 +44,8 @@ CREATE TABLE "rh"."aparelho" (
 	CONSTRAINT "aparelho_nome_unico" UNIQUE("estabelecimento_id","nome")
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."colaborador_vinculo" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."colaborador_vinculo_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."vinculos_colaborador" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."vinculos_colaborador_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"colaborador_id" bigint NOT NULL,
 	"cargo_id" bigint NOT NULL,
@@ -60,8 +60,8 @@ CREATE TABLE "rh"."colaborador_vinculo" (
 	CONSTRAINT "vinculo_vigencia" CHECK (vigencia_fim IS NULL OR vigencia_fim >= vigencia_inicio)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."colaborador" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."colaborador_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."colaboradores" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."colaboradores_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"estabelecimento_id" bigint NOT NULL,
 	"cpf" char(11) NOT NULL,
@@ -82,8 +82,8 @@ CREATE TABLE "rh"."colaborador" (
 	CONSTRAINT "colab_nao_gestor_si" CHECK (gestor_id IS DISTINCT FROM id)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."estabelecimento" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."estabelecimento_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."estabelecimentos" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."estabelecimentos_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"empresa_id" bigint NOT NULL,
 	"nome" text NOT NULL,
@@ -99,8 +99,8 @@ CREATE TABLE "rh"."estabelecimento" (
 	CONSTRAINT "estab_ibge_formato" CHECK (municipio_ibge ~ '^[0-9]{7}$')
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."cargo" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."cargo_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."cargos" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."cargos_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"empresa_id" bigint NOT NULL,
 	"nome" text NOT NULL,
@@ -110,22 +110,22 @@ CREATE TABLE "rh"."cargo" (
 	CONSTRAINT "cargo_cbo_formato" CHECK (cbo IS NULL OR cbo ~ '^[0-9]{6}$')
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."conta" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."conta_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."contas" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."contas_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"nome" text NOT NULL,
 	"ativo" boolean DEFAULT true NOT NULL,
 	"criado_em" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."usuario_estabelecimento" (
+CREATE TABLE "rh"."usuarios_estabelecimentos" (
 	"conta_id" bigint NOT NULL,
 	"usuario_id" bigint NOT NULL,
 	"estabelecimento_id" bigint NOT NULL,
 	CONSTRAINT "usuario_estabelecimento_pkey" PRIMARY KEY("usuario_id","estabelecimento_id")
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."usuario" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."usuario_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."usuarios" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."usuarios_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint,
 	"colaborador_id" bigint,
 	"email" "citext" NOT NULL,
@@ -142,8 +142,8 @@ CREATE TABLE "rh"."usuario" (
 	CONSTRAINT "usuario_super_admin_mfa" CHECK (papel <> 'super_admin' OR mfa_ativo)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."colaborador_escala" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."colaborador_escala_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."colaboradores_escalas" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."colaboradores_escalas_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"colaborador_id" bigint NOT NULL,
 	"escala_id" bigint NOT NULL,
@@ -152,7 +152,7 @@ CREATE TABLE "rh"."colaborador_escala" (
 	CONSTRAINT "colab_escala_vigencia" CHECK (vigencia_fim IS NULL OR vigencia_fim >= vigencia_inicio)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."estabelecimento_feriado" (
+CREATE TABLE "rh"."estabelecimentos_feriados" (
 	"conta_id" bigint NOT NULL,
 	"estabelecimento_id" bigint NOT NULL,
 	"feriado_id" bigint NOT NULL,
@@ -163,8 +163,8 @@ CREATE TABLE "rh"."estabelecimento_feriado" (
 	CONSTRAINT "estab_fer_coerente" CHECK ((NOT trabalha AND tratamento IS NULL) OR (trabalha AND tratamento IS NOT NULL))
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."feriado" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."feriado_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."feriados" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."feriados_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint,
 	"abrangencia" text NOT NULL,
 	"uf" char(2),
@@ -177,8 +177,8 @@ CREATE TABLE "rh"."feriado" (
 	CONSTRAINT "feriado_escopo" CHECK ((abrangencia = 'nacional' AND uf IS NULL AND municipio_ibge IS NULL) OR (abrangencia = 'estadual' AND uf IS NOT NULL AND municipio_ibge IS NULL) OR (abrangencia = 'municipal' AND uf IS NOT NULL AND municipio_ibge IS NOT NULL))
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."parametro_legal" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."parametro_legal_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."parametros_legais" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."parametros_legais_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint,
 	"empresa_id" bigint,
 	"chave" text NOT NULL,
@@ -190,8 +190,8 @@ CREATE TABLE "rh"."parametro_legal" (
 	CONSTRAINT "param_vigencia" CHECK (vigencia_fim IS NULL OR vigencia_fim >= vigencia_inicio)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."escala_dia" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."escala_dia_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."dias_escala" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."dias_escala_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"escala_id" bigint NOT NULL,
 	"posicao" smallint NOT NULL,
@@ -207,8 +207,8 @@ CREATE TABLE "rh"."escala_dia" (
 	CONSTRAINT "escala_dia_intervalo" CHECK ((intervalo_inicio IS NULL AND intervalo_fim IS NULL) OR (intervalo_inicio IS NOT NULL AND intervalo_fim IS NOT NULL AND intervalo_inicio < intervalo_fim))
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."troca_turno" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."troca_turno_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."trocas_turno" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."trocas_turno_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"colaborador_id" bigint NOT NULL,
 	"data" date NOT NULL,
@@ -222,8 +222,8 @@ CREATE TABLE "rh"."troca_turno" (
 	CONSTRAINT "troca_horario" CHECK ((folga AND entrada IS NULL AND saida IS NULL) OR (NOT folga AND entrada IS NOT NULL AND saida IS NOT NULL))
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."escala" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."escala_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."escalas" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."escalas_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"estabelecimento_id" bigint NOT NULL,
 	"nome" text NOT NULL,
@@ -240,8 +240,8 @@ CREATE TABLE "rh"."escala" (
 	CONSTRAINT "escala_ciclo_coerente" CHECK ((ciclo_tipo = 'semanal' AND ciclo_dias IS NULL AND data_referencia IS NULL) OR (ciclo_tipo = 'ciclico' AND ciclo_dias IS NOT NULL AND data_referencia IS NOT NULL))
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."apuracao_dia" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."apuracao_dia_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."apuracoes_dia" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."apuracoes_dia_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"colaborador_id" bigint NOT NULL,
 	"data" date NOT NULL,
@@ -265,8 +265,8 @@ CREATE TABLE "rh"."apuracao_dia" (
 	CONSTRAINT "apuracao_noturno_cabe" CHECK (minutos_noturno <= minutos_trabalhados)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."inconsistencia" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."inconsistencia_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."inconsistencias" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."inconsistencias_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"apuracao_dia_id" bigint NOT NULL,
 	"tipo" text NOT NULL,
@@ -278,8 +278,8 @@ CREATE TABLE "rh"."inconsistencia" (
 	CONSTRAINT "inconsistencia_resolucao" CHECK ((NOT resolvida AND resolvida_por IS NULL AND resolvida_em IS NULL) OR (resolvida AND resolvida_por IS NOT NULL AND resolvida_em IS NOT NULL))
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."apuracao_marcacao" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."apuracao_marcacao_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."apuracoes_marcacoes" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."apuracoes_marcacoes_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"apuracao_dia_id" bigint NOT NULL,
 	"sequencia" smallint NOT NULL,
@@ -293,8 +293,8 @@ CREATE TABLE "rh"."apuracao_marcacao" (
 	CONSTRAINT "marcacao_procedencia" CHECK ((origem = 'original' AND nsr IS NOT NULL AND ajuste_id IS NULL) OR (origem = 'tratada' AND nsr IS NULL AND ajuste_id IS NOT NULL))
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."afastamento" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."afastamento_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."afastamentos" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."afastamentos_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"colaborador_id" bigint NOT NULL,
 	"tipo" text NOT NULL,
@@ -307,8 +307,8 @@ CREATE TABLE "rh"."afastamento" (
 	CONSTRAINT "afast_atestado_coerente" CHECK ((tipo = 'atestado' AND atestado_id IS NOT NULL) OR (tipo <> 'atestado' AND atestado_id IS NULL))
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."atestado_analise" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."atestado_analise_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."analises_atestado" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."analises_atestado_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"atestado_id" bigint NOT NULL,
 	"ocr_texto_cifrado" "bytea",
@@ -322,8 +322,8 @@ CREATE TABLE "rh"."atestado_analise" (
 	CONSTRAINT "analise_motivos" CHECK (jsonb_typeof(motivos) = 'array')
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."atestado" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."atestado_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."atestados" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."atestados_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"colaborador_id" bigint NOT NULL,
 	"data_inicio" date NOT NULL,
@@ -351,8 +351,8 @@ CREATE TABLE "rh"."atestado" (
 	CONSTRAINT "atestado_recusa_com_motivo" CHECK (status <> 'recusado' OR motivo_decisao IS NOT NULL)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."ajuste" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."ajuste_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."ajustes" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."ajustes_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"colaborador_id" bigint NOT NULL,
 	"data" date NOT NULL,
@@ -375,8 +375,8 @@ CREATE TABLE "rh"."ajuste" (
 	CONSTRAINT "ajuste_decisor_diferente" CHECK (decidido_por IS NULL OR decidido_por <> solicitado_por)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."banco_horas_lancamento" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."banco_horas_lancamento_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."lancamentos_banco_horas" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."lancamentos_banco_horas_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"colaborador_id" bigint NOT NULL,
 	"apuracao_dia_id" bigint,
@@ -392,8 +392,8 @@ CREATE TABLE "rh"."banco_horas_lancamento" (
 	CONSTRAINT "bh_vencimento" CHECK (data_vencimento IS NULL OR data_vencimento > data_competencia)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."banco_horas_regra" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."banco_horas_regra_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."regras_banco_horas" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."regras_banco_horas_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"estabelecimento_id" bigint,
 	"colaborador_id" bigint,
@@ -408,8 +408,8 @@ CREATE TABLE "rh"."banco_horas_regra" (
 	CONSTRAINT "bh_regra_vigencia" CHECK (vigencia_fim IS NULL OR vigencia_fim >= vigencia_inicio)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."ferias_periodo_aquisitivo" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."ferias_periodo_aquisitivo_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."periodos_aquisitivos_ferias" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."periodos_aquisitivos_ferias_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"colaborador_id" bigint NOT NULL,
 	"inicio" date NOT NULL,
@@ -427,8 +427,8 @@ CREATE TABLE "rh"."ferias_periodo_aquisitivo" (
 	CONSTRAINT "pa_direito_bate_faltas" CHECK (dias_direito = CASE WHEN faltas_injustificadas <= 5 THEN 30 WHEN faltas_injustificadas <= 14 THEN 24 WHEN faltas_injustificadas <= 23 THEN 18 WHEN faltas_injustificadas <= 32 THEN 12 ELSE 0 END)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."ferias_gozo" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."ferias_gozo_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."gozos_ferias" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."gozos_ferias_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"periodo_aquisitivo_id" bigint NOT NULL,
 	"colaborador_id" bigint NOT NULL,
@@ -452,8 +452,8 @@ CREATE TABLE "rh"."ferias_gozo" (
 	CONSTRAINT "fg_decisor_diferente" CHECK (decidido_por IS NULL OR decidido_por <> solicitado_por)
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."auditoria" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."auditoria_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."auditorias" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."auditorias_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint,
 	"usuario_id" bigint,
 	"entidade" text NOT NULL,
@@ -466,8 +466,8 @@ CREATE TABLE "rh"."auditoria" (
 	CONSTRAINT "auditoria_acao" CHECK (acao IN ('criacao','alteracao','exclusao','leitura_sensivel','aprovacao','recusa','fechamento','reabertura'))
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."fechamento" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."fechamento_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."fechamentos" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."fechamentos_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"estabelecimento_id" bigint NOT NULL,
 	"competencia" date NOT NULL,
@@ -488,8 +488,8 @@ CREATE TABLE "rh"."fechamento" (
 	CONSTRAINT "fech_reabertura_coerente" CHECK (status <> 'reaberto' OR (reaberto_por IS NOT NULL AND reaberto_em IS NOT NULL AND motivo_reabertura IS NOT NULL))
 );
 --> statement-breakpoint
-CREATE TABLE "rh"."espelho" (
-	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."espelho_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+CREATE TABLE "rh"."espelhos" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rh"."espelhos_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"conta_id" bigint NOT NULL,
 	"fechamento_id" bigint NOT NULL,
 	"colaborador_id" bigint NOT NULL,
@@ -500,76 +500,76 @@ CREATE TABLE "rh"."espelho" (
 	CONSTRAINT "espelho_ciencia" CHECK ((ciencia_em IS NULL) = (ciencia_ip IS NULL))
 );
 --> statement-breakpoint
-ALTER TABLE "rh"."empresa" ADD CONSTRAINT "empresa_conta_id_fkey" FOREIGN KEY ("conta_id") REFERENCES "rh"."conta"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."centro_custo" ADD CONSTRAINT "centro_custo_empresa_id_fkey" FOREIGN KEY ("conta_id","empresa_id") REFERENCES "rh"."empresa"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."setor" ADD CONSTRAINT "setor_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimento"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."aparelho" ADD CONSTRAINT "aparelho_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimento"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."colaborador_vinculo" ADD CONSTRAINT "colaborador_vinculo_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."colaborador_vinculo" ADD CONSTRAINT "colaborador_vinculo_cargo_id_fkey" FOREIGN KEY ("conta_id","cargo_id") REFERENCES "rh"."cargo"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."colaborador_vinculo" ADD CONSTRAINT "colaborador_vinculo_setor_id_fkey" FOREIGN KEY ("conta_id","setor_id") REFERENCES "rh"."setor"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."colaborador_vinculo" ADD CONSTRAINT "colaborador_vinculo_centro_custo_id_fkey" FOREIGN KEY ("conta_id","centro_custo_id") REFERENCES "rh"."centro_custo"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."colaborador" ADD CONSTRAINT "colaborador_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimento"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."colaborador" ADD CONSTRAINT "colaborador_gestor_id_fkey" FOREIGN KEY ("conta_id","gestor_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."estabelecimento" ADD CONSTRAINT "estabelecimento_empresa_id_fkey" FOREIGN KEY ("conta_id","empresa_id") REFERENCES "rh"."empresa"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."cargo" ADD CONSTRAINT "cargo_empresa_id_fkey" FOREIGN KEY ("conta_id","empresa_id") REFERENCES "rh"."empresa"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."usuario_estabelecimento" ADD CONSTRAINT "usuario_estabelecimento_usuario_id_fkey" FOREIGN KEY ("conta_id","usuario_id") REFERENCES "rh"."usuario"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."usuario_estabelecimento" ADD CONSTRAINT "usuario_estabelecimento_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimento"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."usuario" ADD CONSTRAINT "usuario_conta_id_fkey" FOREIGN KEY ("conta_id") REFERENCES "rh"."conta"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."usuario" ADD CONSTRAINT "usuario_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."colaborador_escala" ADD CONSTRAINT "colaborador_escala_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."colaborador_escala" ADD CONSTRAINT "colaborador_escala_escala_id_fkey" FOREIGN KEY ("conta_id","escala_id") REFERENCES "rh"."escala"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."estabelecimento_feriado" ADD CONSTRAINT "estabelecimento_feriado_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimento"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."estabelecimento_feriado" ADD CONSTRAINT "estabelecimento_feriado_feriado_id_fkey" FOREIGN KEY ("feriado_id") REFERENCES "rh"."feriado"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."feriado" ADD CONSTRAINT "feriado_conta_id_fkey" FOREIGN KEY ("conta_id") REFERENCES "rh"."conta"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."parametro_legal" ADD CONSTRAINT "parametro_legal_conta_id_fkey" FOREIGN KEY ("conta_id") REFERENCES "rh"."conta"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."parametro_legal" ADD CONSTRAINT "param_empresa_fk" FOREIGN KEY ("conta_id","empresa_id") REFERENCES "rh"."empresa"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."escala_dia" ADD CONSTRAINT "escala_dia_escala_id_fkey" FOREIGN KEY ("conta_id","escala_id") REFERENCES "rh"."escala"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."troca_turno" ADD CONSTRAINT "troca_turno_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."troca_turno" ADD CONSTRAINT "troca_turno_criado_por_fkey" FOREIGN KEY ("criado_por") REFERENCES "rh"."usuario"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."escala" ADD CONSTRAINT "escala_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimento"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."apuracao_dia" ADD CONSTRAINT "apuracao_dia_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."apuracao_dia" ADD CONSTRAINT "apuracao_dia_escala_id_fkey" FOREIGN KEY ("conta_id","escala_id") REFERENCES "rh"."escala"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."inconsistencia" ADD CONSTRAINT "inconsistencia_apuracao_dia_id_fkey" FOREIGN KEY ("conta_id","apuracao_dia_id") REFERENCES "rh"."apuracao_dia"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."inconsistencia" ADD CONSTRAINT "inconsistencia_resolvida_por_fkey" FOREIGN KEY ("resolvida_por") REFERENCES "rh"."usuario"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."apuracao_marcacao" ADD CONSTRAINT "apuracao_marcacao_apuracao_dia_id_fkey" FOREIGN KEY ("conta_id","apuracao_dia_id") REFERENCES "rh"."apuracao_dia"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."apuracao_marcacao" ADD CONSTRAINT "marcacao_ajuste_fk" FOREIGN KEY ("conta_id","ajuste_id") REFERENCES "rh"."ajuste"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."afastamento" ADD CONSTRAINT "afastamento_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."afastamento" ADD CONSTRAINT "afastamento_atestado_id_fkey" FOREIGN KEY ("conta_id","atestado_id") REFERENCES "rh"."atestado"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."atestado_analise" ADD CONSTRAINT "atestado_analise_atestado_id_fkey" FOREIGN KEY ("conta_id","atestado_id") REFERENCES "rh"."atestado"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."atestado" ADD CONSTRAINT "atestado_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."atestado" ADD CONSTRAINT "atestado_decidido_por_fkey" FOREIGN KEY ("decidido_por") REFERENCES "rh"."usuario"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."ajuste" ADD CONSTRAINT "ajuste_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."ajuste" ADD CONSTRAINT "ajuste_solicitado_por_fkey" FOREIGN KEY ("solicitado_por") REFERENCES "rh"."usuario"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."ajuste" ADD CONSTRAINT "ajuste_decidido_por_fkey" FOREIGN KEY ("decidido_por") REFERENCES "rh"."usuario"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."banco_horas_lancamento" ADD CONSTRAINT "banco_horas_lancamento_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."banco_horas_lancamento" ADD CONSTRAINT "banco_horas_lancamento_apuracao_dia_id_fkey" FOREIGN KEY ("conta_id","apuracao_dia_id") REFERENCES "rh"."apuracao_dia"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."banco_horas_lancamento" ADD CONSTRAINT "banco_horas_lancamento_criado_por_fkey" FOREIGN KEY ("criado_por") REFERENCES "rh"."usuario"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."banco_horas_regra" ADD CONSTRAINT "banco_horas_regra_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimento"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."banco_horas_regra" ADD CONSTRAINT "banco_horas_regra_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."ferias_periodo_aquisitivo" ADD CONSTRAINT "ferias_periodo_aquisitivo_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."ferias_gozo" ADD CONSTRAINT "ferias_gozo_periodo_aquisitivo_id_fkey" FOREIGN KEY ("conta_id","periodo_aquisitivo_id") REFERENCES "rh"."ferias_periodo_aquisitivo"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."ferias_gozo" ADD CONSTRAINT "ferias_gozo_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."ferias_gozo" ADD CONSTRAINT "ferias_gozo_setor_id_fkey" FOREIGN KEY ("conta_id","setor_id") REFERENCES "rh"."setor"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."ferias_gozo" ADD CONSTRAINT "ferias_gozo_solicitado_por_fkey" FOREIGN KEY ("solicitado_por") REFERENCES "rh"."usuario"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."ferias_gozo" ADD CONSTRAINT "ferias_gozo_decidido_por_fkey" FOREIGN KEY ("decidido_por") REFERENCES "rh"."usuario"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."auditoria" ADD CONSTRAINT "auditoria_conta_id_fkey" FOREIGN KEY ("conta_id") REFERENCES "rh"."conta"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."auditoria" ADD CONSTRAINT "auditoria_usuario_id_fkey" FOREIGN KEY ("usuario_id") REFERENCES "rh"."usuario"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."fechamento" ADD CONSTRAINT "fechamento_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimento"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."fechamento" ADD CONSTRAINT "fechamento_fechado_por_fkey" FOREIGN KEY ("fechado_por") REFERENCES "rh"."usuario"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."fechamento" ADD CONSTRAINT "fechamento_reaberto_por_fkey" FOREIGN KEY ("reaberto_por") REFERENCES "rh"."usuario"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."espelho" ADD CONSTRAINT "espelho_fechamento_id_fkey" FOREIGN KEY ("conta_id","fechamento_id") REFERENCES "rh"."fechamento"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rh"."espelho" ADD CONSTRAINT "espelho_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaborador"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "idx_vinculo_colab_vigencia" ON "rh"."colaborador_vinculo" USING btree ("colaborador_id","vigencia_inicio" DESC NULLS LAST);--> statement-breakpoint
-CREATE INDEX "idx_colaborador_estab" ON "rh"."colaborador" USING btree ("estabelecimento_id") WHERE data_desligamento IS NULL;--> statement-breakpoint
-CREATE INDEX "idx_colaborador_gestor" ON "rh"."colaborador" USING btree ("gestor_id");--> statement-breakpoint
-CREATE INDEX "idx_feriado_data" ON "rh"."feriado" USING btree ("data");--> statement-breakpoint
-CREATE INDEX "idx_apuracao_colab_data" ON "rh"."apuracao_dia" USING btree ("colaborador_id","data" DESC NULLS LAST);--> statement-breakpoint
-CREATE INDEX "idx_apuracao_data" ON "rh"."apuracao_dia" USING btree ("data");--> statement-breakpoint
-CREATE INDEX "idx_marcacao_dia" ON "rh"."apuracao_marcacao" USING btree ("apuracao_dia_id","sequencia");--> statement-breakpoint
-CREATE INDEX "idx_atestado_pendente" ON "rh"."atestado" USING btree ("colaborador_id") WHERE status = 'pendente';--> statement-breakpoint
-CREATE INDEX "idx_ajuste_pendente" ON "rh"."ajuste" USING btree ("colaborador_id") WHERE status = 'pendente';--> statement-breakpoint
-CREATE INDEX "idx_bh_colab" ON "rh"."banco_horas_lancamento" USING btree ("colaborador_id","data_competencia");--> statement-breakpoint
-CREATE INDEX "idx_bh_vencimento" ON "rh"."banco_horas_lancamento" USING btree ("data_vencimento") WHERE data_vencimento IS NOT NULL;--> statement-breakpoint
-CREATE INDEX "idx_ferias_setor_periodo" ON "rh"."ferias_gozo" USING btree ("setor_id","data_inicio","data_fim") WHERE status IN ('aprovada','gozada');--> statement-breakpoint
-CREATE INDEX "idx_auditoria_entidade" ON "rh"."auditoria" USING btree ("entidade","entidade_id","criado_em" DESC NULLS LAST);--> statement-breakpoint
-CREATE INDEX "idx_auditoria_conta" ON "rh"."auditoria" USING btree ("conta_id","criado_em" DESC NULLS LAST);
+ALTER TABLE "rh"."empresas" ADD CONSTRAINT "empresa_conta_id_fkey" FOREIGN KEY ("conta_id") REFERENCES "rh"."contas"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."centros_custo" ADD CONSTRAINT "centro_custo_empresa_id_fkey" FOREIGN KEY ("conta_id","empresa_id") REFERENCES "rh"."empresas"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."setores" ADD CONSTRAINT "setor_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimentos"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."aparelhos" ADD CONSTRAINT "aparelho_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimentos"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."vinculos_colaborador" ADD CONSTRAINT "colaborador_vinculo_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."vinculos_colaborador" ADD CONSTRAINT "colaborador_vinculo_cargo_id_fkey" FOREIGN KEY ("conta_id","cargo_id") REFERENCES "rh"."cargos"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."vinculos_colaborador" ADD CONSTRAINT "colaborador_vinculo_setor_id_fkey" FOREIGN KEY ("conta_id","setor_id") REFERENCES "rh"."setores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."vinculos_colaborador" ADD CONSTRAINT "colaborador_vinculo_centro_custo_id_fkey" FOREIGN KEY ("conta_id","centro_custo_id") REFERENCES "rh"."centros_custo"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."colaboradores" ADD CONSTRAINT "colaborador_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimentos"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."colaboradores" ADD CONSTRAINT "colaborador_gestor_id_fkey" FOREIGN KEY ("conta_id","gestor_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."estabelecimentos" ADD CONSTRAINT "estabelecimento_empresa_id_fkey" FOREIGN KEY ("conta_id","empresa_id") REFERENCES "rh"."empresas"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."cargos" ADD CONSTRAINT "cargo_empresa_id_fkey" FOREIGN KEY ("conta_id","empresa_id") REFERENCES "rh"."empresas"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."usuarios_estabelecimentos" ADD CONSTRAINT "usuario_estabelecimento_usuario_id_fkey" FOREIGN KEY ("conta_id","usuario_id") REFERENCES "rh"."usuarios"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."usuarios_estabelecimentos" ADD CONSTRAINT "usuario_estabelecimento_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimentos"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."usuarios" ADD CONSTRAINT "usuario_conta_id_fkey" FOREIGN KEY ("conta_id") REFERENCES "rh"."contas"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."usuarios" ADD CONSTRAINT "usuario_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."colaboradores_escalas" ADD CONSTRAINT "colaborador_escala_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."colaboradores_escalas" ADD CONSTRAINT "colaborador_escala_escala_id_fkey" FOREIGN KEY ("conta_id","escala_id") REFERENCES "rh"."escalas"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."estabelecimentos_feriados" ADD CONSTRAINT "estabelecimento_feriado_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimentos"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."estabelecimentos_feriados" ADD CONSTRAINT "estabelecimento_feriado_feriado_id_fkey" FOREIGN KEY ("feriado_id") REFERENCES "rh"."feriados"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."feriados" ADD CONSTRAINT "feriado_conta_id_fkey" FOREIGN KEY ("conta_id") REFERENCES "rh"."contas"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."parametros_legais" ADD CONSTRAINT "parametro_legal_conta_id_fkey" FOREIGN KEY ("conta_id") REFERENCES "rh"."contas"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."parametros_legais" ADD CONSTRAINT "param_empresa_fk" FOREIGN KEY ("conta_id","empresa_id") REFERENCES "rh"."empresas"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."dias_escala" ADD CONSTRAINT "escala_dia_escala_id_fkey" FOREIGN KEY ("conta_id","escala_id") REFERENCES "rh"."escalas"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."trocas_turno" ADD CONSTRAINT "troca_turno_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."trocas_turno" ADD CONSTRAINT "troca_turno_criado_por_fkey" FOREIGN KEY ("criado_por") REFERENCES "rh"."usuarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."escalas" ADD CONSTRAINT "escala_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimentos"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."apuracoes_dia" ADD CONSTRAINT "apuracao_dia_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."apuracoes_dia" ADD CONSTRAINT "apuracao_dia_escala_id_fkey" FOREIGN KEY ("conta_id","escala_id") REFERENCES "rh"."escalas"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."inconsistencias" ADD CONSTRAINT "inconsistencia_apuracao_dia_id_fkey" FOREIGN KEY ("conta_id","apuracao_dia_id") REFERENCES "rh"."apuracoes_dia"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."inconsistencias" ADD CONSTRAINT "inconsistencia_resolvida_por_fkey" FOREIGN KEY ("resolvida_por") REFERENCES "rh"."usuarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."apuracoes_marcacoes" ADD CONSTRAINT "apuracao_marcacao_apuracao_dia_id_fkey" FOREIGN KEY ("conta_id","apuracao_dia_id") REFERENCES "rh"."apuracoes_dia"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."apuracoes_marcacoes" ADD CONSTRAINT "marcacao_ajuste_fk" FOREIGN KEY ("conta_id","ajuste_id") REFERENCES "rh"."ajustes"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."afastamentos" ADD CONSTRAINT "afastamento_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."afastamentos" ADD CONSTRAINT "afastamento_atestado_id_fkey" FOREIGN KEY ("conta_id","atestado_id") REFERENCES "rh"."atestados"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."analises_atestado" ADD CONSTRAINT "atestado_analise_atestado_id_fkey" FOREIGN KEY ("conta_id","atestado_id") REFERENCES "rh"."atestados"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."atestados" ADD CONSTRAINT "atestado_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."atestados" ADD CONSTRAINT "atestado_decidido_por_fkey" FOREIGN KEY ("decidido_por") REFERENCES "rh"."usuarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."ajustes" ADD CONSTRAINT "ajuste_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."ajustes" ADD CONSTRAINT "ajuste_solicitado_por_fkey" FOREIGN KEY ("solicitado_por") REFERENCES "rh"."usuarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."ajustes" ADD CONSTRAINT "ajuste_decidido_por_fkey" FOREIGN KEY ("decidido_por") REFERENCES "rh"."usuarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."lancamentos_banco_horas" ADD CONSTRAINT "banco_horas_lancamento_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."lancamentos_banco_horas" ADD CONSTRAINT "banco_horas_lancamento_apuracao_dia_id_fkey" FOREIGN KEY ("conta_id","apuracao_dia_id") REFERENCES "rh"."apuracoes_dia"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."lancamentos_banco_horas" ADD CONSTRAINT "banco_horas_lancamento_criado_por_fkey" FOREIGN KEY ("criado_por") REFERENCES "rh"."usuarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."regras_banco_horas" ADD CONSTRAINT "banco_horas_regra_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimentos"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."regras_banco_horas" ADD CONSTRAINT "banco_horas_regra_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."periodos_aquisitivos_ferias" ADD CONSTRAINT "ferias_periodo_aquisitivo_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."gozos_ferias" ADD CONSTRAINT "ferias_gozo_periodo_aquisitivo_id_fkey" FOREIGN KEY ("conta_id","periodo_aquisitivo_id") REFERENCES "rh"."periodos_aquisitivos_ferias"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."gozos_ferias" ADD CONSTRAINT "ferias_gozo_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."gozos_ferias" ADD CONSTRAINT "ferias_gozo_setor_id_fkey" FOREIGN KEY ("conta_id","setor_id") REFERENCES "rh"."setores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."gozos_ferias" ADD CONSTRAINT "ferias_gozo_solicitado_por_fkey" FOREIGN KEY ("solicitado_por") REFERENCES "rh"."usuarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."gozos_ferias" ADD CONSTRAINT "ferias_gozo_decidido_por_fkey" FOREIGN KEY ("decidido_por") REFERENCES "rh"."usuarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."auditorias" ADD CONSTRAINT "auditoria_conta_id_fkey" FOREIGN KEY ("conta_id") REFERENCES "rh"."contas"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."auditorias" ADD CONSTRAINT "auditoria_usuario_id_fkey" FOREIGN KEY ("usuario_id") REFERENCES "rh"."usuarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."fechamentos" ADD CONSTRAINT "fechamento_estabelecimento_id_fkey" FOREIGN KEY ("conta_id","estabelecimento_id") REFERENCES "rh"."estabelecimentos"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."fechamentos" ADD CONSTRAINT "fechamento_fechado_por_fkey" FOREIGN KEY ("fechado_por") REFERENCES "rh"."usuarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."fechamentos" ADD CONSTRAINT "fechamento_reaberto_por_fkey" FOREIGN KEY ("reaberto_por") REFERENCES "rh"."usuarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."espelhos" ADD CONSTRAINT "espelho_fechamento_id_fkey" FOREIGN KEY ("conta_id","fechamento_id") REFERENCES "rh"."fechamentos"("conta_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rh"."espelhos" ADD CONSTRAINT "espelho_colaborador_id_fkey" FOREIGN KEY ("conta_id","colaborador_id") REFERENCES "rh"."colaboradores"("conta_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "idx_vinculo_colab_vigencia" ON "rh"."vinculos_colaborador" USING btree ("colaborador_id","vigencia_inicio" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "idx_colaborador_estab" ON "rh"."colaboradores" USING btree ("estabelecimento_id") WHERE data_desligamento IS NULL;--> statement-breakpoint
+CREATE INDEX "idx_colaborador_gestor" ON "rh"."colaboradores" USING btree ("gestor_id");--> statement-breakpoint
+CREATE INDEX "idx_feriado_data" ON "rh"."feriados" USING btree ("data");--> statement-breakpoint
+CREATE INDEX "idx_apuracao_colab_data" ON "rh"."apuracoes_dia" USING btree ("colaborador_id","data" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "idx_apuracao_data" ON "rh"."apuracoes_dia" USING btree ("data");--> statement-breakpoint
+CREATE INDEX "idx_marcacao_dia" ON "rh"."apuracoes_marcacoes" USING btree ("apuracao_dia_id","sequencia");--> statement-breakpoint
+CREATE INDEX "idx_atestado_pendente" ON "rh"."atestados" USING btree ("colaborador_id") WHERE status = 'pendente';--> statement-breakpoint
+CREATE INDEX "idx_ajuste_pendente" ON "rh"."ajustes" USING btree ("colaborador_id") WHERE status = 'pendente';--> statement-breakpoint
+CREATE INDEX "idx_bh_colab" ON "rh"."lancamentos_banco_horas" USING btree ("colaborador_id","data_competencia");--> statement-breakpoint
+CREATE INDEX "idx_bh_vencimento" ON "rh"."lancamentos_banco_horas" USING btree ("data_vencimento") WHERE data_vencimento IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_ferias_setor_periodo" ON "rh"."gozos_ferias" USING btree ("setor_id","data_inicio","data_fim") WHERE status IN ('aprovada','gozada');--> statement-breakpoint
+CREATE INDEX "idx_auditoria_entidade" ON "rh"."auditorias" USING btree ("entidade","entidade_id","criado_em" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "idx_auditoria_conta" ON "rh"."auditorias" USING btree ("conta_id","criado_em" DESC NULLS LAST);

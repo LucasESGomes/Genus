@@ -1,0 +1,40 @@
+# Valkey: fila das batidas (BullMQ). Versão exata, nunca `latest`.
+# Subir só o Valkey:   docker compose up        (nesta pasta)
+name: genus
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  valkey:
+    image: valkey/valkey:9.2.0-alpine
+    container_name: genus-valkey
+    restart: unless-stopped
+    environment:
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD:?Defina VALKEY_PASSWORD no .env da raiz (pnpm setup:dev)}
+    # AOF a cada segundo e noeviction: com a memória cheia o Valkey recusa escrita, não descarta batida na fila.
+    # A senha NÃO vai no argv do valkey-server (apareceria em `ps`): é escrita num arquivo de configuração
+    # temporário, com permissão 600, dentro do contêiner ($$ é o $ escapado do Compose).
+    command: sh -c 'umask 077 && printf "requirepass %s\n" "$$VALKEY_PASSWORD" > /tmp/valkey.conf && exec valkey-server /tmp/valkey.conf --appendonly yes --appendfsync everysec --maxmemory 192mb --maxmemory-policy noeviction'
+    volumes:
+      - valkey-dados:/data
+    ports:
+      - "127.0.0.1:${VALKEY_PORT:-6379}:6379"
+    healthcheck:
+      # A senha vai por REDISCLI_AUTH (variável de ambiente), nunca na linha de comando do valkey-cli.
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$VALKEY_PASSWORD\" valkey-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    cpu_shares: 1024
+    mem_limit: 256m
+    mem_reservation: 128m
+    init: true
+    stop_grace_period: 20s
+    logging: *logging
+
+volumes:
+  valkey-dados:
+    name: genus-valkey-dados

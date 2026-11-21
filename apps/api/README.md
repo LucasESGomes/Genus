@@ -1,10 +1,10 @@
 # apps/api · API do portal de RH
 
-Fastify 5 + Zod + Drizzle sobre o banco **`app`** (schema **`rh`**), numa instância Postgres própria (`postgres-rh`), separada do Postgres do `arp` (ponto/fiscal). Funciona em PostgreSQL **15 ou mais novo** (`UNIQUE NULLS NOT DISTINCT`); o compose usa o 17.6.
+Fastify 5 + Zod + Drizzle sobre o banco **`app`** (schema **`rh`**), na MESMA instância Postgres do `arp` (ponto/fiscal): um container, dois bancos lógicos, separados por banco e por papel. Funciona em PostgreSQL **15 ou mais novo** (`UNIQUE NULLS NOT DISTINCT`); o compose usa o 17.6.
 
 ## Cadastro único: o RH é a origem dos IDs
 
-O `arp` (parte do ponto) não tem cadastro. Cada batida guarda só `conta_id`, `estabelecimento_id`, `aparelho_id`, `colaborador_id` e `cpf`, sem FK (outro banco). Esses IDs **vêm daqui** (`rh.conta`, `rh.estabelecimento`, `rh.aparelho`, `rh.colaborador`): o ponto referencia o cadastro do RH, nunca cria o seu.
+O `arp` (parte do ponto) não tem cadastro. Cada batida guarda só `conta_id`, `estabelecimento_id`, `aparelho_id`, `colaborador_id` e `cpf`, sem FK (outro banco). Esses IDs **vêm daqui** (`rh.contas`, `rh.estabelecimentos`, `rh.aparelhos`, `rh.colaboradores`): o ponto referencia o cadastro do RH, nunca cria o seu.
 
 - `pnpm rh:check-arp` confere isso nos bancos reais (só leitura; no arp com o papel `arp_reader`) e lista, com CPF mascarado: conta/estabelecimento/aparelho/colaborador que o RH não tem, aparelho de outro estabelecimento, CPF diferente do cadastrado e CPF sem colaborador na conta. Sai com código 1 se houver divergência.
 - CPF e CNPJ são únicos **por conta**, como no índice `(conta_id, cpf)` do arp.
@@ -13,14 +13,17 @@ O `arp` (parte do ponto) não tem cadastro. Cada batida guarda só `conta_id`, `
 
 ```bash
 pnpm install
-pnpm setup:all          # só na primeira vez: infra/.env (ponto) + .env da raiz (RH), com senhas geradas
-docker compose up -d    # da raiz: tudo (arp, Valkey, engine, postgres-rh, migrations, api)
-docker compose watch    # opcional: recarrega a api ao salvar
+pnpm setup:dev           # só na primeira vez: .env da raiz (senhas geradas) e os .env.dev dos apps
+cd apps/api && docker compose up -d     # a api do RH e o que ela precisa: Postgres, papéis, migrations
+docker compose up -d     # (da raiz) o projeto inteiro: ponto + RH
+docker compose watch     # opcional: recarrega a api ao salvar
 ```
 
-API em `http://localhost:3002` (`/health`, `/health/ready`). Banco do RH em `localhost:5433`.
+`cd apps/api && docker compose up` liga, nesta ordem: `postgres` (saudável) → `db-roles` (papéis `rh_owner` e `rh_api`, bancos `arp` e `app`) → `arp-migrate` → `rh-migrate` (Drizzle, como `rh_owner`) → `api` (como `rh_api`). O Postgres é **o mesmo** do ponto (`genus-postgres-arp-app`, porta 5432): uma instância, dois bancos. As definições ficam em `service.compose.yml`; o `docker-compose.yml` da pasta é só a entrada.
 
-Fora do Docker (com o `postgres-rh` no ar): `pnpm db:migrate:rh` e `pnpm dev:api`. O Swagger (`/docs`) só abre assim, porque só atende 127.0.0.1.
+API em `http://localhost:3002` (`/health`, `/health/ready`).
+
+Fora do Docker (com a infra no ar, `pnpm dev:up`): `pnpm db:migrate:rh` e `pnpm dev:api` (ou `pnpm dev`, que sobe também o ponto). O Swagger (`/docs`) só abre assim, porque só atende 127.0.0.1. Não rode a api no host e no Docker ao mesmo tempo: a porta 3002 é a mesma.
 
 ## Estrutura
 
@@ -29,8 +32,7 @@ apps/api/
   schema-rh.sql            desenho original do schema (referência; a verdade são as migrations)
   drizzle/                 migrations (0000 extensões · 0001 tabelas, gerada · 0002 regras, à mão) + meta/
   drizzle.config.ts        drizzle-kit
-  docker/postgres-init/    init do postgres-rh: papéis rh_owner (migrations) e rh_api (runtime), banco app
-  Dockerfile               imagem da api e do api-migrate (contexto: raiz do repo)
+  service.compose.yml      rh-migrate e api (Docker); docker-compose.yml é a entrada, que inclui o db/
   src/
     server.ts · app.ts · container.ts
     config/env.ts          variáveis validadas com Zod

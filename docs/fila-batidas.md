@@ -170,7 +170,7 @@ Cada batida processada gera **3 jobs** em `post-punch` e **3 linhas** `pendente`
 
 **Limite de aviso:** `POST_PUNCH_DEPTH_WARN` (padrão 10 000). A profundidade é `waiting + delayed + active`. Quando passa, o resgate registra o log `post_punch_depth_high` (nível `warn`) e o `pnpm queue:inspect` imprime uma linha `AVISO`. Isso não bloqueia nada. O que fazer: seção 13, "fila cheia".
 
-**Memória do Valkey e `noeviction`:** o Valkey guarda tudo em memória. A política `noeviction` (configurada em [docker-compose.yml](infra/docker-compose.yml), junto com AOF `everysec`, que grava em disco a cada segundo, e senha obrigatória) significa: "quando a memória encher, **recuse novas escritas** em vez de apagar jobs antigos". Isso protege contra perda silenciosa, mas tem consequência: novas publicações passam a falhar. A API **continua respondendo `registered`**, porque a publicação em `punches` é opcional e a batida já está no banco; o resgate publica quando houver espaço. Ou seja, encher o Valkey atrasa o processamento, mas não perde batida nem bloqueia o ponto.
+**Memória do Valkey e `noeviction`:** o Valkey guarda tudo em memória. A política `noeviction` (configurada em [service.compose.yml](../packages/queue/service.compose.yml), junto com AOF `everysec`, que grava em disco a cada segundo, e senha obrigatória) significa: "quando a memória encher, **recuse novas escritas** em vez de apagar jobs antigos". Isso protege contra perda silenciosa, mas tem consequência: novas publicações passam a falhar. A API **continua respondendo `registered`**, porque a publicação em `punches` é opcional e a batida já está no banco; o resgate publica quando houver espaço. Ou seja, encher o Valkey atrasa o processamento, mas não perde batida nem bloqueia o ponto.
 
 ## 11. O que acontece quando cada peça morre
 
@@ -286,7 +286,7 @@ Códigos de saída: `0` íntegro, `1` problema encontrado, `2` erro de uso ou de
 ### Valkey fora do ar
 
 1. A API continua registrando batidas e respondendo `registered`. Procure o log `queue_connection_error` ou `queue_publish_failed`.
-2. Suba o Valkey de volta (`docker compose` com o perfil do ambiente). Com AOF `everysec`, ele reaplica o que gravou.
+2. Suba o Valkey de volta (`docker compose up -d valkey`). Com AOF `everysec`, ele reaplica o que gravou.
 3. Aguarde até 30 s + 20 s: o resgate republica as entradas `pendente` para `punches`.
 4. Rode `pnpm queue:inspect`: a profundidade e os `waiting` devem subir e depois cair em `punches` conforme o worker processa.
 5. Se algo ainda estiver `pendente` depois de alguns minutos, vá para "resgate não republica".

@@ -10,7 +10,7 @@ import { id, ref, rh, tenantId } from './rh';
 
 // RF46, RF49
 export const closingPeriods = rh.table(
-  'fechamento',
+  'fechamentos',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -53,7 +53,7 @@ export const closingPeriods = rh.table(
 
 // RF47, RF48
 export const timeMirrors = rh.table(
-  'espelho',
+  'espelhos',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -83,7 +83,7 @@ export const timeMirrors = rh.table(
 // é atendida para CID e arquivo de atestado (RN15, RNF04). Nenhum segredo em dados_antes/dados_depois.
 // conta_id NULL = ação da plataforma (super_admin) fora de qualquer conta.
 export const auditLogs = rh.table(
-  'auditoria',
+  'auditorias',
   {
     id: id(),
     tenantId: tenantId(),

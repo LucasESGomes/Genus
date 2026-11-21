@@ -73,8 +73,8 @@ function describeError(err: unknown): string {
   if (code === "ECONNREFUSED") {
     return "o Postgres não aceitou a conexão (ECONNREFUSED). Ele está no ar e na porta da URL? Veja `docker ps`.";
   }
-  if (code === "28P01") return "senha recusada para o papel arp_owner (28P01). Confira a senha na URL e em infra/.env.";
-  if (code === "3D000") return "o banco arp não existe (3D000). O init do Postgres roda só na primeira subida do volume.";
+  if (code === "28P01") return "senha recusada para o papel arp_owner (28P01). Confira a senha na URL e no .env da raiz.";
+  if (code === "3D000") return "o banco arp não existe (3D000). Suba o serviço db-roles (docker compose up db-roles), que cria os bancos.";
   const inner = err instanceof AggregateError ? err.errors.map((e: unknown) => describeError(e)).join("; ") : "";
   return err.message || inner || code || err.name;
 }

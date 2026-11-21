@@ -1,0 +1,82 @@
+# API do coletor (Fastify). Subir a api liga também tudo de que o fluxo da batida precisa:
+#   Postgres + migrations do arp, Valkey, face-engine, rep-core (NSR) e jobs (resgate).
+#   docker compose up        (nesta pasta; exige o .env da raiz: pnpm setup:dev)
+#
+# Swagger em http://localhost:3001/docs só fora do Docker (atende apenas 127.0.0.1 do processo).
+name: genus
+
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  collector-api:
+    build:
+      context: ../..
+      dockerfile: docker/node.Dockerfile
+      args:
+        PKG: "@genus/collector-api"
+        DIR: apps/collector-api
+    image: genus-collector-api
+    container_name: genus-collector-api
+    command: ["node_modules/.bin/tsx", "src/server.ts"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      PORT: "3001"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Papel arp_collector: só INSERT e SELECT em entradas.
+      ARP_DATABASE_URL: postgres://arp_collector:${ARP_COLLECTOR_PASSWORD}@postgres:5432/arp
+      VALKEY_URL: redis://valkey:6379
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD}
+      ENGINE_URL: http://face-engine:8001
+      ENGINE_API_KEY: ${ENGINE_API_KEY}
+      MASTER_KEY: ${MASTER_KEY}
+      ENGINE_TIMEOUT_MS: ${ENGINE_TIMEOUT_MS:-800}
+      ENGINE_MAX_CONCURRENCY: ${ENGINE_MAX_CONCURRENCY:-4}
+      COLLECTOR_SERVICE_KEYS: ${COLLECTOR_SERVICE_KEYS:?Defina COLLECTOR_SERVICE_KEYS no .env da raiz (pnpm setup:dev)}
+      QUEUE_PUBLISH_TIMEOUT_MS: ${QUEUE_PUBLISH_TIMEOUT_MS:-250}
+      QUEUE_ATTEMPTS: ${QUEUE_ATTEMPTS:-5}
+      # Candidatos fictícios + galeria de dev (pnpm dev:enroll-fake), enquanto não há provedor real.
+      FAKE_CANDIDATES_ENABLED: "true"
+      FAKE_CANDIDATES_COUNT: ${FAKE_CANDIDATES_COUNT:-20}
+      DEV_GALLERY_PATH: ../../dev-data/gallery.json
+      EXPOSE_TIMINGS: ${EXPOSE_TIMINGS:-true}
+      # Contexto fixo provisório do aparelho.
+      DEV_TENANT_ID: ${DEV_TENANT_ID:-1}
+      DEV_ESTABLISHMENT_ID: ${DEV_ESTABLISHMENT_ID:-1}
+      DEV_DEVICE_ID: ${DEV_DEVICE_ID:-1}
+    volumes:
+      # Galeria de teste gerada no host (fora do Git). Só leitura.
+      - ../../dev-data:/repo/dev-data:ro
+    ports:
+      - "127.0.0.1:${COLLECTOR_PORT:-3001}:3001"
+    depends_on:
+      arp-migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+      face-engine:
+        condition: service_healthy
+      # O resgate e o rep-core sobem juntos: sem eles a batida fica pendente e ninguém a processa.
+      rep-core:
+        condition: service_started
+      jobs:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    cpu_shares: 1024
+    mem_limit: 384m
+    mem_reservation: 128m
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    init: true
+    stop_grace_period: 15s
+    logging: *logging

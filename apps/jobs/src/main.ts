@@ -3,7 +3,7 @@
  * pendente no banco e não chegou à fila. Lê com `arp_reader`; nunca escreve no banco.
  */
 import { createPostPunchQueue, createProducerConnection, createPunchesQueue } from '@genus/queue';
-import { createLogger, SystemClock } from '@genus/shared';
+import { createLogger, startHeartbeat, SystemClock } from '@genus/shared';
 import pg from 'pg';
 import { JobsConfigError, loadJobsConfig } from './config.js';
 import { runRescueOnce } from './rescue.js';
@@ -108,6 +108,11 @@ async function main(): Promise<void> {
     'jobs: resgate iniciado',
   );
   running = loop();
+  // Sinal de vida para o healthcheck do contêiner (só vale com HEARTBEAT_FILE definido).
+  const stopHeartbeat = startHeartbeat({
+    file: process.env['HEARTBEAT_FILE'],
+    isHealthy: () => connection.status === 'ready',
+  });
 
   let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {
@@ -115,6 +120,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     logger.info({ event: 'jobs_stopping', signal }, 'jobs: encerrando');
     stopped = true;
+    stopHeartbeat();
     clearTimeout(timer);
     wake?.();
     try {

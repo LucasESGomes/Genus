@@ -1,11 +1,11 @@
 {
-  "id": "832b2540-8847-4ef5-b893-7d3f00091947",
-  "prevId": "a950462d-e509-4991-bebb-4ace427b6e76",
+  "id": "2cf994bc-3be6-4374-9fff-dbf86dc535e8",
+  "prevId": "f229f170-45c8-4656-88bb-3a8593c0e64c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "rh.empresa": {
-      "name": "empresa",
+    "rh.empresas": {
+      "name": "empresas",
       "schema": "rh",
       "columns": {
         "id": {
@@ -14,7 +14,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "empresa_id_seq",
+            "name": "empresas_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -62,11 +62,11 @@
       "foreignKeys": {
         "empresa_conta_id_fkey": {
           "name": "empresa_conta_id_fkey",
-          "tableFrom": "empresa",
+          "tableFrom": "empresas",
           "columnsFrom": [
             "conta_id"
           ],
-          "tableTo": "conta",
+          "tableTo": "contas",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -103,8 +103,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.centro_custo": {
-      "name": "centro_custo",
+    "rh.centros_custo": {
+      "name": "centros_custo",
       "schema": "rh",
       "columns": {
         "id": {
@@ -113,7 +113,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "centro_custo_id_seq",
+            "name": "centros_custo_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -153,12 +153,12 @@
       "foreignKeys": {
         "centro_custo_empresa_id_fkey": {
           "name": "centro_custo_empresa_id_fkey",
-          "tableFrom": "centro_custo",
+          "tableFrom": "centros_custo",
           "columnsFrom": [
             "conta_id",
             "empresa_id"
           ],
-          "tableTo": "empresa",
+          "tableTo": "empresas",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -191,8 +191,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "rh.setor": {
-      "name": "setor",
+    "rh.setores": {
+      "name": "setores",
       "schema": "rh",
       "columns": {
         "id": {
@@ -201,7 +201,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "setor_id_seq",
+            "name": "setores_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -242,12 +242,12 @@
       "foreignKeys": {
         "setor_estabelecimento_id_fkey": {
           "name": "setor_estabelecimento_id_fkey",
-          "tableFrom": "setor",
+          "tableFrom": "setores",
           "columnsFrom": [
             "conta_id",
             "estabelecimento_id"
           ],
-          "tableTo": "estabelecimento",
+          "tableTo": "estabelecimentos",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -285,8 +285,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.aparelho": {
-      "name": "aparelho",
+    "rh.aparelhos": {
+      "name": "aparelhos",
       "schema": "rh",
       "columns": {
         "id": {
@@ -295,7 +295,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "aparelho_id_seq",
+            "name": "aparelhos_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -343,12 +343,12 @@
       "foreignKeys": {
         "aparelho_estabelecimento_id_fkey": {
           "name": "aparelho_estabelecimento_id_fkey",
-          "tableFrom": "aparelho",
+          "tableFrom": "aparelhos",
           "columnsFrom": [
             "conta_id",
             "estabelecimento_id"
           ],
-          "tableTo": "estabelecimento",
+          "tableTo": "estabelecimentos",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -381,8 +381,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "rh.colaborador_vinculo": {
-      "name": "colaborador_vinculo",
+    "rh.vinculos_colaborador": {
+      "name": "vinculos_colaborador",
       "schema": "rh",
       "columns": {
         "id": {
@@ -391,7 +391,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "colaborador_vinculo_id_seq",
+            "name": "vinculos_colaborador_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -483,12 +483,12 @@
       "foreignKeys": {
         "colaborador_vinculo_colaborador_id_fkey": {
           "name": "colaborador_vinculo_colaborador_id_fkey",
-          "tableFrom": "colaborador_vinculo",
+          "tableFrom": "vinculos_colaborador",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -499,12 +499,12 @@
         },
         "colaborador_vinculo_cargo_id_fkey": {
           "name": "colaborador_vinculo_cargo_id_fkey",
-          "tableFrom": "colaborador_vinculo",
+          "tableFrom": "vinculos_colaborador",
           "columnsFrom": [
             "conta_id",
             "cargo_id"
           ],
-          "tableTo": "cargo",
+          "tableTo": "cargos",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -515,12 +515,12 @@
         },
         "colaborador_vinculo_setor_id_fkey": {
           "name": "colaborador_vinculo_setor_id_fkey",
-          "tableFrom": "colaborador_vinculo",
+          "tableFrom": "vinculos_colaborador",
           "columnsFrom": [
             "conta_id",
             "setor_id"
           ],
-          "tableTo": "setor",
+          "tableTo": "setores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -531,12 +531,12 @@
         },
         "colaborador_vinculo_centro_custo_id_fkey": {
           "name": "colaborador_vinculo_centro_custo_id_fkey",
-          "tableFrom": "colaborador_vinculo",
+          "tableFrom": "vinculos_colaborador",
           "columnsFrom": [
             "conta_id",
             "centro_custo_id"
           ],
-          "tableTo": "centro_custo",
+          "tableTo": "centros_custo",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -565,8 +565,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.colaborador": {
-      "name": "colaborador",
+    "rh.colaboradores": {
+      "name": "colaboradores",
       "schema": "rh",
       "columns": {
         "id": {
@@ -575,7 +575,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "colaborador_id_seq",
+            "name": "colaboradores_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -683,12 +683,12 @@
       "foreignKeys": {
         "colaborador_estabelecimento_id_fkey": {
           "name": "colaborador_estabelecimento_id_fkey",
-          "tableFrom": "colaborador",
+          "tableFrom": "colaboradores",
           "columnsFrom": [
             "conta_id",
             "estabelecimento_id"
           ],
-          "tableTo": "estabelecimento",
+          "tableTo": "estabelecimentos",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -699,12 +699,12 @@
         },
         "colaborador_gestor_id_fkey": {
           "name": "colaborador_gestor_id_fkey",
-          "tableFrom": "colaborador",
+          "tableFrom": "colaboradores",
           "columnsFrom": [
             "conta_id",
             "gestor_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -766,8 +766,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.estabelecimento": {
-      "name": "estabelecimento",
+    "rh.estabelecimentos": {
+      "name": "estabelecimentos",
       "schema": "rh",
       "columns": {
         "id": {
@@ -776,7 +776,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "estabelecimento_id_seq",
+            "name": "estabelecimentos_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -841,12 +841,12 @@
       "foreignKeys": {
         "estabelecimento_empresa_id_fkey": {
           "name": "estabelecimento_empresa_id_fkey",
-          "tableFrom": "estabelecimento",
+          "tableFrom": "estabelecimentos",
           "columnsFrom": [
             "conta_id",
             "empresa_id"
           ],
-          "tableTo": "empresa",
+          "tableTo": "empresas",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -892,8 +892,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.cargo": {
-      "name": "cargo",
+    "rh.cargos": {
+      "name": "cargos",
       "schema": "rh",
       "columns": {
         "id": {
@@ -902,7 +902,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "cargo_id_seq",
+            "name": "cargos_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -942,12 +942,12 @@
       "foreignKeys": {
         "cargo_empresa_id_fkey": {
           "name": "cargo_empresa_id_fkey",
-          "tableFrom": "cargo",
+          "tableFrom": "cargos",
           "columnsFrom": [
             "conta_id",
             "empresa_id"
           ],
-          "tableTo": "empresa",
+          "tableTo": "empresas",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -985,8 +985,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.conta": {
-      "name": "conta",
+    "rh.contas": {
+      "name": "contas",
       "schema": "rh",
       "columns": {
         "id": {
@@ -995,7 +995,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "conta_id_seq",
+            "name": "contas_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -1035,8 +1035,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "rh.usuario_estabelecimento": {
-      "name": "usuario_estabelecimento",
+    "rh.usuarios_estabelecimentos": {
+      "name": "usuarios_estabelecimentos",
       "schema": "rh",
       "columns": {
         "conta_id": {
@@ -1062,12 +1062,12 @@
       "foreignKeys": {
         "usuario_estabelecimento_usuario_id_fkey": {
           "name": "usuario_estabelecimento_usuario_id_fkey",
-          "tableFrom": "usuario_estabelecimento",
+          "tableFrom": "usuarios_estabelecimentos",
           "columnsFrom": [
             "conta_id",
             "usuario_id"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -1078,12 +1078,12 @@
         },
         "usuario_estabelecimento_estabelecimento_id_fkey": {
           "name": "usuario_estabelecimento_estabelecimento_id_fkey",
-          "tableFrom": "usuario_estabelecimento",
+          "tableFrom": "usuarios_estabelecimentos",
           "columnsFrom": [
             "conta_id",
             "estabelecimento_id"
           ],
-          "tableTo": "estabelecimento",
+          "tableTo": "estabelecimentos",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -1107,8 +1107,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "rh.usuario": {
-      "name": "usuario",
+    "rh.usuarios": {
+      "name": "usuarios",
       "schema": "rh",
       "columns": {
         "id": {
@@ -1117,7 +1117,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "usuario_id_seq",
+            "name": "usuarios_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -1177,11 +1177,11 @@
       "foreignKeys": {
         "usuario_conta_id_fkey": {
           "name": "usuario_conta_id_fkey",
-          "tableFrom": "usuario",
+          "tableFrom": "usuarios",
           "columnsFrom": [
             "conta_id"
           ],
-          "tableTo": "conta",
+          "tableTo": "contas",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -1191,12 +1191,12 @@
         },
         "usuario_colaborador_id_fkey": {
           "name": "usuario_colaborador_id_fkey",
-          "tableFrom": "usuario",
+          "tableFrom": "usuarios",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -1252,8 +1252,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.colaborador_escala": {
-      "name": "colaborador_escala",
+    "rh.colaboradores_escalas": {
+      "name": "colaboradores_escalas",
       "schema": "rh",
       "columns": {
         "id": {
@@ -1262,7 +1262,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "colaborador_escala_id_seq",
+            "name": "colaboradores_escalas_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -1308,12 +1308,12 @@
       "foreignKeys": {
         "colaborador_escala_colaborador_id_fkey": {
           "name": "colaborador_escala_colaborador_id_fkey",
-          "tableFrom": "colaborador_escala",
+          "tableFrom": "colaboradores_escalas",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -1324,12 +1324,12 @@
         },
         "colaborador_escala_escala_id_fkey": {
           "name": "colaborador_escala_escala_id_fkey",
-          "tableFrom": "colaborador_escala",
+          "tableFrom": "colaboradores_escalas",
           "columnsFrom": [
             "conta_id",
             "escala_id"
           ],
-          "tableTo": "escala",
+          "tableTo": "escalas",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -1350,8 +1350,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.estabelecimento_feriado": {
-      "name": "estabelecimento_feriado",
+    "rh.estabelecimentos_feriados": {
+      "name": "estabelecimentos_feriados",
       "schema": "rh",
       "columns": {
         "conta_id": {
@@ -1390,12 +1390,12 @@
       "foreignKeys": {
         "estabelecimento_feriado_estabelecimento_id_fkey": {
           "name": "estabelecimento_feriado_estabelecimento_id_fkey",
-          "tableFrom": "estabelecimento_feriado",
+          "tableFrom": "estabelecimentos_feriados",
           "columnsFrom": [
             "conta_id",
             "estabelecimento_id"
           ],
-          "tableTo": "estabelecimento",
+          "tableTo": "estabelecimentos",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -1406,11 +1406,11 @@
         },
         "estabelecimento_feriado_feriado_id_fkey": {
           "name": "estabelecimento_feriado_feriado_id_fkey",
-          "tableFrom": "estabelecimento_feriado",
+          "tableFrom": "estabelecimentos_feriados",
           "columnsFrom": [
             "feriado_id"
           ],
-          "tableTo": "feriado",
+          "tableTo": "feriados",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -1442,8 +1442,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.feriado": {
-      "name": "feriado",
+    "rh.feriados": {
+      "name": "feriados",
       "schema": "rh",
       "columns": {
         "id": {
@@ -1452,7 +1452,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "feriado_id_seq",
+            "name": "feriados_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -1527,11 +1527,11 @@
       "foreignKeys": {
         "feriado_conta_id_fkey": {
           "name": "feriado_conta_id_fkey",
-          "tableFrom": "feriado",
+          "tableFrom": "feriados",
           "columnsFrom": [
             "conta_id"
           ],
-          "tableTo": "conta",
+          "tableTo": "contas",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -1567,8 +1567,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.parametro_legal": {
-      "name": "parametro_legal",
+    "rh.parametros_legais": {
+      "name": "parametros_legais",
       "schema": "rh",
       "columns": {
         "id": {
@@ -1577,7 +1577,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "parametro_legal_id_seq",
+            "name": "parametros_legais_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -1635,11 +1635,11 @@
       "foreignKeys": {
         "parametro_legal_conta_id_fkey": {
           "name": "parametro_legal_conta_id_fkey",
-          "tableFrom": "parametro_legal",
+          "tableFrom": "parametros_legais",
           "columnsFrom": [
             "conta_id"
           ],
-          "tableTo": "conta",
+          "tableTo": "contas",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -1649,12 +1649,12 @@
         },
         "param_empresa_fk": {
           "name": "param_empresa_fk",
-          "tableFrom": "parametro_legal",
+          "tableFrom": "parametros_legais",
           "columnsFrom": [
             "conta_id",
             "empresa_id"
           ],
-          "tableTo": "empresa",
+          "tableTo": "empresas",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -1679,8 +1679,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.escala_dia": {
-      "name": "escala_dia",
+    "rh.dias_escala": {
+      "name": "dias_escala",
       "schema": "rh",
       "columns": {
         "id": {
@@ -1689,7 +1689,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "escala_dia_id_seq",
+            "name": "dias_escala_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -1761,12 +1761,12 @@
       "foreignKeys": {
         "escala_dia_escala_id_fkey": {
           "name": "escala_dia_escala_id_fkey",
-          "tableFrom": "escala_dia",
+          "tableFrom": "dias_escala",
           "columnsFrom": [
             "conta_id",
             "escala_id"
           ],
-          "tableTo": "escala",
+          "tableTo": "escalas",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -1804,8 +1804,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.troca_turno": {
-      "name": "troca_turno",
+    "rh.trocas_turno": {
+      "name": "trocas_turno",
       "schema": "rh",
       "columns": {
         "id": {
@@ -1814,7 +1814,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "troca_turno_id_seq",
+            "name": "trocas_turno_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -1886,12 +1886,12 @@
       "foreignKeys": {
         "troca_turno_colaborador_id_fkey": {
           "name": "troca_turno_colaborador_id_fkey",
-          "tableFrom": "troca_turno",
+          "tableFrom": "trocas_turno",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -1902,11 +1902,11 @@
         },
         "troca_turno_criado_por_fkey": {
           "name": "troca_turno_criado_por_fkey",
-          "tableFrom": "troca_turno",
+          "tableFrom": "trocas_turno",
           "columnsFrom": [
             "criado_por"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -1935,8 +1935,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.escala": {
-      "name": "escala",
+    "rh.escalas": {
+      "name": "escalas",
       "schema": "rh",
       "columns": {
         "id": {
@@ -1945,7 +1945,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "escala_id_seq",
+            "name": "escalas_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -2009,12 +2009,12 @@
       "foreignKeys": {
         "escala_estabelecimento_id_fkey": {
           "name": "escala_estabelecimento_id_fkey",
-          "tableFrom": "escala",
+          "tableFrom": "escalas",
           "columnsFrom": [
             "conta_id",
             "estabelecimento_id"
           ],
-          "tableTo": "estabelecimento",
+          "tableTo": "estabelecimentos",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -2060,8 +2060,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.apuracao_dia": {
-      "name": "apuracao_dia",
+    "rh.apuracoes_dia": {
+      "name": "apuracoes_dia",
       "schema": "rh",
       "columns": {
         "id": {
@@ -2070,7 +2070,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "apuracao_dia_id_seq",
+            "name": "apuracoes_dia_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -2229,12 +2229,12 @@
       "foreignKeys": {
         "apuracao_dia_colaborador_id_fkey": {
           "name": "apuracao_dia_colaborador_id_fkey",
-          "tableFrom": "apuracao_dia",
+          "tableFrom": "apuracoes_dia",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -2245,12 +2245,12 @@
         },
         "apuracao_dia_escala_id_fkey": {
           "name": "apuracao_dia_escala_id_fkey",
-          "tableFrom": "apuracao_dia",
+          "tableFrom": "apuracoes_dia",
           "columnsFrom": [
             "conta_id",
             "escala_id"
           ],
-          "tableTo": "escala",
+          "tableTo": "escalas",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -2296,8 +2296,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.inconsistencia": {
-      "name": "inconsistencia",
+    "rh.inconsistencias": {
+      "name": "inconsistencias",
       "schema": "rh",
       "columns": {
         "id": {
@@ -2306,7 +2306,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "inconsistencia_id_seq",
+            "name": "inconsistencias_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -2359,12 +2359,12 @@
       "foreignKeys": {
         "inconsistencia_apuracao_dia_id_fkey": {
           "name": "inconsistencia_apuracao_dia_id_fkey",
-          "tableFrom": "inconsistencia",
+          "tableFrom": "inconsistencias",
           "columnsFrom": [
             "conta_id",
             "apuracao_dia_id"
           ],
-          "tableTo": "apuracao_dia",
+          "tableTo": "apuracoes_dia",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -2375,11 +2375,11 @@
         },
         "inconsistencia_resolvida_por_fkey": {
           "name": "inconsistencia_resolvida_por_fkey",
-          "tableFrom": "inconsistencia",
+          "tableFrom": "inconsistencias",
           "columnsFrom": [
             "resolvida_por"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -2412,8 +2412,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.apuracao_marcacao": {
-      "name": "apuracao_marcacao",
+    "rh.apuracoes_marcacoes": {
+      "name": "apuracoes_marcacoes",
       "schema": "rh",
       "columns": {
         "id": {
@@ -2422,7 +2422,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "apuracao_marcacao_id_seq",
+            "name": "apuracoes_marcacoes_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -2502,12 +2502,12 @@
       "foreignKeys": {
         "apuracao_marcacao_apuracao_dia_id_fkey": {
           "name": "apuracao_marcacao_apuracao_dia_id_fkey",
-          "tableFrom": "apuracao_marcacao",
+          "tableFrom": "apuracoes_marcacoes",
           "columnsFrom": [
             "conta_id",
             "apuracao_dia_id"
           ],
-          "tableTo": "apuracao_dia",
+          "tableTo": "apuracoes_dia",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -2518,12 +2518,12 @@
         },
         "marcacao_ajuste_fk": {
           "name": "marcacao_ajuste_fk",
-          "tableFrom": "apuracao_marcacao",
+          "tableFrom": "apuracoes_marcacoes",
           "columnsFrom": [
             "conta_id",
             "ajuste_id"
           ],
-          "tableTo": "ajuste",
+          "tableTo": "ajustes",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -2561,8 +2561,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.afastamento": {
-      "name": "afastamento",
+    "rh.afastamentos": {
+      "name": "afastamentos",
       "schema": "rh",
       "columns": {
         "id": {
@@ -2571,7 +2571,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "afastamento_id_seq",
+            "name": "afastamentos_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -2623,12 +2623,12 @@
       "foreignKeys": {
         "afastamento_colaborador_id_fkey": {
           "name": "afastamento_colaborador_id_fkey",
-          "tableFrom": "afastamento",
+          "tableFrom": "afastamentos",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -2639,12 +2639,12 @@
         },
         "afastamento_atestado_id_fkey": {
           "name": "afastamento_atestado_id_fkey",
-          "tableFrom": "afastamento",
+          "tableFrom": "afastamentos",
           "columnsFrom": [
             "conta_id",
             "atestado_id"
           ],
-          "tableTo": "atestado",
+          "tableTo": "atestados",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -2681,8 +2681,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.atestado_analise": {
-      "name": "atestado_analise",
+    "rh.analises_atestado": {
+      "name": "analises_atestado",
       "schema": "rh",
       "columns": {
         "id": {
@@ -2691,7 +2691,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "atestado_analise_id_seq",
+            "name": "analises_atestado_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -2751,12 +2751,12 @@
       "foreignKeys": {
         "atestado_analise_atestado_id_fkey": {
           "name": "atestado_analise_atestado_id_fkey",
-          "tableFrom": "atestado_analise",
+          "tableFrom": "analises_atestado",
           "columnsFrom": [
             "conta_id",
             "atestado_id"
           ],
-          "tableTo": "atestado",
+          "tableTo": "atestados",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -2793,8 +2793,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.atestado": {
-      "name": "atestado",
+    "rh.atestados": {
+      "name": "atestados",
       "schema": "rh",
       "columns": {
         "id": {
@@ -2803,7 +2803,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "atestado_id_seq",
+            "name": "atestados_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -2934,12 +2934,12 @@
       "foreignKeys": {
         "atestado_colaborador_id_fkey": {
           "name": "atestado_colaborador_id_fkey",
-          "tableFrom": "atestado",
+          "tableFrom": "atestados",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -2950,11 +2950,11 @@
         },
         "atestado_decidido_por_fkey": {
           "name": "atestado_decidido_por_fkey",
-          "tableFrom": "atestado",
+          "tableFrom": "atestados",
           "columnsFrom": [
             "decidido_por"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -3015,8 +3015,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.ajuste": {
-      "name": "ajuste",
+    "rh.ajustes": {
+      "name": "ajustes",
       "schema": "rh",
       "columns": {
         "id": {
@@ -3025,7 +3025,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "ajuste_id_seq",
+            "name": "ajustes_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -3138,12 +3138,12 @@
       "foreignKeys": {
         "ajuste_colaborador_id_fkey": {
           "name": "ajuste_colaborador_id_fkey",
-          "tableFrom": "ajuste",
+          "tableFrom": "ajustes",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -3154,11 +3154,11 @@
         },
         "ajuste_solicitado_por_fkey": {
           "name": "ajuste_solicitado_por_fkey",
-          "tableFrom": "ajuste",
+          "tableFrom": "ajustes",
           "columnsFrom": [
             "solicitado_por"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -3168,11 +3168,11 @@
         },
         "ajuste_decidido_por_fkey": {
           "name": "ajuste_decidido_por_fkey",
-          "tableFrom": "ajuste",
+          "tableFrom": "ajustes",
           "columnsFrom": [
             "decidido_por"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -3221,8 +3221,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.banco_horas_lancamento": {
-      "name": "banco_horas_lancamento",
+    "rh.lancamentos_banco_horas": {
+      "name": "lancamentos_banco_horas",
       "schema": "rh",
       "columns": {
         "id": {
@@ -3231,7 +3231,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "banco_horas_lancamento_id_seq",
+            "name": "lancamentos_banco_horas_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -3340,12 +3340,12 @@
       "foreignKeys": {
         "banco_horas_lancamento_colaborador_id_fkey": {
           "name": "banco_horas_lancamento_colaborador_id_fkey",
-          "tableFrom": "banco_horas_lancamento",
+          "tableFrom": "lancamentos_banco_horas",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -3356,12 +3356,12 @@
         },
         "banco_horas_lancamento_apuracao_dia_id_fkey": {
           "name": "banco_horas_lancamento_apuracao_dia_id_fkey",
-          "tableFrom": "banco_horas_lancamento",
+          "tableFrom": "lancamentos_banco_horas",
           "columnsFrom": [
             "conta_id",
             "apuracao_dia_id"
           ],
-          "tableTo": "apuracao_dia",
+          "tableTo": "apuracoes_dia",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -3372,11 +3372,11 @@
         },
         "banco_horas_lancamento_criado_por_fkey": {
           "name": "banco_horas_lancamento_criado_por_fkey",
-          "tableFrom": "banco_horas_lancamento",
+          "tableFrom": "lancamentos_banco_horas",
           "columnsFrom": [
             "criado_por"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -3408,8 +3408,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.banco_horas_regra": {
-      "name": "banco_horas_regra",
+    "rh.regras_banco_horas": {
+      "name": "regras_banco_horas",
       "schema": "rh",
       "columns": {
         "id": {
@@ -3418,7 +3418,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "banco_horas_regra_id_seq",
+            "name": "regras_banco_horas_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -3484,12 +3484,12 @@
       "foreignKeys": {
         "banco_horas_regra_estabelecimento_id_fkey": {
           "name": "banco_horas_regra_estabelecimento_id_fkey",
-          "tableFrom": "banco_horas_regra",
+          "tableFrom": "regras_banco_horas",
           "columnsFrom": [
             "conta_id",
             "estabelecimento_id"
           ],
-          "tableTo": "estabelecimento",
+          "tableTo": "estabelecimentos",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -3500,12 +3500,12 @@
         },
         "banco_horas_regra_colaborador_id_fkey": {
           "name": "banco_horas_regra_colaborador_id_fkey",
-          "tableFrom": "banco_horas_regra",
+          "tableFrom": "regras_banco_horas",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -3538,8 +3538,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.ferias_periodo_aquisitivo": {
-      "name": "ferias_periodo_aquisitivo",
+    "rh.periodos_aquisitivos_ferias": {
+      "name": "periodos_aquisitivos_ferias",
       "schema": "rh",
       "columns": {
         "id": {
@@ -3548,7 +3548,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "ferias_periodo_aquisitivo_id_seq",
+            "name": "periodos_aquisitivos_ferias_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -3614,12 +3614,12 @@
       "foreignKeys": {
         "ferias_periodo_aquisitivo_colaborador_id_fkey": {
           "name": "ferias_periodo_aquisitivo_colaborador_id_fkey",
-          "tableFrom": "ferias_periodo_aquisitivo",
+          "tableFrom": "periodos_aquisitivos_ferias",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -3669,8 +3669,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.ferias_gozo": {
-      "name": "ferias_gozo",
+    "rh.gozos_ferias": {
+      "name": "gozos_ferias",
       "schema": "rh",
       "columns": {
         "id": {
@@ -3679,7 +3679,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "ferias_gozo_id_seq",
+            "name": "gozos_ferias_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -3815,12 +3815,12 @@
       "foreignKeys": {
         "ferias_gozo_periodo_aquisitivo_id_fkey": {
           "name": "ferias_gozo_periodo_aquisitivo_id_fkey",
-          "tableFrom": "ferias_gozo",
+          "tableFrom": "gozos_ferias",
           "columnsFrom": [
             "conta_id",
             "periodo_aquisitivo_id"
           ],
-          "tableTo": "ferias_periodo_aquisitivo",
+          "tableTo": "periodos_aquisitivos_ferias",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -3831,12 +3831,12 @@
         },
         "ferias_gozo_colaborador_id_fkey": {
           "name": "ferias_gozo_colaborador_id_fkey",
-          "tableFrom": "ferias_gozo",
+          "tableFrom": "gozos_ferias",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -3847,12 +3847,12 @@
         },
         "ferias_gozo_setor_id_fkey": {
           "name": "ferias_gozo_setor_id_fkey",
-          "tableFrom": "ferias_gozo",
+          "tableFrom": "gozos_ferias",
           "columnsFrom": [
             "conta_id",
             "setor_id"
           ],
-          "tableTo": "setor",
+          "tableTo": "setores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -3863,11 +3863,11 @@
         },
         "ferias_gozo_solicitado_por_fkey": {
           "name": "ferias_gozo_solicitado_por_fkey",
-          "tableFrom": "ferias_gozo",
+          "tableFrom": "gozos_ferias",
           "columnsFrom": [
             "solicitado_por"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -3877,11 +3877,11 @@
         },
         "ferias_gozo_decidido_por_fkey": {
           "name": "ferias_gozo_decidido_por_fkey",
-          "tableFrom": "ferias_gozo",
+          "tableFrom": "gozos_ferias",
           "columnsFrom": [
             "decidido_por"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -3925,8 +3925,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.auditoria": {
-      "name": "auditoria",
+    "rh.auditorias": {
+      "name": "auditorias",
       "schema": "rh",
       "columns": {
         "id": {
@@ -3935,7 +3935,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "auditoria_id_seq",
+            "name": "auditorias_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -4055,11 +4055,11 @@
       "foreignKeys": {
         "auditoria_conta_id_fkey": {
           "name": "auditoria_conta_id_fkey",
-          "tableFrom": "auditoria",
+          "tableFrom": "auditorias",
           "columnsFrom": [
             "conta_id"
           ],
-          "tableTo": "conta",
+          "tableTo": "contas",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -4069,11 +4069,11 @@
         },
         "auditoria_usuario_id_fkey": {
           "name": "auditoria_usuario_id_fkey",
-          "tableFrom": "auditoria",
+          "tableFrom": "auditorias",
           "columnsFrom": [
             "usuario_id"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -4093,8 +4093,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.fechamento": {
-      "name": "fechamento",
+    "rh.fechamentos": {
+      "name": "fechamentos",
       "schema": "rh",
       "columns": {
         "id": {
@@ -4103,7 +4103,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "fechamento_id_seq",
+            "name": "fechamentos_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -4186,12 +4186,12 @@
       "foreignKeys": {
         "fechamento_estabelecimento_id_fkey": {
           "name": "fechamento_estabelecimento_id_fkey",
-          "tableFrom": "fechamento",
+          "tableFrom": "fechamentos",
           "columnsFrom": [
             "conta_id",
             "estabelecimento_id"
           ],
-          "tableTo": "estabelecimento",
+          "tableTo": "estabelecimentos",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -4202,11 +4202,11 @@
         },
         "fechamento_fechado_por_fkey": {
           "name": "fechamento_fechado_por_fkey",
-          "tableFrom": "fechamento",
+          "tableFrom": "fechamentos",
           "columnsFrom": [
             "fechado_por"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -4216,11 +4216,11 @@
         },
         "fechamento_reaberto_por_fkey": {
           "name": "fechamento_reaberto_por_fkey",
-          "tableFrom": "fechamento",
+          "tableFrom": "fechamentos",
           "columnsFrom": [
             "reaberto_por"
           ],
-          "tableTo": "usuario",
+          "tableTo": "usuarios",
           "schemaTo": "rh",
           "columnsTo": [
             "id"
@@ -4273,8 +4273,8 @@
       },
       "isRLSEnabled": false
     },
-    "rh.espelho": {
-      "name": "espelho",
+    "rh.espelhos": {
+      "name": "espelhos",
       "schema": "rh",
       "columns": {
         "id": {
@@ -4283,7 +4283,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "espelho_id_seq",
+            "name": "espelhos_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "9223372036854775807",
@@ -4335,12 +4335,12 @@
       "foreignKeys": {
         "espelho_fechamento_id_fkey": {
           "name": "espelho_fechamento_id_fkey",
-          "tableFrom": "espelho",
+          "tableFrom": "espelhos",
           "columnsFrom": [
             "conta_id",
             "fechamento_id"
           ],
-          "tableTo": "fechamento",
+          "tableTo": "fechamentos",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -4351,12 +4351,12 @@
         },
         "espelho_colaborador_id_fkey": {
           "name": "espelho_colaborador_id_fkey",
-          "tableFrom": "espelho",
+          "tableFrom": "espelhos",
           "columnsFrom": [
             "conta_id",
             "colaborador_id"
           ],
-          "tableTo": "colaborador",
+          "tableTo": "colaboradores",
           "schemaTo": "rh",
           "columnsTo": [
             "conta_id",
@@ -4392,8 +4392,8 @@
     "rh": "rh"
   },
   "views": {
-    "rh.vw_banco_horas_saldo": {
-      "name": "vw_banco_horas_saldo",
+    "rh.vw_saldos_banco_horas": {
+      "name": "vw_saldos_banco_horas",
       "schema": "rh",
       "columns": {
         "conta_id": {

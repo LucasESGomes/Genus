@@ -42,9 +42,9 @@ interface Org {
 /** Conta completa: empresa, estabelecimento em São Paulo/SP, cargo e dois usuários. */
 async function createOrg(name: string): Promise<Org> {
   seq += 1;
-  const tenantId = (await one<{ id: number }>('INSERT INTO rh.conta (nome) VALUES ($1) RETURNING id', [name])).id;
+  const tenantId = (await one<{ id: number }>('INSERT INTO rh.contas (nome) VALUES ($1) RETURNING id', [name])).id;
   const companyId = (
-    await one<{ id: number }>('INSERT INTO rh.empresa (conta_id, razao_social, cnpj) VALUES ($1, $2, $3) RETURNING id', [
+    await one<{ id: number }>('INSERT INTO rh.empresas (conta_id, razao_social, cnpj) VALUES ($1, $2, $3) RETURNING id', [
       tenantId,
       `${name} Ltda`,
       String(12_345_678_000_100 + seq),
@@ -52,20 +52,20 @@ async function createOrg(name: string): Promise<Org> {
   ).id;
   const establishmentId = (
     await one<{ id: number }>(
-      `INSERT INTO rh.estabelecimento (conta_id, empresa_id, nome, tipo_inscricao, inscricao, uf, municipio_ibge)
+      `INSERT INTO rh.estabelecimentos (conta_id, empresa_id, nome, tipo_inscricao, inscricao, uf, municipio_ibge)
        VALUES ($1, $2, 'Matriz', 'CNPJ', $3, 'SP', '3550308') RETURNING id`,
       [tenantId, companyId, String(12_345_678_000_100 + seq)],
     )
   ).id;
   const jobTitleId = (
-    await one<{ id: number }>("INSERT INTO rh.cargo (conta_id, empresa_id, nome) VALUES ($1, $2, 'Vendedor') RETURNING id", [
+    await one<{ id: number }>("INSERT INTO rh.cargos (conta_id, empresa_id, nome) VALUES ($1, $2, 'Vendedor') RETURNING id", [
       tenantId,
       companyId,
     ])
   ).id;
   const user = async (role: string) =>
     (
-      await one<{ id: number }>('INSERT INTO rh.usuario (conta_id, email, senha_hash, papel) VALUES ($1, $2, $3, $4) RETURNING id', [
+      await one<{ id: number }>('INSERT INTO rh.usuarios (conta_id, email, senha_hash, papel) VALUES ($1, $2, $3, $4) RETURNING id', [
         tenantId,
         `${role}${seq}@teste.dev`,
         'x',
@@ -77,7 +77,7 @@ async function createOrg(name: string): Promise<Org> {
 
 function insertEmployee(org: Org, cpf: string, establishmentId = org.establishmentId) {
   return client.query(
-    `INSERT INTO rh.colaborador (conta_id, estabelecimento_id, cpf, nome, data_nascimento, data_admissao)
+    `INSERT INTO rh.colaboradores (conta_id, estabelecimento_id, cpf, nome, data_nascimento, data_admissao)
      VALUES ($1, $2, $3, 'Pessoa Fictícia', '1990-01-01', '2025-01-01') RETURNING id`,
     [org.tenantId, establishmentId, cpf],
   );
@@ -89,14 +89,14 @@ let org: Org;
 async function vacationFixture(limit = 1, o: Org = org) {
   seq += 1;
   const dept = await one<{ id: number }>(
-    'INSERT INTO rh.setor (conta_id, estabelecimento_id, nome, limite_ferias_simultaneas) VALUES ($1, $2, $3, $4) RETURNING id',
+    'INSERT INTO rh.setores (conta_id, estabelecimento_id, nome, limite_ferias_simultaneas) VALUES ($1, $2, $3, $4) RETURNING id',
     [o.tenantId, o.establishmentId, `Setor ${seq}`, limit],
   );
   const newEmployee = async () => {
     seq += 1;
     const emp = (await insertEmployee(o, String(10_000_000_000 + seq))).rows[0] as { id: number };
     const period = await one<{ id: number }>(
-      `INSERT INTO rh.ferias_periodo_aquisitivo (conta_id, colaborador_id, inicio, fim, concessivo_fim, dias_direito)
+      `INSERT INTO rh.periodos_aquisitivos_ferias (conta_id, colaborador_id, inicio, fim, concessivo_fim, dias_direito)
        VALUES ($1, $2, '2026-01-01', '2026-12-31', '2027-12-31', 30) RETURNING id`,
       [o.tenantId, emp.id],
     );
@@ -114,7 +114,7 @@ function approveVacation(
 ) {
   const decided = status === 'solicitada' ? [null, null] : [e.org.rhUserId, '2026-11-20T12:00:00Z'];
   return client.query(
-    `INSERT INTO rh.ferias_gozo (conta_id, periodo_aquisitivo_id, colaborador_id, setor_id, data_inicio, data_fim, status,
+    `INSERT INTO rh.gozos_ferias (conta_id, periodo_aquisitivo_id, colaborador_id, setor_id, data_inicio, data_fim, status,
                                  solicitado_por, decidido_por, decidido_em)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, dias`,
     [e.org.tenantId, e.periodId, e.employeeId, departmentId, start, end, status, e.org.managerUserId, ...decided],
@@ -140,7 +140,7 @@ describe('migrations', () => {
     );
     expect(tables.n).toBe(32);
     const view = await one<{ n: number }>(
-      "SELECT count(*)::int AS n FROM information_schema.views WHERE table_schema = 'rh' AND table_name = 'vw_banco_horas_saldo'",
+      "SELECT count(*)::int AS n FROM information_schema.views WHERE table_schema = 'rh' AND table_name = 'vw_saldos_banco_horas'",
     );
     expect(view.n).toBe(1);
     const ext = await client.query("SELECT extname FROM pg_extension WHERE extname IN ('btree_gist','citext') ORDER BY 1");
@@ -150,7 +150,7 @@ describe('migrations', () => {
   it('toda tabela tem conta_id', async () => {
     const without = await client.query(
       `SELECT t.table_name FROM information_schema.tables t
-        WHERE t.table_schema = 'rh' AND t.table_type = 'BASE TABLE' AND t.table_name <> 'conta'
+        WHERE t.table_schema = 'rh' AND t.table_type = 'BASE TABLE' AND t.table_name <> 'contas'
           AND NOT EXISTS (SELECT 1 FROM information_schema.columns c
                            WHERE c.table_schema = 'rh' AND c.table_name = t.table_name AND c.column_name = 'conta_id')`,
     );
@@ -160,7 +160,7 @@ describe('migrations', () => {
   it('e-mail do usuário não diferencia maiúsculas (citext)', async () => {
     expect(
       await sqlState(
-        client.query("INSERT INTO rh.usuario (conta_id, email, senha_hash, papel) VALUES ($1, 'RH1@Teste.dev', 'x', 'rh')", [org.tenantId]),
+        client.query("INSERT INTO rh.usuarios (conta_id, email, senha_hash, papel) VALUES ($1, 'RH1@Teste.dev', 'x', 'rh')", [org.tenantId]),
       ),
     ).toBe('23505');
   });
@@ -181,13 +181,13 @@ describe('multi-tenant', () => {
     // vínculo da conta A com o cargo da conta C
     const emp = (await insertEmployee(org, '11122233345')).rows[0] as { id: number };
     const dept = await one<{ id: number }>(
-      "INSERT INTO rh.setor (conta_id, estabelecimento_id, nome) VALUES ($1, $2, 'Isolamento') RETURNING id",
+      "INSERT INTO rh.setores (conta_id, estabelecimento_id, nome) VALUES ($1, $2, 'Isolamento') RETURNING id",
       [org.tenantId, org.establishmentId],
     );
     expect(
       await sqlState(
         client.query(
-          `INSERT INTO rh.colaborador_vinculo (conta_id, colaborador_id, cargo_id, setor_id, tipo_contrato, vigencia_inicio)
+          `INSERT INTO rh.vinculos_colaborador (conta_id, colaborador_id, cargo_id, setor_id, tipo_contrato, vigencia_inicio)
            VALUES ($1, $2, $3, $4, 'indeterminado', '2025-01-01')`,
           [org.tenantId, emp.id, other.jobTitleId, dept.id],
         ),
@@ -196,8 +196,8 @@ describe('multi-tenant', () => {
   });
 
   it('só o super_admin fica sem conta', async () => {
-    await client.query("INSERT INTO rh.usuario (email, senha_hash, papel, mfa_ativo) VALUES ('root@genus.dev', 'x', 'super_admin', true)");
-    expect(await sqlState(client.query("INSERT INTO rh.usuario (email, senha_hash, papel) VALUES ('semconta@teste.dev', 'x', 'rh')"))).toBe(
+    await client.query("INSERT INTO rh.usuarios (email, senha_hash, papel, mfa_ativo) VALUES ('root@genus.dev', 'x', 'super_admin', true)");
+    expect(await sqlState(client.query("INSERT INTO rh.usuarios (email, senha_hash, papel) VALUES ('semconta@teste.dev', 'x', 'rh')"))).toBe(
       '23514',
     );
   });
@@ -237,7 +237,7 @@ describe('vigências sem sobreposição (EXCLUDE)', () => {
     const e = await newEmployee();
     const insert = (from: string, to: string | null) =>
       client.query(
-        `INSERT INTO rh.colaborador_vinculo (conta_id, colaborador_id, cargo_id, setor_id, tipo_contrato, vigencia_inicio, vigencia_fim)
+        `INSERT INTO rh.vinculos_colaborador (conta_id, colaborador_id, cargo_id, setor_id, tipo_contrato, vigencia_inicio, vigencia_fim)
          VALUES ($1, $2, $3, $4, 'indeterminado', $5, $6)`,
         [org.tenantId, e.employeeId, org.jobTitleId, departmentId, from, to],
       );
@@ -287,12 +287,12 @@ describe('férias', () => {
     const { departmentId, newEmployee } = await vacationFixture();
     // Campinas (3509502), terça 02/02/2027
     await client.query(
-      "INSERT INTO rh.feriado (abrangencia, uf, municipio_ibge, data, nome) VALUES ('municipal', 'SP', '3509502', '2027-02-02', 'Feriado de Campinas')",
+      "INSERT INTO rh.feriados (abrangencia, uf, municipio_ibge, data, nome) VALUES ('municipal', 'SP', '3509502', '2027-02-02', 'Feriado de Campinas')",
     );
     await approveVacation(await newEmployee(), departmentId, '2027-02-01', '2027-02-15');
     // São Paulo (3550308), terça 02/03/2027
     await client.query(
-      "INSERT INTO rh.feriado (abrangencia, uf, municipio_ibge, data, nome) VALUES ('municipal', 'SP', '3550308', '2027-03-02', 'Feriado de São Paulo')",
+      "INSERT INTO rh.feriados (abrangencia, uf, municipio_ibge, data, nome) VALUES ('municipal', 'SP', '3550308', '2027-03-02', 'Feriado de São Paulo')",
     );
     expect(await sqlState(approveVacation(await newEmployee(), departmentId, '2027-03-01', '2027-03-15'))).toBe('23514');
   });
@@ -301,7 +301,7 @@ describe('férias', () => {
     const other = await createOrg('Conta D');
     // terça 06/04/2027, só da conta D, mesma cidade
     await client.query(
-      "INSERT INTO rh.feriado (conta_id, abrangencia, uf, municipio_ibge, data, nome) VALUES ($1, 'municipal', 'SP', '3550308', '2027-04-06', 'Data da conta D')",
+      "INSERT INTO rh.feriados (conta_id, abrangencia, uf, municipio_ibge, data, nome) VALUES ($1, 'municipal', 'SP', '3550308', '2027-04-06', 'Data da conta D')",
       [other.tenantId],
     );
     const mine = await vacationFixture();
@@ -316,37 +316,37 @@ describe('período fechado (RF46)', () => {
     const { newEmployee } = await vacationFixture();
     const e = await newEmployee();
     const day = await one<{ id: number }>(
-      `INSERT INTO rh.apuracao_dia (conta_id, colaborador_id, data, situacao, parametro_versao)
+      `INSERT INTO rh.apuracoes_dia (conta_id, colaborador_id, data, situacao, parametro_versao)
        VALUES ($1, $2, '2026-10-15', 'normal', 'v1') RETURNING id`,
       [org.tenantId, e.employeeId],
     );
     await client.query(
-      `INSERT INTO rh.fechamento (conta_id, estabelecimento_id, competencia, data_inicio, data_fim, status, fechado_por, fechado_em)
+      `INSERT INTO rh.fechamentos (conta_id, estabelecimento_id, competencia, data_inicio, data_fim, status, fechado_por, fechado_em)
        VALUES ($1, $2, '2026-10-01', '2026-10-01', '2026-10-31', 'fechado', $3, now())`,
       [org.tenantId, org.establishmentId, org.rhUserId],
     );
     expect(
       await sqlState(
         client.query(
-          "INSERT INTO rh.apuracao_dia (conta_id, colaborador_id, data, situacao, parametro_versao) VALUES ($1, $2, '2026-10-16', 'normal', 'v1')",
+          "INSERT INTO rh.apuracoes_dia (conta_id, colaborador_id, data, situacao, parametro_versao) VALUES ($1, $2, '2026-10-16', 'normal', 'v1')",
           [org.tenantId, e.employeeId],
         ),
       ),
     ).toBe('23514');
-    expect(await sqlState(client.query("UPDATE rh.apuracao_dia SET data = '2026-11-15' WHERE id = $1", [day.id]))).toBe('23514');
-    expect(await sqlState(client.query('DELETE FROM rh.apuracao_dia WHERE id = $1', [day.id]))).toBe('23514');
+    expect(await sqlState(client.query("UPDATE rh.apuracoes_dia SET data = '2026-11-15' WHERE id = $1", [day.id]))).toBe('23514');
+    expect(await sqlState(client.query('DELETE FROM rh.apuracoes_dia WHERE id = $1', [day.id]))).toBe('23514');
   });
 });
 
 describe('auditoria (RNF03)', () => {
   it('só aceita INSERT', async () => {
     const row = await one<{ id: number }>(
-      "INSERT INTO rh.auditoria (conta_id, usuario_id, entidade, entidade_id, acao) VALUES ($1, $2, 'colaborador', 1, 'criacao') RETURNING id",
+      "INSERT INTO rh.auditorias (conta_id, usuario_id, entidade, entidade_id, acao) VALUES ($1, $2, 'colaborador', 1, 'criacao') RETURNING id",
       [org.tenantId, org.rhUserId],
     );
-    expect(await sqlState(client.query("UPDATE rh.auditoria SET motivo = 'x' WHERE id = $1", [row.id]))).toBe('42501');
-    expect(await sqlState(client.query('DELETE FROM rh.auditoria WHERE id = $1', [row.id]))).toBe('42501');
-    expect(await sqlState(client.query('TRUNCATE rh.auditoria'))).toBe('42501');
+    expect(await sqlState(client.query("UPDATE rh.auditorias SET motivo = 'x' WHERE id = $1", [row.id]))).toBe('42501');
+    expect(await sqlState(client.query('DELETE FROM rh.auditorias WHERE id = $1', [row.id]))).toBe('42501');
+    expect(await sqlState(client.query('TRUNCATE rh.auditorias'))).toBe('42501');
   });
 });
 
@@ -356,14 +356,14 @@ describe('banco de horas', () => {
     const e = await newEmployee();
     const add = (tipo: string, minutos: number) =>
       client.query(
-        "INSERT INTO rh.banco_horas_lancamento (conta_id, colaborador_id, tipo, minutos, data_competencia, criado_por) VALUES ($1, $2, $3, $4, '2026-11-01', $5)",
+        "INSERT INTO rh.lancamentos_banco_horas (conta_id, colaborador_id, tipo, minutos, data_competencia, criado_por) VALUES ($1, $2, $3, $4, '2026-11-01', $5)",
         [org.tenantId, e.employeeId, tipo, minutos, org.rhUserId],
       );
     await add('credito', 120);
     await add('debito', -30);
     expect(await sqlState(add('credito', -10))).toBe('23514');
     const saldo = await one<{ saldo_minutos: string }>(
-      'SELECT saldo_minutos FROM rh.vw_banco_horas_saldo WHERE conta_id = $1 AND colaborador_id = $2',
+      'SELECT saldo_minutos FROM rh.vw_saldos_banco_horas WHERE conta_id = $1 AND colaborador_id = $2',
       [org.tenantId, e.employeeId],
     );
     expect(Number(saldo.saldo_minutos)).toBe(90);

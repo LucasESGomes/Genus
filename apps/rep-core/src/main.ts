@@ -3,7 +3,7 @@
  * Composição das dependências reais e encerramento limpo em SIGTERM/SIGINT.
  */
 import { createProducerConnection, createWorkerConnection } from '@genus/queue';
-import { createLogger, SystemClock } from '@genus/shared';
+import { createLogger, startHeartbeat, SystemClock } from '@genus/shared';
 import pg from 'pg';
 import { loadRepCoreConfig, RepCoreConfigError } from './config/env.js';
 import { createPostPunchPublisher } from './worker/post-punch-publisher.js';
@@ -57,11 +57,18 @@ async function main(): Promise<void> {
     'rep-core: consumindo a fila punches',
   );
 
+  // Sinal de vida para o healthcheck do contêiner (só vale com HEARTBEAT_FILE definido).
+  const stopHeartbeat = startHeartbeat({
+    file: process.env['HEARTBEAT_FILE'],
+    isHealthy: () => workerConnection.status === 'ready',
+  });
+
   let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info({ event: 'rep_core_stopping', signal }, 'rep-core: encerrando');
+    stopHeartbeat();
     try {
       // Ordem: para de consumir e espera os jobs ativos (eles ainda usam pool e publicador).
       await worker.close();

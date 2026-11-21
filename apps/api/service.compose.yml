@@ -1,0 +1,87 @@
+# API do portal de RH (Fastify + Drizzle). Banco `app`, schema `rh`, no MESMO Postgres do arp.
+# Subir a api liga também o Postgres (com papéis e bancos) e aplica as migrations do Drizzle:
+#   docker compose up        (nesta pasta; exige o .env da raiz: pnpm setup:dev)
+#
+# Ordem: postgres (saudável) → db-roles → rh-migrate (como rh_owner) → api (como rh_api).
+# Migration nova:  docker compose up --build rh-migrate
+name: genus
+
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  # Aplica as migrations do Drizzle (apps/api/drizzle) como rh_owner e sai.
+  rh-migrate:
+    build:
+      context: ../..
+      dockerfile: docker/node.Dockerfile
+      args:
+        PKG: "@genus/api"
+        DIR: apps/api
+    image: genus-api
+    container_name: genus-rh-migrate
+    command: ["node_modules/.bin/tsx", "src/db/migrate.ts"]
+    environment:
+      RH_MIGRATION_DATABASE_URL: postgres://rh_owner:${RH_OWNER_PASSWORD}@postgres:5432/app
+    depends_on:
+      db-roles:
+        condition: service_completed_successfully
+    restart: "no"
+    mem_limit: 192m
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    logging: *logging
+
+  api:
+    # Mesma imagem do rh-migrate (o build fica em cache: sai uma vez só).
+    build:
+      context: ../..
+      dockerfile: docker/node.Dockerfile
+      args:
+        PKG: "@genus/api"
+        DIR: apps/api
+    image: genus-api
+    container_name: genus-api
+    command: ["node_modules/.bin/tsx", "src/server.ts"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      PORT: "3002"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Papel rh_api: DML no schema rh, sem DDL.
+      RH_DATABASE_URL: postgres://rh_api:${RH_API_PASSWORD}@postgres:5432/app
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    ports:
+      - "127.0.0.1:${API_PORT:-3002}:3002"
+    depends_on:
+      rh-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    cpu_shares: 1024
+    mem_limit: 384m
+    mem_reservation: 128m
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    init: true
+    stop_grace_period: 15s
+    logging: *logging
+    # `docker compose watch`: código copiado para o contêiner e a api reinicia; dependência nova recria a imagem.
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./src
+          target: /repo/apps/api/src
+        - action: sync+restart
+          path: ../../packages/shared/src
+          target: /repo/packages/shared/src
+        - action: rebuild
+          path: ./package.json

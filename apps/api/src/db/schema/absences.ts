@@ -17,7 +17,7 @@ import { bytea, id, ref, rh, tenantId } from './rh';
 
 // RF23 a RF26. Trigger trg_ajuste_periodo_fechado: migration 0002.
 export const timeAdjustments = rh.table(
-  'ajuste',
+  'ajustes',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -59,7 +59,7 @@ export const timeAdjustments = rh.table(
 
 // RF27, RF28, RF32
 export const medicalCertificates = rh.table(
-  'atestado',
+  'atestados',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -108,7 +108,7 @@ export const medicalCertificates = rh.table(
 
 // RF61 a RF67: a heurística só sinaliza; quem decide é o RH
 export const certificateAnalyses = rh.table(
-  'atestado_analise',
+  'analises_atestado',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -135,7 +135,7 @@ export const certificateAnalyses = rh.table(
 
 // RF29, RF30, RF31. Exclusion constraint afast_sem_sobreposicao: migration 0002.
 export const absences = rh.table(
-  'afastamento',
+  'afastamentos',
   {
     id: id(),
     tenantId: tenantId().notNull(),

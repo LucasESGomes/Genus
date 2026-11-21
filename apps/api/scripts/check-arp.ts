@@ -14,7 +14,7 @@ const out = (line = '') => process.stdout.write(`${line}\n`);
 const arpUrl = process.env.ARP_READER_DATABASE_URL;
 const rhUrl = process.env.RH_DATABASE_URL;
 if (!arpUrl || !rhUrl) {
-  process.stderr.write('ARP_READER_DATABASE_URL e RH_DATABASE_URL são obrigatórias (pnpm setup:rh)\n');
+  process.stderr.write('ARP_READER_DATABASE_URL e RH_DATABASE_URL são obrigatórias (pnpm setup:dev)\n');
   process.exit(1);
 }
 

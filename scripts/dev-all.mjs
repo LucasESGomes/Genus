@@ -4,12 +4,13 @@
  *
  *   1. preparo (pnpm dev:up): arquivos de ambiente, Postgres + Valkey + engine, papéis do
  *      banco arp e migrations. Idempotente. Pule com `pnpm dev -- --sem-preparo`.
- *   2. três processos, com o log de cada um prefixado:
+ *   2. quatro processos, com o log de cada um prefixado:
  *        [api]       api do coletor (http://localhost:3001, tsx watch)
  *        [rep-core]  worker que atribui NSR e grava registros (consome `punches`)
  *        [resgate]   republica entradas e outbox pendentes (apps/jobs)
+ *        [rh]        api do portal de RH (http://localhost:3002, tsx watch)
  *
- * Ctrl+C encerra os três. Se um deles cair, os outros são encerrados e o comando sai com erro.
+ * Ctrl+C encerra os quatro. Se um deles cair, os outros são encerrados e o comando sai com erro.
  * Para depurar um processo isolado continuam valendo: pnpm dev:rep-core e pnpm dev:jobs.
  */
 import { spawn, spawnSync } from 'node:child_process';
@@ -19,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const preparo = !process.argv.includes('--sem-preparo');
 
-const COLORS = { api: '\x1b[36m', 'rep-core': '\x1b[35m', resgate: '\x1b[33m', sistema: '\x1b[32m' };
+const COLORS = { api: '\x1b[36m', 'rep-core': '\x1b[35m', resgate: '\x1b[33m', rh: '\x1b[34m', sistema: '\x1b[32m' };
 const RESET = '\x1b[0m';
 const log = (name, line) => process.stdout.write(`${COLORS[name] ?? ''}[${name}]${RESET} ${line}\n`);
 
@@ -35,6 +36,7 @@ const servicos = [
   { name: 'api', args: ['--filter', '@genus/collector-api', 'dev'] },
   { name: 'rep-core', args: ['--filter', '@genus/rep-core', 'start'] },
   { name: 'resgate', args: ['--filter', '@genus/jobs', 'start'] },
+  { name: 'rh', args: ['--filter', '@genus/api', 'dev'] },
 ];
 
 const filhos = new Map();

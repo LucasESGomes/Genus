@@ -12,7 +12,7 @@ import { id, ref, rh, tenantId } from './rh';
 
 // RF39, RF40, RN10
 export const vacationAccrualPeriods = rh.table(
-  'ferias_periodo_aquisitivo',
+  'periodos_aquisitivos_ferias',
   {
     id: id(),
     tenantId: tenantId().notNull(),
@@ -46,7 +46,7 @@ export const vacationAccrualPeriods = rh.table(
 
 // RF41 a RF43: aqui mora a regra do setor desfalcado
 export const vacationInstallments = rh.table(
-  'ferias_gozo',
+  'gozos_ferias',
   {
     id: id(),
     tenantId: tenantId().notNull(),

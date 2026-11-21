@@ -12,14 +12,14 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1795276124569,
+      "when": 1795282503949,
       "tag": "0001_cria_schema_rh",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1795276125702,
+      "when": 1795282505474,
       "tag": "0002_regras_schema_rh",
       "breakpoints": true
     }

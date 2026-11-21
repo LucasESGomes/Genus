@@ -1,0 +1,56 @@
+# rep-core: worker da fila `punches` (atribui NSR e hash, grava registros, evidencias e outbox no arp).
+# Subir o rep-core com o que ele precisa (Postgres, migrations do arp e Valkey):
+#   docker compose up        (nesta pasta; exige o .env da raiz: pnpm setup:dev)
+name: genus
+
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  rep-core:
+    build:
+      context: ../..
+      dockerfile: docker/node.Dockerfile
+      args:
+        PKG: "@genus/rep-core"
+        DIR: apps/rep-core
+    image: genus-rep-core
+    container_name: genus-rep-core
+    command: ["node_modules/.bin/tsx", "src/main.ts"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Papel arp_core: única escrita em registros, evidencias e outbox.
+      ARP_CORE_DATABASE_URL: postgres://arp_core:${ARP_CORE_PASSWORD}@postgres:5432/arp
+      VALKEY_URL: redis://valkey:6379
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+      QUEUE_ATTEMPTS: ${QUEUE_ATTEMPTS:-5}
+      # Sem HTTP: o healthcheck lê a idade deste arquivo (packages/shared/src/heartbeat.ts).
+      HEARTBEAT_FILE: /tmp/heartbeat
+    depends_on:
+      arp-migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "const t=Number(require('fs').readFileSync('/tmp/heartbeat','utf8'));process.exit(Date.now()-t<20000?0:1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    # Segundo na fila de prioridade, depois do banco e da engine.
+    cpu_shares: 1024
+    mem_limit: 384m
+    mem_reservation: 128m
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    init: true
+    # Dá tempo de terminar os jobs ativos antes de fechar o pool.
+    stop_grace_period: 30s
+    logging: *logging

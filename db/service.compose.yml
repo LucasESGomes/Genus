@@ -1,0 +1,112 @@
+# Postgres do Genus: UMA instância, dois bancos lógicos (arp fiscal e app operacional).
+# Separação por banco e por papel, não por contêiner (docs/architecture/02-arquitetura.md §4.5).
+#
+# Subir só o banco (papéis, bancos e migrations do arp):   docker compose up        (nesta pasta)
+# Os demais composes do repositório incluem este arquivo; o Compose deduplica a inclusão.
+#
+# Ordem de subida:  postgres (saudável) → db-roles (papéis e bancos) → arp-migrate (migrations do arp)
+# As migrations do app (RH) ficam em apps/api/service.compose.yml (rh-migrate).
+name: genus
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    container_name: genus-postgres-arp-app
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Defina POSTGRES_USER no .env da raiz (pnpm setup:dev)}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no .env da raiz}
+    # Ajuste para ~1 GB de RAM (o banco tem prioridade sobre o resto). Fiscal: synchronous_commit fica ligado.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=640MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=100
+      - -c
+      - wal_compression=on
+      - -c
+      - log_min_duration_statement=500
+      - -c
+      - log_lock_waits=on
+    volumes:
+      # Nome fixo e igual ao da versão anterior: o volume existente continua valendo.
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    # Prioridade máxima: mais fatia de CPU em disputa, memória reservada e o último a ser morto por falta de RAM.
+    cpu_shares: 2048
+    mem_limit: ${POSTGRES_MEM_LIMIT:-1g}
+    mem_reservation: 512m
+    shm_size: 256m
+    oom_score_adj: -500
+    stop_grace_period: 60s
+    init: true
+    logging: *logging
+
+  # Garante papéis, bancos e acessos a cada subida (idempotente) e sai.
+  db-roles:
+    image: postgres:17.6-alpine
+    container_name: genus-db-roles
+    entrypoint: ["bash", "/bootstrap.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      ARP_OWNER_PASSWORD: ${ARP_OWNER_PASSWORD:?Defina ARP_OWNER_PASSWORD no .env da raiz}
+      ARP_COLLECTOR_PASSWORD: ${ARP_COLLECTOR_PASSWORD:?Defina ARP_COLLECTOR_PASSWORD no .env da raiz}
+      ARP_CORE_PASSWORD: ${ARP_CORE_PASSWORD:?Defina ARP_CORE_PASSWORD no .env da raiz}
+      ARP_READER_PASSWORD: ${ARP_READER_PASSWORD:?Defina ARP_READER_PASSWORD no .env da raiz}
+      RH_OWNER_PASSWORD: ${RH_OWNER_PASSWORD:?Defina RH_OWNER_PASSWORD no .env da raiz}
+      RH_API_PASSWORD: ${RH_API_PASSWORD:?Defina RH_API_PASSWORD no .env da raiz}
+    volumes:
+      - ./postgres/bootstrap.sh:/bootstrap.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    mem_limit: 64m
+    logging: *logging
+
+  # Aplica as migrations do banco arp (db/arp/migrations) como arp_owner e sai.
+  arp-migrate:
+    build:
+      context: ..
+      dockerfile: docker/node.Dockerfile
+      args:
+        PKG: "@genus/db-arp"
+        DIR: db/arp
+    image: genus-db-arp
+    container_name: genus-arp-migrate
+    command: ["node_modules/.bin/tsx", "src/cli.ts"]
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      ARP_MIGRATION_DATABASE_URL: postgres://arp_owner:${ARP_OWNER_PASSWORD}@postgres:5432/arp
+    depends_on:
+      db-roles:
+        condition: service_completed_successfully
+    restart: "no"
+    mem_limit: 192m
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    logging: *logging
+
+volumes:
+  pgdata:
+    name: genus-postgres-arp-app-dados

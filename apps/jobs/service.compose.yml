@@ -1,0 +1,55 @@
+# jobs: resgate. Republica `entradas` e `outbox` pendentes há mais de 30 s (lê o arp com arp_reader).
+# Subir o resgate com o que ele precisa (Postgres, migrations do arp e Valkey):
+#   docker compose up        (nesta pasta; exige o .env da raiz: pnpm setup:dev)
+name: genus
+
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  jobs:
+    build:
+      context: ../..
+      dockerfile: docker/node.Dockerfile
+      args:
+        PKG: "@genus/jobs"
+        DIR: apps/jobs
+    image: genus-jobs
+    container_name: genus-jobs
+    command: ["node_modules/.bin/tsx", "src/main.ts"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Papel arp_reader: somente leitura.
+      ARP_READER_DATABASE_URL: postgres://arp_reader:${ARP_READER_PASSWORD}@postgres:5432/arp
+      VALKEY_URL: redis://valkey:6379
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD}
+      RESCUE_INTERVAL_MS: ${RESCUE_INTERVAL_MS:-20000}
+      RESCUE_MIN_AGE_MS: ${RESCUE_MIN_AGE_MS:-30000}
+      QUEUE_ATTEMPTS: ${QUEUE_ATTEMPTS:-5}
+      # Sem HTTP: o healthcheck lê a idade deste arquivo (packages/shared/src/heartbeat.ts).
+      HEARTBEAT_FILE: /tmp/heartbeat
+    depends_on:
+      arp-migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "const t=Number(require('fs').readFileSync('/tmp/heartbeat','utf8'));process.exit(Date.now()-t<20000?0:1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    cpu_shares: 256
+    mem_limit: 192m
+    mem_reservation: 64m
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    init: true
+    stop_grace_period: 15s
+    logging: *logging

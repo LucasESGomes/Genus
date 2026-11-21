@@ -24,8 +24,6 @@
     "queue:inspect": "node scripts/queue-inspect.mjs",
     "postman:export": "node scripts/postman-export.mjs",
     "arp:verify-chain": "pnpm --filter @genus/rep-core verify-chain",
-    "setup:rh": "node scripts/setup-rh.mjs",
-    "setup:all": "node scripts/setup-dev.mjs && node scripts/setup-rh.mjs",
     "dev:api": "pnpm --filter @genus/api dev",
     "db:migrate:rh": "pnpm --filter @genus/api db:migrate",
     "db:generate:rh": "pnpm --filter @genus/api db:generate",
