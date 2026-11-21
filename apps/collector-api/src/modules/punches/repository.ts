@@ -41,8 +41,105 @@ function toReceipt(row: ReceiptRow): EntryReceipt {
   return { id, publicId: row.id_publico, markedAt: row.marcado_em, isClockDivergent: row.eh_hora_divergente };
 }
 
+/** Status de uma entrada, com o NSR se o rep-core já a processou. Sem CPF. */
+export interface EntryStatus {
+  publicId: string;
+  establishmentId: number;
+  deviceId: number;
+  deviceSequence: number;
+  employeeId: number;
+  status: 'pendente' | 'processado' | 'falhou';
+  attempts: number;
+  nsr: number | null;
+  markedAt: Date;
+  receivedAt: Date;
+  processedAt: Date | null;
+  isClockDivergent: boolean;
+}
+
+interface StatusRow {
+  id_publico: string;
+  estabelecimento_id: string | number;
+  aparelho_id: string | number;
+  sequencia_aparelho: string | number;
+  colaborador_id: string | number;
+  status: EntryStatus['status'];
+  tentativas: number;
+  nsr: string | number | null;
+  marcado_em: Date;
+  recebido_em: Date;
+  processado_em: Date | null;
+  eh_hora_divergente: boolean;
+}
+
+function safeInt(value: string | number, column: string): number {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n)) throw new Error(`${column} fora do intervalo seguro`);
+  return n;
+}
+
+function toStatus(row: StatusRow): EntryStatus {
+  return {
+    publicId: row.id_publico,
+    establishmentId: safeInt(row.estabelecimento_id, 'estabelecimento_id'),
+    deviceId: safeInt(row.aparelho_id, 'aparelho_id'),
+    deviceSequence: safeInt(row.sequencia_aparelho, 'sequencia_aparelho'),
+    employeeId: safeInt(row.colaborador_id, 'colaborador_id'),
+    status: row.status,
+    attempts: row.tentativas,
+    nsr: row.nsr === null ? null : safeInt(row.nsr, 'nsr'),
+    markedAt: row.marcado_em,
+    receivedAt: row.recebido_em,
+    processedAt: row.processado_em,
+    isClockDivergent: row.eh_hora_divergente,
+  };
+}
+
+/** O NSR vem de `evidencias` (uma por entrada), filtrada pela mesma conta. */
+const STATUS_SELECT = `
+  SELECT e.id_publico, e.estabelecimento_id, e.aparelho_id, e.sequencia_aparelho, e.colaborador_id,
+         e.status, e.tentativas, v.nsr, e.marcado_em, e.recebido_em, e.processado_em, e.eh_hora_divergente
+    FROM entradas e
+    LEFT JOIN evidencias v ON v.entrada_id = e.id AND v.conta_id = e.conta_id`;
+
 export class PunchRepository {
   constructor(private readonly pool: Pick<Pool, 'query'>) {}
+
+  /** Status pela chave do job (`<aparelhoId>-<sequencia>`). */
+  async findStatusByDeviceSequence(
+    tenantId: number,
+    deviceId: number,
+    deviceSequence: number,
+  ): Promise<EntryStatus | null> {
+    const { rows } = await this.pool.query<StatusRow>(
+      `${STATUS_SELECT}
+        WHERE e.conta_id = $1 AND e.aparelho_id = $2 AND e.sequencia_aparelho = $3`,
+      [tenantId, deviceId, deviceSequence],
+    );
+    return rows[0] ? toStatus(rows[0]) : null;
+  }
+
+  /** Batidas de um colaborador, da mais recente para a mais antiga. */
+  async listStatusByEmployee(
+    tenantId: number,
+    employeeId: number,
+    page: { limit: number; offset: number },
+  ): Promise<{ items: EntryStatus[]; total: number }> {
+    const [list, count] = await Promise.all([
+      this.pool.query<StatusRow>(
+        `${STATUS_SELECT}
+          WHERE e.conta_id = $1 AND e.colaborador_id = $2
+          ORDER BY e.marcado_em DESC, e.id DESC
+          LIMIT $3 OFFSET $4`,
+        [tenantId, employeeId, page.limit, page.offset],
+      ),
+      this.pool.query<{ total: string }>(
+        `SELECT count(*) AS total FROM entradas WHERE conta_id = $1 AND colaborador_id = $2`,
+        [tenantId, employeeId],
+      ),
+    ]);
+    return { items: list.rows.map(toStatus), total: Number(count.rows[0]?.total ?? 0) };
+  }
 
   /** Idempotência: já existe entrada deste aparelho com esta sequência? */
   async findByDeviceSequence(

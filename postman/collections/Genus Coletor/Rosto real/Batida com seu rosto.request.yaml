@@ -23,7 +23,9 @@ scripts:
       pm.test('registered ou fallback_required', () => pm.expect(['registered', 'fallback_required']).to.include(data.outcome));
       if (data.outcome === 'registered') {
         pm.test('receiptId é UUID', () => pm.expect(data.receiptId).to.match(/^[0-9a-f-]{36}$/i));
-        console.log('Registrada. receiptId:', data.receiptId, 'avisos:', JSON.stringify(data.warnings));
+        pm.test('jobId é <aparelho>-<sequencia>', () => pm.expect(data.jobId).to.match(/^d+-d+$/));
+        pm.collectionVariables.set('firstJobId', data.jobId);
+        console.log('Registrada. receiptId:', data.receiptId, 'jobId:', data.jobId, 'avisos:', JSON.stringify(data.warnings));
       } else {
         console.log('Fallback:', data.reason);
       }

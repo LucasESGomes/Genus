@@ -163,7 +163,22 @@ export interface QueuePublisher {
   publishPunch(entry: PunchQueueEntry): Promise<void>;
   /** Para `/health/ready`. Nunca lança. */
   ping(): Promise<boolean>;
+  /**
+   * Estado do job em `punches`, só para diagnóstico. `null` se o job não está
+   * no Valkey. Lança se o Valkey não responder no prazo.
+   */
+  getPunchJob(jobId: string): Promise<{ state: PunchJobQueueState; attemptsMade: number } | null>;
 }
+
+/** Estados do BullMQ (`Job.getState()`) que interessam à consulta. */
+export type PunchJobQueueState =
+  | 'waiting'
+  | 'delayed'
+  | 'prioritized'
+  | 'waiting-children'
+  | 'active'
+  | 'completed'
+  | 'failed';
 
 // ---------------------------------------------------------------------------
 // Erros

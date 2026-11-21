@@ -60,6 +60,12 @@ export type PunchTimings = z.infer<typeof punchTimingsSchema>;
 /** DTO de resposta: só o que sai do sistema. Sem CPF, sem ids internos. */
 export const punchRegisteredDtoSchema = z.object({
   receiptId: z.uuid(),
+  /**
+   * Id do job na fila `punches` (`<aparelhoId>-<sequencia>`). Determinístico: o
+   * mesmo em todo reenvio e mesmo que a publicação tenha falhado (o resgate
+   * publica com o mesmo id). Consulta: GET /coletor/batidas/jobs/:jobId.
+   */
+  jobId: z.string().regex(/^\d+-\d+$/),
   outcome: z.literal('registered'),
   markedAt: z.iso.datetime(),
   warnings: z.array(punchWarningSchema),
@@ -81,6 +87,82 @@ export const punchResponseSchema = z.object({
   meta: z.object({ timings: punchTimingsSchema }).optional(),
 });
 export type PunchResponse = z.infer<typeof punchResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Status da batida: GET /coletor/batidas/jobs/:jobId e GET /coletor/batidas
+// ---------------------------------------------------------------------------
+
+/** `entradas.status`. Valor de enumeração do banco: não se traduz. */
+export const ENTRY_STATUSES = ['pendente', 'processado', 'falhou'] as const;
+export type EntryStatus = (typeof ENTRY_STATUSES)[number];
+
+/**
+ * Estado do job no BullMQ. `not_found`: o job não está no Valkey (concluídos
+ * saem em 24 h, ou nunca foi publicado e o resgate ainda não passou).
+ * `unavailable`: o Valkey não respondeu ou a fila está desligada.
+ */
+export const QUEUE_JOB_STATES = [
+  'waiting',
+  'delayed',
+  'prioritized',
+  'waiting-children',
+  'active',
+  'completed',
+  'failed',
+  'not_found',
+  'unavailable',
+] as const;
+export type QueueJobState = (typeof QUEUE_JOB_STATES)[number];
+
+/** Status de uma batida gravada. O banco é a fonte da verdade; sem CPF. */
+export const punchStatusDtoSchema = z.object({
+  jobId: z.string(),
+  receiptId: z.uuid(),
+  employeeId: z.number().int(),
+  establishmentId: z.number().int(),
+  deviceSequence: z.number().int(),
+  /** `pendente` até o rep-core atribuir NSR; então `processado`. */
+  status: z.enum(ENTRY_STATUSES),
+  /** Tentativas do rep-core registradas no banco. */
+  attempts: z.number().int(),
+  /** NSR do registro fiscal; `null` enquanto não processada. */
+  nsr: z.number().int().nullable(),
+  markedAt: z.iso.datetime(),
+  receivedAt: z.iso.datetime(),
+  processedAt: z.iso.datetime().nullable(),
+  warnings: z.array(punchWarningSchema),
+});
+export type PunchStatusDto = z.infer<typeof punchStatusDtoSchema>;
+
+/** Status de UMA batida: inclui o estado do job no BullMQ, só para diagnóstico. */
+export const punchStatusDetailDtoSchema = punchStatusDtoSchema.extend({
+  queue: z.object({
+    state: z.enum(QUEUE_JOB_STATES),
+    /** Tentativas feitas pelo BullMQ; `null` quando o job não está no Valkey. */
+    attemptsMade: z.number().int().nullable(),
+  }),
+});
+export type PunchStatusDetailDto = z.infer<typeof punchStatusDetailDtoSchema>;
+
+export const punchStatusResponseSchema = z.object({ data: punchStatusDetailDtoSchema });
+
+export const PUNCH_LIST_MAX_PAGE_SIZE = 100;
+
+export const punchListQuerySchema = z.object({
+  employeeId: z.coerce
+    .number({ error: 'employeeId deve ser um número inteiro' })
+    .int('employeeId deve ser um número inteiro')
+    .positive('employeeId deve ser maior que zero')
+    .max(Number.MAX_SAFE_INTEGER),
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(PUNCH_LIST_MAX_PAGE_SIZE).default(20),
+});
+export type PunchListQuery = z.infer<typeof punchListQuerySchema>;
+
+export const punchListResponseSchema = z.object({
+  data: z.array(punchStatusDtoSchema),
+  meta: z.object({ page: z.number().int(), pageSize: z.number().int(), total: z.number().int() }),
+});
 
 /** Tolerância entre `capturedAt` e o relógio do servidor antes de sinalizar. */
 export const CLOCK_DIVERGENCE_TOLERANCE_MS = 30_000;

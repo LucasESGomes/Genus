@@ -30,7 +30,12 @@ pnpm dev:enroll-fake   # embedding de 3 fotos sorteadas + 50 candidatos fictíci
 pnpm dev:punch         # uma batida com uma foto que a engine nunca viu
 ```
 
-Esperado no `dev:punch`: `HTTP 200`, `"outcome": "registered"` e um `receiptId`. Repita e a segunda vem com o aviso `possible_duplicate` (mesma pessoa em menos de 60 s), ainda registrada. A batida fica em `arp.entradas` como `pendente`.
+Esperado no `dev:punch`: `HTTP 200`, `"outcome": "registered"`, um `receiptId` e o `jobId` (`<aparelho>-<sequencia>`). Repita e a segunda vem com o aviso `possible_duplicate` (mesma pessoa em menos de 60 s), ainda registrada. A batida entra em `arp.entradas` como `pendente` e vira `processado` quando o rep-core atribui o NSR.
+
+Para acompanhar uma batida (mesma chave `X-Service-Key`):
+
+- `GET /coletor/batidas/jobs/<jobId>`: `status` (`pendente`, `processado`, `falhou`), `nsr` e `queue.state` (estado do job no BullMQ). Se ficar em `pendente` com `queue.state = waiting`, o rep-core não está rodando: suba pelo `pnpm dev` da **raiz** (o `pnpm dev` de dentro de `apps/collector-api` sobe só a api).
+- `GET /coletor/batidas?employeeId=<id>&page=1&pageSize=20`: as batidas de um colaborador, da mais recente para a mais antiga.
 
 | Comando | O que faz |
 |---|---|

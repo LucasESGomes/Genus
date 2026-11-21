@@ -9,6 +9,7 @@ import type { Pool } from 'pg';
 import { healthRoutes } from './modules/health/routes';
 import { punchRoutes } from './modules/punches/routes';
 import type { PunchService } from './modules/punches/service';
+import type { PunchStatusService } from './modules/punches/status-service';
 import { registerApiDocs } from './plugins/api-docs';
 import { registerErrorHandling } from './plugins/error-handler';
 import { registerServiceKeyAuth } from './plugins/service-key-auth';
@@ -20,6 +21,7 @@ export interface AppDeps {
   /** Só para `/health/ready` (campo `queue`). */
   queuePublisher: QueuePublisher;
   punchService: PunchService;
+  punchStatusService: PunchStatusService;
   deviceAuthenticator: DeviceAuthenticator;
   serviceKeys: string[];
   maxImageBytes: number;
@@ -62,7 +64,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         deviceAuthenticator: deps.deviceAuthenticator,
         logger: deps.logger,
       });
-      await scope.register(punchRoutes, { service: deps.punchService, exposeTimings: deps.exposeTimings });
+      await scope.register(punchRoutes, {
+        service: deps.punchService,
+        statusService: deps.punchStatusService,
+        exposeTimings: deps.exposeTimings,
+      });
     },
     { prefix: '/coletor' },
   );

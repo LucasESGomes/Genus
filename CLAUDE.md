@@ -15,7 +15,7 @@ O motor facial vem da **Visage** (produto irmão, em `../visage`). A Visage **n�
 ```
 services/face-engine/   Motor facial (Python). Cópia de REP-P/engine @ d80c5dd, que veio de visage/face_engine
 bench/                  Benchmark de capacidade da engine (scripts; dados, chaves e resultados ficam fora do git)
-apps/collector-api/     API do coletor (Fastify). Existe: primeira entrega, POST /coletor/batidas (ver docs/SPEC-primeira-entrega.md)
+apps/collector-api/     API do coletor (Fastify). Existe: POST /coletor/batidas (devolve receiptId e jobId), GET /coletor/batidas/jobs/:jobId e GET /coletor/batidas?employeeId= (ver docs/SPEC-primeira-entrega.md)
 apps/rep-core/          Motor de NSR e worker da fila `punches` (consome, grava `registros`, `evidencias`, `outbox`). Verificação da cadeia: `pnpm arp:verify-chain`. Existe
 apps/jobs/              Resgate: republica `entradas` e `outbox` pendentes há mais de 30 s. Existe
 packages/shared/        Contratos Zod, Clock, logger e cripto, compartilhados entre os apps. Existe

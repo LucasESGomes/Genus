@@ -18,6 +18,7 @@ import {
   type PunchWarning,
   type QueuePublisher,
 } from '@genus/shared';
+import { punchJobId } from '@genus/queue';
 import type { PunchRepository } from './repository';
 import { resolveMarkedAt } from './rules/clock-divergence';
 
@@ -66,6 +67,8 @@ export class PunchService {
       total: 0,
     };
     let candidateCount = 0;
+    // Determinístico: o mesmo que o publicador e o resgate usam.
+    const jobId = punchJobId(ctx.deviceId, input.deviceSequence);
 
     const finish = (
       result: PunchResultDto,
@@ -91,7 +94,7 @@ export class PunchService {
     try {
       // Idempotência: o aparelho reenvia até receber o recibo.
       const existing = await repository.findByDeviceSequence(ctx.tenantId, ctx.deviceId, input.deviceSequence);
-      if (existing) return finish(this.receiptResult(existing), { receiptId: existing.publicId, replayed: true });
+      if (existing) return finish(this.receiptResult(existing, jobId), { receiptId: existing.publicId, replayed: true });
 
       const candidatesTimer = startTimer();
       const set = await candidates.getCandidates(ctx);
@@ -158,7 +161,7 @@ export class PunchService {
         // Quem perdeu a corrida também tenta publicar: o vencedor pode ter caído antes de publicar.
         // O jobId é determinístico, então publicar duas vezes é no-op.
         await this.publishPunch(ctx, input.deviceSequence, winner.id, publicId);
-        return finish(this.receiptResult(winner), { receiptId: winner.publicId, replayed: true });
+        return finish(this.receiptResult(winner, jobId), { receiptId: winner.publicId, replayed: true });
       }
       timings.dbInsert = roundMs(dbTimer());
       // Só agora, com o INSERT já confirmado (commit automático do statement) e fora de transação.
@@ -167,6 +170,7 @@ export class PunchService {
       return finish(
         {
           receiptId: inserted.publicId,
+          jobId,
           outcome: 'registered',
           markedAt: inserted.markedAt.toISOString(),
           warnings,
@@ -226,13 +230,13 @@ export class PunchService {
     }
   }
 
-  private receiptResult(receipt: {
-    publicId: string;
-    markedAt: Date;
-    isClockDivergent: boolean;
-  }): PunchResultDto {
+  private receiptResult(
+    receipt: { publicId: string; markedAt: Date; isClockDivergent: boolean },
+    jobId: string,
+  ): PunchResultDto {
     return {
       receiptId: receipt.publicId,
+      jobId,
       outcome: 'registered',
       markedAt: receipt.markedAt.toISOString(),
       warnings: receipt.isClockDivergent ? ['clock_divergence'] : [],

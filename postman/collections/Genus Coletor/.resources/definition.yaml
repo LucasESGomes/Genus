@@ -1,7 +1,7 @@
 $kind: collection
 name: Genus - API do Coletor
 description: |-
-  Coleção da api do coletor (`POST /coletor/batidas`, `GET /health`, `GET /health/ready`).
+  Coleção da api do coletor (`POST /coletor/batidas`, `GET /coletor/batidas/jobs/:jobId`, `GET /coletor/batidas?employeeId=`, `GET /health`, `GET /health/ready`).
 
   **Como usar**
   1. Escolha o environment (dev, homolog ou prod) e preencha `serviceKey` (secret; nunca commitar). Para trocar de ambiente basta trocar o environment.
@@ -18,6 +18,8 @@ variables:
   seqCounter: ""
   firstSequence: ""
   firstReceiptId: ""
+  firstJobId: ""
+  employeeId: ""
   capturedAt: ""
   capturedAtPast: ""
 scripts:
@@ -32,7 +34,8 @@ scripts:
     language: text/javascript
   - type: http:afterResponse
     code: |-
-      const isPunch = pm.request.url.getPath().endsWith('/coletor/batidas');
+      // Só o POST de batida mede etapas (Server-Timing); as consultas GET não.
+      const isPunch = pm.request.method === 'POST' && pm.request.url.getPath().endsWith('/coletor/batidas');
       pm.test('Corpo é JSON', () => pm.expect(() => pm.response.json()).to.not.throw());
       // 401 é recusado antes da rota, por isso não traz Server-Timing.
       if (isPunch && pm.response.code !== 401) {

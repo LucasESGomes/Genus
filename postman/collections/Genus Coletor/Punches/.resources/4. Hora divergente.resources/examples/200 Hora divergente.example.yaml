@@ -14,6 +14,7 @@ response:
       {
         "data": {
           "receiptId": "3f1c2b9a-6a52-4d52-9f55-1d1f1e0c7a10",
+          "jobId": "100-1795227110158002",
           "outcome": "registered",
           "markedAt": "2026-11-18T12:00:00.000Z",
           "warnings": [

@@ -1,0 +1,29 @@
+$kind: http-request
+description: "GET /coletor/batidas/jobs/:jobId com o `jobId` da batida (1) (variável `firstJobId`). `status` vem do banco (`pendente` até o rep-core atribuir o NSR, então `processado`, com `nsr`); `queue.state` é o estado do job no BullMQ, só diagnóstico. Guarda `employeeId` para o request (7). Se a (1) não registrou, espera 404."
+url: "{{baseUrl}}/coletor/batidas/jobs/{{firstJobId}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      const jobId = pm.collectionVariables.get('firstJobId');
+      if (!jobId) {
+        pm.test('Batida (1) não registrou: 404', () => pm.response.to.have.status(404));
+        return;
+      }
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const schema = {"type":"object","required":["data"],"additionalProperties":false,"properties":{"data":{"type":"object","additionalProperties":false,"required":["jobId","receiptId","employeeId","establishmentId","deviceSequence","status","attempts","nsr","markedAt","receivedAt","processedAt","warnings","queue"],"properties":{"jobId":{"type":"string","pattern":"^\\d+-\\d+$"},"receiptId":{"type":"string"},"employeeId":{"type":"integer"},"establishmentId":{"type":"integer"},"deviceSequence":{"type":"integer"},"status":{"enum":["pendente","processado","falhou"]},"attempts":{"type":"integer"},"nsr":{"type":["integer","null"]},"markedAt":{"type":"string"},"receivedAt":{"type":"string"},"processedAt":{"type":["string","null"]},"warnings":{"type":"array","items":{"enum":["clock_divergence","possible_duplicate"]}},"queue":{"type":"object","additionalProperties":false,"required":["state","attemptsMade"],"properties":{"state":{"enum":["waiting","delayed","prioritized","waiting-children","active","completed","failed","not_found","unavailable"]},"attemptsMade":{"type":["integer","null"]}}}}}}};
+      pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));
+      const data = pm.response.json().data;
+      pm.test('Mesmo jobId e receiptId da batida (1)', () => {
+        pm.expect(data.jobId).to.eql(jobId);
+        pm.expect(data.receiptId).to.eql(pm.collectionVariables.get('firstReceiptId'));
+      });
+      pm.test('processado tem NSR; pendente não', () => {
+        if (data.status === 'processado') pm.expect(data.nsr).to.be.a('number');
+        else pm.expect(data.nsr).to.eql(null);
+      });
+      pm.test('Sem CPF na resposta', () => pm.expect(pm.response.text()).to.not.match(/cpf/i));
+      pm.collectionVariables.set('employeeId', String(data.employeeId));
+    language: text/javascript
+examples: ./.resources/6. Status pelo jobId.resources/examples
+order: 6000

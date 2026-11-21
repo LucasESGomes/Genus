@@ -77,7 +77,7 @@ O runner usa o Postgres de dev. A chave de serviço vai num environment temporá
 | Pasta | Cobre |
 |---|---|
 | **Health** | `GET /health` (banco e engine) e `GET /health/ready` (banco) |
-| **Punches** | `POST /coletor/batidas`: registrada, `fallback_required`, reenvio idempotente (mesmo `receiptId`), hora divergente e duplicidade (avisos, sem bloquear) |
+| **Punches** | `POST /coletor/batidas`: registrada, `fallback_required`, reenvio idempotente (mesmo `receiptId` e `jobId`), hora divergente e duplicidade (avisos, sem bloquear). `GET /coletor/batidas/jobs/:jobId` (status da batida 1) e `GET /coletor/batidas?employeeId=` (batidas do colaborador) |
 | **Auth** | Chave ausente ou inválida (401 `UNAUTHORIZED`, mesma mensagem nos dois casos) |
 | **Validation** | Campos inválidos (400 `VALIDATION_ERROR`), imagem inválida (400 `INVALID_IMAGE`) e acima do limite (413 `IMAGE_TOO_LARGE`) |
 | **Rosto real** | Manual. Batida com `dev-data/probes/proxima-batida.jpg`, uma foto sua que a engine nunca viu (gerada por `pnpm dev:enroll-fake`). Esperado: `registered` |

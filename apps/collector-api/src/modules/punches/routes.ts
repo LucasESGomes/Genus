@@ -1,12 +1,23 @@
-import { punchResponseSchema, roundMs, startTimer, type PunchTimings } from '@genus/shared';
+import {
+  punchListQuerySchema,
+  punchListResponseSchema,
+  punchResponseSchema,
+  punchStatusResponseSchema,
+  roundMs,
+  startTimer,
+  type PunchTimings,
+} from '@genus/shared';
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import { HttpError } from '../../plugins/error-handler';
 import { parsePunchRequest } from './schemas';
 import type { PunchService } from './service';
+import type { PunchStatusService } from './status-service';
 
 export interface PunchRoutesOptions {
   service: PunchService;
+  statusService: PunchStatusService;
   exposeTimings: boolean;
 }
 
@@ -80,6 +91,55 @@ export const punchRoutes: FastifyPluginAsync<PunchRoutesOptions> = async (scope,
       return opts.exposeTimings
         ? { data: output.result, meta: { timings: output.timings } }
         : { data: output.result };
+    },
+  );
+
+  scope.withTypeProvider<ZodTypeProvider>().get(
+    '/batidas/jobs/:jobId',
+    {
+      schema: {
+        tags: ['Batidas'],
+        summary: 'Status de uma batida pelo id do job',
+        description: [
+          '`jobId` é o devolvido no POST (`<aparelhoId>-<sequencia>`). Só batidas da conta do aparelho.',
+          '',
+          '- `status` (banco, fonte da verdade): `pendente` até o rep-core atribuir o NSR; então `processado`, com `nsr` e `processedAt`.',
+          '- `queue` (diagnóstico): estado do job no BullMQ. `not_found` = fora do Valkey (concluídos saem em 24 h, ou ainda não publicado); `unavailable` = Valkey sem resposta.',
+          '',
+          '404 se o `jobId` for inválido ou não houver batida dele nesta conta.',
+        ].join('\n'),
+        security: [{ serviceKey: [] }],
+        params: z.object({ jobId: z.string().max(64) }),
+        response: { 200: punchStatusResponseSchema },
+      },
+    },
+    async (req) => {
+      const ctx = req.deviceContext;
+      if (!ctx) throw new HttpError(401, 'UNAUTHORIZED', 'Não autorizado');
+      const status = await opts.statusService.getByJobId(ctx, req.params.jobId);
+      if (!status) throw new HttpError(404, 'NOT_FOUND', 'Batida não encontrada');
+      return { data: status };
+    },
+  );
+
+  scope.withTypeProvider<ZodTypeProvider>().get(
+    '/batidas',
+    {
+      schema: {
+        tags: ['Batidas'],
+        summary: 'Batidas de um colaborador',
+        description:
+          'Lista as batidas de `employeeId` na conta do aparelho, da mais recente para a mais antiga, com o status de cada uma. Paginada (`page`, `pageSize` até 100). Sem o estado da fila: para isso, consulte por `jobId`.',
+        security: [{ serviceKey: [] }],
+        querystring: punchListQuerySchema,
+        response: { 200: punchListResponseSchema },
+      },
+    },
+    async (req) => {
+      const ctx = req.deviceContext;
+      if (!ctx) throw new HttpError(401, 'UNAUTHORIZED', 'Não autorizado');
+      const { items, total } = await opts.statusService.listByEmployee(ctx, req.query);
+      return { data: items, meta: { page: req.query.page, pageSize: req.query.pageSize, total } };
     },
   );
 };

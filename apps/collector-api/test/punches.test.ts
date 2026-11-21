@@ -188,9 +188,9 @@ describe('batida reconhecida', () => {
     const res = await postPunch(a, { deviceSequence: 7, capturedAt: iso(-5_000) });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.data).toMatchObject({ outcome: 'registered', markedAt: iso(-5_000), warnings: [] });
+    expect(body.data).toMatchObject({ outcome: 'registered', jobId: '100-7', markedAt: iso(-5_000), warnings: [] });
     expect(body.meta).toBeUndefined();
-    expect(Object.keys(body.data).sort()).toEqual(['markedAt', 'outcome', 'receiptId', 'warnings']);
+    expect(Object.keys(body.data).sort()).toEqual(['jobId', 'markedAt', 'outcome', 'receiptId', 'warnings']);
 
     const list = await rows();
     expect(list).toHaveLength(1);

@@ -14,7 +14,8 @@
 | Idempotência | Antes de reconhecer: `(aparelho_id, sequencia_aparelho)` já existe → 200 com o **mesmo** `receiptId` e `markedAt`. Na corrida, `INSERT ... ON CONFLICT DO NOTHING RETURNING` + `SELECT` |
 | Candidatos | Sempre do servidor (`CandidateProvider`), **nunca** do corpo. Atual: `FakeCandidateProvider` (20 pessoas fictícias, ou a galeria real de `dev-data/gallery.json`) |
 | Engine | Cliente com semáforo (`ENGINE_MAX_CONCURRENCY`, padrão 4) e timeout (`ENGINE_TIMEOUT_MS`, padrão 800). `trace_id` = `id_publico` pretendido da entrada |
-| Resultado | `identified` → grava e responde `registered`. Qualquer outro → `fallback_required` + `reason`, **HTTP 200, nada gravado** |
+| Resultado | `identified` → grava e responde `registered` com `receiptId` e `jobId` (`<aparelhoId>-<sequencia>`, o id do job em `punches`; o mesmo no reenvio e mesmo se a publicação falhar). Qualquer outro → `fallback_required` + `reason`, **HTTP 200, nada gravado** |
+| Consulta | `GET /coletor/batidas/jobs/:jobId` (status do banco, NSR de `evidencias` e estado do job no BullMQ, só diagnóstico; Valkey fora vira `queue.state = unavailable`, sem derrubar a consulta) e `GET /coletor/batidas?employeeId=` (paginada). Só leitura e sempre filtrada pela conta do aparelho. A migration `0003` dá a `arp_collector` `SELECT` em `evidencias` |
 
 ## 2. Nunca bloquear
 

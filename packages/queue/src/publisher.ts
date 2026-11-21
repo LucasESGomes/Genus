@@ -6,7 +6,7 @@
  * é curto e a falha só é sinalizada a quem chama (que registra um `warn` e
  * segue). O resgate (apps/jobs) cobre o que não chegou à fila.
  */
-import type { Logger, PunchQueueEntry, QueuePublisher } from '@genus/shared';
+import type { Logger, PunchJobQueueState, PunchQueueEntry, QueuePublisher } from '@genus/shared';
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { PUNCH_JOB_NAME } from './constants.js';
@@ -30,6 +30,17 @@ export interface ClosableQueuePublisher extends QueuePublisher {
 }
 
 const ERROR_LOG_THROTTLE_MS = 30_000;
+
+/** Estados do BullMQ repassados à consulta; `unknown` (job sumiu entre as chamadas) vira `null`. */
+const KNOWN_STATES: readonly PunchJobQueueState[] = [
+  'waiting',
+  'delayed',
+  'prioritized',
+  'waiting-children',
+  'active',
+  'completed',
+  'failed',
+];
 
 class TimeoutError extends Error {
   override readonly name = 'QueueTimeoutError';
@@ -113,6 +124,17 @@ export function createQueuePublisher(opts: QueuePublisherOptions): ClosableQueue
       await withDeadline(timeoutMs, async (signal) => {
         await waitUntilReady(connection, signal);
         await queue.add(PUNCH_JOB_NAME, payload, { jobId });
+      });
+    },
+
+    async getPunchJob(jobId: string) {
+      return withDeadline(timeoutMs, async (signal) => {
+        await waitUntilReady(connection, signal);
+        const job = await queue.getJob(jobId);
+        if (!job) return null;
+        const state = await job.getState();
+        if (!(KNOWN_STATES as readonly string[]).includes(state)) return null;
+        return { state: state as PunchJobQueueState, attemptsMade: job.attemptsMade };
       });
     },
 

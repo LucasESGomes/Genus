@@ -85,6 +85,13 @@ describe('createQueuePublisher com Valkey no ar', () => {
     expect(await inspector.exists(`bull:${PUNCHES_QUEUE}:100-5`)).toBe(1);
   });
 
+  it('getPunchJob: estado e tentativas do job; null se não está no Valkey', async () => {
+    const publisher = newPublisher();
+    await publisher.publishPunch({ ...entry, deviceSequence: 9 });
+    expect(await publisher.getPunchJob('100-9')).toEqual({ state: 'waiting', attemptsMade: 0 });
+    expect(await publisher.getPunchJob('100-999999')).toBeNull();
+  });
+
   it('publicar duas vezes o mesmo jobId não cria dois jobs', async () => {
     const publisher = newPublisher();
     const same = { ...entry, entryId: 22, deviceSequence: 6 };

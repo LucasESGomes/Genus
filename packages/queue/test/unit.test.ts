@@ -4,6 +4,7 @@ import {
   loadQueueConfig,
   postPunchJobId,
   postPunchPayloadSchema,
+  parsePunchJobId,
   punchJobId,
   punchPayloadSchema,
   postPunchJobOptions,
@@ -15,6 +16,13 @@ describe('jobId', () => {
   it('punches e post-punch usam só "-"', () => {
     expect(punchJobId(100, 7)).toBe('100-7');
     expect(postPunchJobId('recalculate-day', 10, 42)).toBe('recalculate-day-10-42');
+  });
+
+  it('parsePunchJobId é o inverso de punchJobId e recusa o resto', () => {
+    expect(parsePunchJobId(punchJobId(100, 7))).toEqual({ deviceId: 100, deviceSequence: 7 });
+    for (const bad of ['', '100', '100-', '0-1', '1-0', '01-1', 'a-1', '1-2-3', '-1-2', '99999999999999999-1']) {
+      expect(parsePunchJobId(bad)).toBeNull();
+    }
   });
 
   it('recusa inteiros inválidos e evento desconhecido', () => {

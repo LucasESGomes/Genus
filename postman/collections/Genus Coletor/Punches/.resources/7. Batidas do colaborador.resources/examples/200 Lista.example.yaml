@@ -1,0 +1,32 @@
+$kind: http-example
+request:
+  url: "{{baseUrl}}/coletor/batidas?employeeId=1&page=1&pageSize=20"
+  method: GET
+response:
+  statusCode: 200
+  statusText: OK
+  headers:
+    Content-Type: application/json; charset=utf-8
+  body:
+    type: json
+    content: |-
+      {
+        "data": [
+          {
+            "jobId": "100-1795227110158023",
+            "receiptId": "27f23f90-637d-4f03-b176-e811dd5cf4c6",
+            "employeeId": 1,
+            "establishmentId": 1,
+            "deviceSequence": 1795227110158023,
+            "status": "pendente",
+            "attempts": 0,
+            "nsr": null,
+            "markedAt": "2026-11-21T02:11:50.158Z",
+            "receivedAt": "2026-11-21T02:11:50.300Z",
+            "processedAt": null,
+            "warnings": []
+          }
+        ],
+        "meta": { "page": 1, "pageSize": 20, "total": 1 }
+      }
+order: 1000

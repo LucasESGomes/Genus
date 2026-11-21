@@ -272,10 +272,18 @@ describe("permissões de arp_collector", () => {
     expect(await pgError(inserirRegistro(collector, c))).toBe(PERMISSAO_NEGADA);
   });
 
-  it("não consegue SELECT nem INSERT em evidencias, outbox e sequencias_estabelecimento", async () => {
-    for (const t of ["evidencias", "outbox", "sequencias_estabelecimento"]) {
+  it("não consegue SELECT em outbox e sequencias_estabelecimento", async () => {
+    for (const t of ["outbox", "sequencias_estabelecimento"]) {
       expect(await pgError(collector.query(`SELECT 1 FROM ${t}`)), t).toBe(PERMISSAO_NEGADA);
     }
+  });
+
+  it("lê evidencias (0003, consulta de status) e não escreve nela", async () => {
+    const c = await novaEntrada();
+    await registrar(c);
+    await collector.query("SELECT nsr FROM evidencias");
+    expect(await pgError(collector.query("DELETE FROM evidencias"))).toBe(PERMISSAO_NEGADA);
+    expect(await pgError(collector.query("UPDATE evidencias SET nota_vivacidade = 0"))).toBe(PERMISSAO_NEGADA);
   });
 });
 

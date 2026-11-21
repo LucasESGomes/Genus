@@ -1,0 +1,25 @@
+$kind: http-request
+description: "GET /coletor/batidas?employeeId= com o colaborador da batida (1) (variável `employeeId`, gravada pelo request 6). Lista paginada, da mais recente para a mais antiga, com o status de cada batida. Se a (1) não registrou, não há colaborador a listar (400)."
+url: "{{baseUrl}}/coletor/batidas?employeeId={{employeeId}}&page=1&pageSize=20"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      if (!pm.collectionVariables.get('firstJobId')) {
+        pm.test('Batida (1) não registrou: sem colaborador a listar', () => pm.response.to.have.status(400));
+        return;
+      }
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const item = {"type":"object","additionalProperties":false,"required":["jobId","receiptId","employeeId","establishmentId","deviceSequence","status","attempts","nsr","markedAt","receivedAt","processedAt","warnings"],"properties":{"jobId":{"type":"string","pattern":"^\\d+-\\d+$"},"receiptId":{"type":"string"},"employeeId":{"type":"integer"},"establishmentId":{"type":"integer"},"deviceSequence":{"type":"integer"},"status":{"enum":["pendente","processado","falhou"]},"attempts":{"type":"integer"},"nsr":{"type":["integer","null"]},"markedAt":{"type":"string"},"receivedAt":{"type":"string"},"processedAt":{"type":["string","null"]},"warnings":{"type":"array","items":{"enum":["clock_divergence","possible_duplicate"]}}}};
+      const schema = {"type":"object","required":["data","meta"],"additionalProperties":false,"properties":{"data":{"type":"array","items":item},"meta":{"type":"object","additionalProperties":false,"required":["page","pageSize","total"],"properties":{"page":{"type":"integer"},"pageSize":{"type":"integer"},"total":{"type":"integer"}}}}};
+      pm.test('Corpo respeita o JSON Schema', () => pm.response.to.have.jsonSchema(schema));
+      const body = pm.response.json();
+      const employeeId = Number(pm.collectionVariables.get('employeeId'));
+      pm.test('Só batidas do colaborador', () => body.data.forEach((p) => pm.expect(p.employeeId).to.eql(employeeId)));
+      pm.test('Inclui a batida (1)', () => pm.expect(body.data.map((p) => p.jobId)).to.include(pm.collectionVariables.get('firstJobId')));
+      pm.test('Mais recente primeiro', () => {
+        for (let i = 1; i < body.data.length; i++) pm.expect(body.data[i - 1].markedAt >= body.data[i].markedAt).to.eql(true);
+      });
+    language: text/javascript
+examples: ./.resources/7. Batidas do colaborador.resources/examples
+order: 7000

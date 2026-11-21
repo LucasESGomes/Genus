@@ -1,4 +1,4 @@
-import type { PunchQueueEntry, QueuePublisher } from '@genus/shared';
+import type { PunchJobQueueState, PunchQueueEntry, QueuePublisher } from '@genus/shared';
 
 /** QueuePublisher de teste: grava as chamadas e deixa falhar sob demanda. */
 export class FakeQueuePublisher implements QueuePublisher {
@@ -14,5 +14,15 @@ export class FakeQueuePublisher implements QueuePublisher {
 
   async ping(): Promise<boolean> {
     return this.pingResult;
+  }
+
+  /** Estado devolvido por `getPunchJob`, por jobId. Sem entrada: `null` (job fora do Valkey). */
+  readonly jobs = new Map<string, { state: PunchJobQueueState; attemptsMade: number }>();
+  /** Se definido, `getPunchJob` lança este erro (Valkey fora). */
+  getJobError: Error | null = null;
+
+  async getPunchJob(jobId: string) {
+    if (this.getJobError) throw this.getJobError;
+    return this.jobs.get(jobId) ?? null;
   }
 }
