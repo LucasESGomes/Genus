@@ -1,0 +1,18 @@
+# Usado só pelo build de apps/api/Dockerfile (BuildKit lê <Dockerfile>.dockerignore).
+**/node_modules
+**/dist
+**/coverage
+.git
+.postman
+bench
+dev-data
+docs
+postman
+postman-runs
+services
+deploy
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+**/*.log

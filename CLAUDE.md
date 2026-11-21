@@ -8,7 +8,7 @@ O motor facial vem da **Visage** (produto irmão, em `../visage`). A Visage **n�
 
 - **Pronto, segundo o quadro de funcionalidades:** reconhecimento facial e coleta offline.
 - **MVP do painel de RH: entrega em 25/11/2026** (módulos roxos). **Fase 2** = módulos azuis. Lista completa e plano de cada módulo: `docs/architecture/04-funcionalidades-rh.md`.
-- **Neste repositório hoje:** `services/face-engine`, `bench/`, `docs/` e a api do coletor em `apps/collector-api` (primeira entrega: reconhece o rosto entre candidatos fictícios e grava a batida em `arp.entradas` como `pendente`; sem fila, rep-core, NSR nem hash ainda). A API do portal, os portais web e o app do coletor **ainda não existem aqui**. A estrutura-alvo está abaixo.
+- **Neste repositório hoje:** `services/face-engine`, `bench/`, `docs/` e a api do coletor em `apps/collector-api` (primeira entrega: reconhece o rosto entre candidatos fictícios e grava a batida em `arp.entradas` como `pendente`; sem fila, rep-core, NSR nem hash ainda). A API do portal existe só como base em `apps/api` (schema `rh` com Drizzle, migrations, health, Docker; sem módulos ainda). Os portais web e o app do coletor **ainda não existem aqui**. A estrutura-alvo está abaixo.
 
 ## Mapa do repositório
 
@@ -16,13 +16,15 @@ O motor facial vem da **Visage** (produto irmão, em `../visage`). A Visage **n�
 services/face-engine/   Motor facial (Python). Cópia de REP-P/engine @ d80c5dd, que veio de visage/face_engine
 bench/                  Benchmark de capacidade da engine (scripts; dados, chaves e resultados ficam fora do git)
 apps/collector-api/     API do coletor (Fastify). Existe: POST /coletor/batidas (devolve receiptId e jobId), GET /coletor/batidas/jobs/:jobId e GET /coletor/batidas?employeeId= (ver docs/SPEC-primeira-entrega.md)
+apps/api/               API do portal de RH (Fastify + Drizzle). Banco `app`, schema `rh`, instância própria `postgres-rh`. Migrations em apps/api/drizzle. Ver apps/api/README.md
 apps/rep-core/          Motor de NSR e worker da fila `punches` (consome, grava `registros`, `evidencias`, `outbox`). Verificação da cadeia: `pnpm arp:verify-chain`. Existe
 apps/jobs/              Resgate: republica `entradas` e `outbox` pendentes há mais de 30 s. Existe
 packages/shared/        Contratos Zod, Clock, logger e cripto, compartilhados entre os apps. Existe
 packages/queue/         `@genus/queue`: filas `punches` e `post-punch`, jobId, payloads e publicador. Existe
 tests/e2e/              Testes ponta a ponta e benchmark do NSR (`bench:nsr`). (a criar: ainda não existe)
 db/arp/                 Migrations SQL do banco arp (fiscal) e o executor (pnpm db:migrate:arp)
-infra/                  Compose local: Postgres (bancos arp e app) e face-engine
+infra/                  Compose do ponto: Postgres do arp, Valkey e face-engine (incluído pelo docker-compose.yml da raiz)
+docker-compose.yml      Compose da raiz: `docker compose up` sobe tudo (infra/ + postgres-rh, api-migrate, api)
 postman/                Coleção da API em YAML (Postman v3, um request por arquivo) e environments. Ver docs/conventions/api-testing.md
 dev-data/               (fora do Git) fotos de teste, galeria de candidatos e probes. Nunca versionar
 docs/
@@ -32,7 +34,7 @@ docs/
   benchmark.md          Metodologia, números e o que eles decidem
   desenvolvimento.md    Como rodar o projeto localmente (primeira vez, testes, Postman, benchmark)
   SPEC-primeira-entrega.md  Decisões da primeira entrega da api do coletor
-apps/                   collector-api/ já existe (acima). (a criar) api/ (Fastify) · portal/ (Next.js) · mobile/ (Expo)
+apps/                   collector-api/ e api/ já existem (acima). (a criar) portal/ (Next.js) · mobile/ (Expo)
 packages/               shared/ já existe (acima). (a criar) regras puras compartilhadas, ex.: cálculo de jornada
 ```
 
@@ -190,6 +192,14 @@ pnpm queue:inspect                   # profundidade de `punches` e `post-punch` 
 pnpm dev:rep-core                    # worker do rep-core (consome `punches`)
 pnpm dev:jobs                        # resgate (republica `entradas` e `outbox` pendentes)
 pnpm arp:verify-chain -- --establishment <id> --tenant <id>   # verifica NSR, hash encadeado e cadeia
+
+# Parte de RH (apps/api)
+pnpm setup:all                       # infra/.env + .env da raiz (senhas geradas); só na primeira vez
+docker compose up -d                 # da raiz: tudo, inclusive postgres-rh, migrations do Drizzle e a api (porta 3002)
+pnpm db:generate:rh -- --name <x>    # migration nova a partir de apps/api/src/db/schema
+pnpm db:migrate:rh                   # aplica as migrations do banco app (lê apps/api/.env.dev)
+pnpm dev:api                         # api fora do Docker, com Swagger em /docs
+pnpm rh:check-arp                    # confere se toda referência do arp (conta, estabelecimento, aparelho, colaborador, CPF) existe no RH
 ```
 
 ## Como trabalhar neste repositório
