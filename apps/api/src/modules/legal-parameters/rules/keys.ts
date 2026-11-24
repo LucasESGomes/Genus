@@ -40,6 +40,8 @@ export const PARAM = {
   vacationNoticeDays: 'ferias_aviso_previo_dias',
   // CLT art. 143: abono de até 1/fração do direito (inteiro: 3)
   vacationCashAllowanceDivisor: 'ferias_abono_fracao_divisor',
+  // RF65: prazo de envio do atestado, em dias depois do início (inteiro). Sem seed: a regra não avalia [A CONFIRMAR]
+  certificateDeadlineDays: 'dias_prazo_atestado',
 } as const;
 
 /**

@@ -44,6 +44,7 @@ apps/api/
     plugins/               erros (inclui SQLSTATE do Postgres → 409/422), Swagger
     modules/<nome>/        schemas.ts · repository.ts · service.ts · routes.ts · rules/ (CLAUDE.md, "Receita")
   scripts/check-arp.ts     CLI do pnpm rh:check-arp
+  scripts/compare-certificate-models.ts  CLI do pnpm rh:compare-ai (comparação de modelos na análise de atestado; relatório em reports/, fora do Git)
   test/                    Vitest; sobe Postgres real (Testcontainers). RH_TEST_PG_IMAGE=postgres:15.14-alpine testa no 15
 ```
 
@@ -64,3 +65,4 @@ apps/api/
 7. Multi-tenant (CLAUDE.md): tabela `conta` e `conta_id` em todas as tabelas. FKs entre tabelas da conta são compostas, `(conta_id, x_id) → pai (conta_id, id)`: o banco recusa ligar dados de contas diferentes. Exceções: `feriado` e `parametro_legal` aceitam `conta_id` NULL (catálogo global); `usuario` só fica sem conta se for `super_admin`; `auditoria` aceita NULL para ação da plataforma. Colunas de autor (`criado_por`, `decidido_por`, `usuario_id` da auditoria) têm FK simples para o super_admin poder agir numa conta.
 8. CPF e CNPJ únicos por conta (`UNIQUE (conta_id, cpf)`), não no sistema inteiro.
 9. Tabela nova `aparelho` (o arp grava `aparelho_id`). A autenticação do aparelho é da parte do ponto e entra depois.
+10. `analises_atestado` (migration 0010): sem `UNIQUE (atestado_id)`, uma linha por provedor/modelo/versão do prompt, com `resultado`, `recomendacao`, `hash_entrada`, `cid_cifrado`, `evidencias_cifradas`, `milissegundos_resposta` e `falha` (análise com IA, 04 G6).

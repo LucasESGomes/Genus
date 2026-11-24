@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#F7FAFC;font-family:Manrope,system-ui,sans-serif;color:#111C2B}a{color:#102C50}a:hover{color:#0B2140}</style>
+</helmet>
+<section style="padding:48px;display:flex;flex-direction:column;gap:24px">
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <span style="font-size:12px;font-weight:600;color:#5A6675;letter-spacing:0.04em">GENUS · PORTAL DO FUNCIONÁRIO</span>
+    <h1 style="margin:0;font-size:28px;font-weight:700;letter-spacing:-0.02em">Navegação: Início, Espelho, Férias e Atestado</h1>
+    <span style="color:#5A6675">Cada aparelho é interativo: toque na navegação inferior para trocar de tela.</span>
+  </div>
+  <div style="display:flex;gap:32px;flex-wrap:wrap">
+    <div style="display:flex;flex-direction:column;gap:10px"><span style="font-weight:600">Início</span><dc-import name="Portal Tela" tab="inicio" estado="sucesso" hint-size="390px,812px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><span style="font-weight:600">Espelho</span><dc-import name="Portal Tela" tab="espelho" estado="sucesso" hint-size="390px,812px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><span style="font-weight:600">Férias</span><dc-import name="Portal Tela" tab="ferias" estado="sucesso" hint-size="390px,812px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><span style="font-weight:600">Atestado</span><dc-import name="Portal Tela" tab="atestado" estado="sucesso" hint-size="390px,812px"></dc-import></div>
+  </div>
+</section>
+<section style="padding:0 48px 64px;display:flex;flex-direction:column;gap:24px">
+  <h2 style="margin:0;font-size:20px;font-weight:700;letter-spacing:-0.01em">Estados</h2>
+  <div style="display:flex;gap:32px;flex-wrap:wrap">
+    <div style="display:flex;flex-direction:column;gap:10px"><span style="font-weight:600">Carregando</span><dc-import name="Portal Tela" tab="inicio" estado="carregando" hint-size="390px,812px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><span style="font-weight:600">Vazio · recém-admitido</span><dc-import name="Portal Tela" tab="inicio" estado="vazio" hint-size="390px,812px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><span style="font-weight:600">Erro · sem conexão</span><dc-import name="Portal Tela" tab="inicio" estado="erro" hint-size="390px,812px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><span style="font-weight:600">Erro · campo inválido</span><dc-import name="Portal Tela" tab="atestado" estado="erro" hint-size="390px,812px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><span style="font-weight:600">Sem permissão (403)</span><dc-import name="Portal Tela" tab="inicio" estado="403" hint-size="390px,812px"></dc-import></div>
+    <div style="display:flex;flex-direction:column;gap:10px"><span style="font-weight:600">Sucesso · atestado enviado</span><dc-import name="Portal Tela" tab="atestado" estado="enviado" hint-size="390px,812px"></dc-import></div>
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

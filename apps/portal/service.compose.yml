@@ -1,0 +1,19 @@
+# Portal web do RH (Next.js). Repassa /portal, /auth e /me para a api (mesma origem, cookie httpOnly).
+name: genus
+
+services:
+  portal:
+    build:
+      context: ../..
+      dockerfile: apps/portal/Dockerfile
+      args:
+        NEXT_PUBLIC_USE_MOCKS: ${NEXT_PUBLIC_USE_MOCKS:-true}
+    image: genus-portal
+    container_name: genus-portal
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:3002
+    ports: ["3000:3000"]
+    mem_limit: 256m
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]

@@ -202,6 +202,10 @@ export const employees = pgTable('colaboradores', {
 | `arquivo_chave` | `fileKey` | |
 | `estorno_de_id` | `reversalOfId` | |
 | `id_publico` | `publicId` | |
+| `milissegundos_<x>` | `<x>Ms` | `milissegundos_resposta` → `responseMs`. Só para métrica técnica (tempo de resposta); duração de jornada continua em `minutos_` |
+| `hash_<x>` | `<x>Hash` | `hash_entrada` → `inputHash` |
+
+Termos da análise de atestado (`analises_atestado`, G6): `provedor` → `provider`, `modelo` → `model`, `versao_prompt` → `promptVersion`, `resultado` → `result`, `recomendacao` → `recommendation`, `evidencias_cifradas` → `evidenceEnc`, `falha` → `failure`.
 
 ### 12.2 Glossário de tabelas
 

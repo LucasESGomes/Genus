@@ -4,6 +4,8 @@
  * variáveis com problema, nunca os valores (podem ser segredos).
  */
 import { z } from 'zod';
+import { PROVIDER_IDS } from '../modules/certificate-analysis/ai/provider';
+import type { CertificateAiConfig } from '../modules/certificate-analysis/ai/registry';
 
 export const APP_ENVS = ['dev', 'homolog', 'prod'] as const;
 export type AppEnv = (typeof APP_ENVS)[number];
@@ -59,6 +61,21 @@ const rawSchema = z.object({
   PORTAL_GESTOR_ENABLED: z
     .enum(['true', 'false'], { error: 'PORTAL_GESTOR_ENABLED deve ser true ou false' })
     .default('false'),
+  // Análise de atestado com IA (G6). Tudo opcional: sem provedor, modelo ou chave, a análise usa a
+  // mock determinística e avisa IA_SIMULADA. As chaves nunca vão para log nem para o repositório.
+  CERTIFICATE_AI_PROVIDER: z.enum(PROVIDER_IDS, { error: 'CERTIFICATE_AI_PROVIDER deve ser mock, anthropic ou openai_compativel' }).optional(),
+  CERTIFICATE_AI_MODEL: z.string().min(1).max(120).optional(),
+  CERTIFICATE_AI_ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  CERTIFICATE_AI_ANTHROPIC_BASE_URL: z.url({ error: 'CERTIFICATE_AI_ANTHROPIC_BASE_URL deve ser uma URL' }).optional(),
+  CERTIFICATE_AI_OPENAI_API_KEY: z.string().min(1).optional(),
+  // Base do servidor OpenAI-compatível, até o /v1 (ex.: http://ollama:11434/v1 para modelo local).
+  CERTIFICATE_AI_OPENAI_BASE_URL: z.url({ error: 'CERTIFICATE_AI_OPENAI_BASE_URL deve ser uma URL' }).optional(),
+  CERTIFICATE_AI_TIMEOUT_MS: positiveInt('CERTIFICATE_AI_TIMEOUT_MS').default(20_000),
+  // Chave AES-256 (64 hex) do dado de saúde da análise (CID, texto, evidências). Sem ela, nada disso é gravado.
+  CERTIFICATE_DATA_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'CERTIFICATE_DATA_KEY deve ter 64 caracteres hex (32 bytes)')
+    .optional(),
 });
 
 export interface Env {
@@ -76,6 +93,9 @@ export interface Env {
   attachmentsDir: string;
   maxAttachmentBytes: number;
   gestorEnabled: boolean;
+  certificateAi: CertificateAiConfig;
+  /** Chave do dado de saúde da análise de atestado; null = não grava CID, texto nem evidências. */
+  certificateDataKeyHex: string | null;
 }
 
 export class EnvError extends Error {
@@ -128,5 +148,56 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     attachmentsDir: raw.ATTACHMENTS_DIR,
     maxAttachmentBytes: raw.MAX_ATTACHMENT_BYTES,
     gestorEnabled: raw.PORTAL_GESTOR_ENABLED === 'true',
+    ...certificateAiFrom(raw),
+  };
+}
+
+const AI_KEYS = [
+  'CERTIFICATE_AI_PROVIDER',
+  'CERTIFICATE_AI_MODEL',
+  'CERTIFICATE_AI_ANTHROPIC_API_KEY',
+  'CERTIFICATE_AI_ANTHROPIC_BASE_URL',
+  'CERTIFICATE_AI_OPENAI_API_KEY',
+  'CERTIFICATE_AI_OPENAI_BASE_URL',
+  'CERTIFICATE_AI_TIMEOUT_MS',
+  'CERTIFICATE_DATA_KEY',
+] as const;
+
+/**
+ * Só as variáveis da análise de atestado (comando de comparação, que roda sem
+ * banco). Mesmas regras de validação do `loadEnv`; lança `EnvError`.
+ */
+export function loadCertificateAiEnv(source: Record<string, string | undefined> = process.env): {
+  certificateAi: CertificateAiConfig;
+  certificateDataKeyHex: string | null;
+} {
+  const input: Record<string, string> = {};
+  for (const key of AI_KEYS) {
+    const value = source[key];
+    if (value !== undefined && value !== '' && !value.includes('TROQUE')) input[key] = value;
+  }
+  const schema = rawSchema.pick(Object.fromEntries(AI_KEYS.map((k) => [k, true])) as { [K in (typeof AI_KEYS)[number]]: true });
+  const parsed = schema.safeParse(input);
+  if (!parsed.success) {
+    throw new EnvError(parsed.error.issues.map((i) => ({ variable: String(i.path[0] ?? 'ambiente'), message: i.message })));
+  }
+  return certificateAiFrom(parsed.data);
+}
+
+function certificateAiFrom(raw: Pick<z.infer<typeof rawSchema>, (typeof AI_KEYS)[number]>): {
+  certificateAi: CertificateAiConfig;
+  certificateDataKeyHex: string | null;
+} {
+  return {
+    certificateAi: {
+      provider: raw.CERTIFICATE_AI_PROVIDER ?? null,
+      model: raw.CERTIFICATE_AI_MODEL ?? null,
+      anthropicApiKey: raw.CERTIFICATE_AI_ANTHROPIC_API_KEY ?? null,
+      anthropicBaseUrl: raw.CERTIFICATE_AI_ANTHROPIC_BASE_URL ?? null,
+      openaiApiKey: raw.CERTIFICATE_AI_OPENAI_API_KEY ?? null,
+      openaiBaseUrl: raw.CERTIFICATE_AI_OPENAI_BASE_URL ?? null,
+      timeoutMs: raw.CERTIFICATE_AI_TIMEOUT_MS,
+    },
+    certificateDataKeyHex: raw.CERTIFICATE_DATA_KEY ?? null,
   };
 }

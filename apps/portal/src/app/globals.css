@@ -1,0 +1,64 @@
+@import 'tailwindcss';
+
+/* Tokens do design (Genus RH, Claude Design). Componentes usam só estes nomes, nunca o valor. */
+@theme {
+  --font-sans: var(--font-manrope), system-ui, sans-serif;
+  --font-mono: ui-monospace, Menlo, monospace;
+
+  --color-brand: #102c50;
+  --color-brand-hover: #0b2140;
+  --color-brand-active: #081a33;
+  --color-accent: #dbff00;
+  --color-ink: #111c2b;
+  --color-ink-2: #3e4a5a;
+  --color-muted: #5a6675;
+  --color-faint: #9aa7b6;
+  --color-line: #e3e8ef;
+  --color-line-strong: #d3dae3;
+  --color-line-hover: #c8d1dc;
+  --color-line-soft: #eff3f7;
+  --color-surface: #f7fafc;
+  --color-surface-alt: #fafcfd;
+  --color-tint: #e8eef5;
+  --color-focus: #c9d6e8;
+  --color-skeleton: #edf1f6;
+  --color-skeleton-soft: #f2f5f9;
+  --color-warn: #8a5a12;
+  --color-warn-bg: #fdf6e7;
+  --color-danger: #b42318;
+  --color-danger-bg: #fdecea;
+  --color-danger-line: #f1d2ce;
+
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-card: 16px;
+
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-pop: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-focus: 0 0 0 3px #c9d6e8;
+
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 28px;
+  --text-2xl--line-height: 36px;
+}
+
+body {
+  margin: 0;
+  background: var(--color-white, #fff);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}

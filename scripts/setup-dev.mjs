@@ -84,6 +84,8 @@ const infraGenerated = {
   BETTER_AUTH_SECRET: () => hex(32),
   // Pepper do PIN do colaborador (HMAC antes do scrypt). Trocar invalida os PINs: só com rotação (PIN_PEPPER_VERSION).
   PIN_PEPPER: () => hex(32),
+  // Chave AES-256 do dado de saúde da análise de atestado (CID, texto e evidências cifrados na coluna).
+  CERTIFICATE_DATA_KEY: () => hex(32),
 };
 const infraChanged = [];
 for (const [key, gen] of Object.entries(infraGenerated)) {
@@ -202,6 +204,7 @@ const portalMsg = syncEnv({
     BETTER_AUTH_SECRET: infra.BETTER_AUTH_SECRET,
     AUTH_BASE_URL: `http://localhost:${infra.API_PORT || '3002'}`,
     PIN_PEPPER: infra.PIN_PEPPER,
+    CERTIFICATE_DATA_KEY: infra.CERTIFICATE_DATA_KEY,
     // Cadastro facial no totem: só chama POST /embeddings/register da engine.
     ENGINE_URL: `http://localhost:${infra.ENGINE_PORT || '8001'}`,
     ENGINE_API_KEY: infra.ENGINE_API_KEY,

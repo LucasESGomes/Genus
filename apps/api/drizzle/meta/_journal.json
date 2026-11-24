@@ -71,6 +71,13 @@
       "when": 1795403012882,
       "tag": "0009_inconsistencias_apuracao",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795532897893,
+      "tag": "0010_analise_atestado_ia",
+      "breakpoints": true
     }
   ]
 }
