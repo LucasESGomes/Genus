@@ -35,6 +35,30 @@ const rawSchema = z.object({
         .filter((o) => o.length > 0),
     )
     .optional(),
+  // Better Auth: assina cookies e cifra o segredo do 2FA e a chave privada do JWT.
+  BETTER_AUTH_SECRET: requiredString('BETTER_AUTH_SECRET').min(32, 'BETTER_AUTH_SECRET precisa de pelo menos 32 caracteres'),
+  // Só a origem (sem caminho): emissor e audiência do JWT. Padrão http://localhost:<PORT>.
+  AUTH_BASE_URL: z
+    .url({ error: 'AUTH_BASE_URL deve ser uma URL' })
+    .refine((v) => new URL(v).pathname === '/', 'AUTH_BASE_URL deve ser só a origem, sem caminho (ex.: https://rh.exemplo.com)')
+    .optional(),
+  // Leitura das batidas no banco arp (papel arp_reader, só SELECT). A apuração lê daqui.
+  ARP_READER_DATABASE_URL: requiredString('ARP_READER_DATABASE_URL'),
+  // Pepper do PIN do colaborador (HMAC antes do scrypt): 32 bytes em hex. Trocar invalida os PINs.
+  PIN_PEPPER: z
+    .string({ error: 'PIN_PEPPER é obrigatória' })
+    .regex(/^[0-9a-fA-F]{64}$/, 'PIN_PEPPER deve ter 64 caracteres hex (32 bytes)'),
+  PIN_PEPPER_VERSION: positiveInt('PIN_PEPPER_VERSION').default(1),
+  // Engine facial, só para o cadastro do rosto no totem (POST /embeddings/register). Sem ela: 503.
+  ENGINE_URL: z.url({ error: 'ENGINE_URL deve ser uma URL' }).optional(),
+  ENGINE_API_KEY: z.string().min(1).optional(),
+  // Pasta dos arquivos de atestado (adaptador em disco; o S3 entra depois).
+  ATTACHMENTS_DIR: z.string().min(1).default('./data/anexos'),
+  MAX_ATTACHMENT_BYTES: positiveInt('MAX_ATTACHMENT_BYTES').default(10 * 1024 * 1024),
+  // Gestor é opcional e começa desligado (04 §1.4).
+  PORTAL_GESTOR_ENABLED: z
+    .enum(['true', 'false'], { error: 'PORTAL_GESTOR_ENABLED deve ser true ou false' })
+    .default('false'),
 });
 
 export interface Env {
@@ -44,6 +68,14 @@ export interface Env {
   databaseUrl: string;
   databasePoolMax: number;
   corsOrigins: string[];
+  authSecret: string;
+  authBaseUrl: string;
+  arpReaderDatabaseUrl: string;
+  pinPepper: { version: number; keyHex: string };
+  engine: { url: string; apiKey: string } | null;
+  attachmentsDir: string;
+  maxAttachmentBytes: number;
+  gestorEnabled: boolean;
 }
 
 export class EnvError extends Error {
@@ -88,5 +120,13 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     databaseUrl: raw.RH_DATABASE_URL,
     databasePoolMax: raw.DATABASE_POOL_MAX,
     corsOrigins: raw.CORS_ORIGINS ?? [],
+    authSecret: raw.BETTER_AUTH_SECRET,
+    authBaseUrl: new URL(raw.AUTH_BASE_URL ?? `http://localhost:${raw.PORT}`).origin,
+    arpReaderDatabaseUrl: raw.ARP_READER_DATABASE_URL,
+    pinPepper: { version: raw.PIN_PEPPER_VERSION, keyHex: raw.PIN_PEPPER },
+    engine: raw.ENGINE_URL && raw.ENGINE_API_KEY ? { url: raw.ENGINE_URL, apiKey: raw.ENGINE_API_KEY } : null,
+    attachmentsDir: raw.ATTACHMENTS_DIR,
+    maxAttachmentBytes: raw.MAX_ATTACHMENT_BYTES,
+    gestorEnabled: raw.PORTAL_GESTOR_ENABLED === 'true',
   };
 }

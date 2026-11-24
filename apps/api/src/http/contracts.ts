@@ -1,5 +1,35 @@
 /** Envelopes HTTP da api do portal (backend.md §6): sucesso `{ data }`, erro `{ error, code }`. */
 import { z } from 'zod';
+import { RH_DOMAIN_ERROR_CODES } from '../modules/rules-common/rules/errors';
+
+/**
+ * Códigos de domínio do portal de RH (estáveis: o front e os testes dependem deles).
+ * Vários traduzem uma constraint ou trigger do banco (`http/domain-errors.ts`).
+ */
+export const PORTAL_ERROR_CODES = [
+  'CPF_INVALIDO',
+  'CPF_DUPLICADO',
+  'MATRICULA_DUPLICADA',
+  'VINCULO_SOBREPOSTO',
+  'ESCALA_SOBREPOSTA',
+  'AFASTAMENTO_SOBREPOSTO',
+  'PERIODO_AQUISITIVO_SOBREPOSTO',
+  'ATESTADO_DUPLICADO',
+  'PERIODO_FECHADO',
+  'DECISOR_IGUAL_SOLICITANTE',
+  'FECHAMENTO_COM_PENDENCIAS',
+  'FECHAMENTO_DUPLICADO',
+  'STATUS_INVALIDO',
+  'REFERENCIA_INVALIDA',
+  'COLABORADOR_DESLIGADO',
+  'ARQUIVO_INVALIDO',
+  'CPF_OU_PIN_INVALIDO',
+  'CONSENTIMENTO_AUSENTE',
+  'CHAVE_EMPRESA_AUSENTE',
+  'ROSTO_NAO_PROCESSADO',
+  'MOTOR_FACIAL_INDISPONIVEL',
+  'MUITAS_TENTATIVAS',
+] as const;
 
 export const ERROR_CODES = [
   'UNAUTHORIZED',
@@ -12,6 +42,8 @@ export const ERROR_CODES = [
   'BUSINESS_RULE_VIOLATION',
   'INTERNAL_ERROR',
   'SERVICE_UNAVAILABLE',
+  ...RH_DOMAIN_ERROR_CODES,
+  ...PORTAL_ERROR_CODES,
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 

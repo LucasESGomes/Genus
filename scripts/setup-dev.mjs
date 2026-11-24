@@ -80,6 +80,10 @@ const infraGenerated = {
   COLLECTOR_PORT: () => '3001',
   API_PORT: () => '3002',
   CORS_ORIGINS: () => 'http://localhost:3000',
+  // Segredo do Better Auth (login do portal de RH): assina cookies e cifra os segredos de 2FA e do JWT.
+  BETTER_AUTH_SECRET: () => hex(32),
+  // Pepper do PIN do colaborador (HMAC antes do scrypt). Trocar invalida os PINs: só com rotação (PIN_PEPPER_VERSION).
+  PIN_PEPPER: () => hex(32),
 };
 const infraChanged = [];
 for (const [key, gen] of Object.entries(infraGenerated)) {
@@ -195,6 +199,12 @@ const portalMsg = syncEnv({
     ARP_READER_DATABASE_URL: `postgres://arp_reader:${encodeURIComponent(infra.ARP_READER_PASSWORD)}@localhost:${pgPort}/arp`,
     PORT: infra.API_PORT || '3002',
     CORS_ORIGINS: infra.CORS_ORIGINS || 'http://localhost:3000',
+    BETTER_AUTH_SECRET: infra.BETTER_AUTH_SECRET,
+    AUTH_BASE_URL: `http://localhost:${infra.API_PORT || '3002'}`,
+    PIN_PEPPER: infra.PIN_PEPPER,
+    // Cadastro facial no totem: só chama POST /embeddings/register da engine.
+    ENGINE_URL: `http://localhost:${infra.ENGINE_PORT || '8001'}`,
+    ENGINE_API_KEY: infra.ENGINE_API_KEY,
   },
 });
 

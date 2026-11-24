@@ -57,3 +57,6 @@ postman-runs/
 # Imagem sintética > 1 MB gerada pelo runner do Postman
 postman/fixtures/too-large.jpg
 postman/export/
+
+# Anexos locais da api do RH (atestados: dado de saúde). Nunca versionar.
+apps/api/data/

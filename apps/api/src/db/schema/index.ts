@@ -6,3 +6,5 @@ export * from './absences';
 export * from './time-bank';
 export * from './vacations';
 export * from './closing';
+export * from './biometrics';
+export * from './auth';

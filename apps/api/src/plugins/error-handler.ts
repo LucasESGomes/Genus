@@ -9,6 +9,8 @@
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { hasZodFastifySchemaValidationErrors } from 'fastify-type-provider-zod';
 import { errorResponseSchema, type ErrorCode, type ErrorResponse } from '../http/contracts';
+import { domainErrorStatus, mapDatabaseRule } from '../http/domain-errors';
+import { RhDomainError } from '../modules/rules-common/rules/errors';
 
 /** Erro esperado, com status e código já decididos. */
 export class HttpError extends Error {
@@ -50,11 +52,15 @@ const PG_ERRORS: Record<string, { status: number; code: ErrorCode; message: stri
   '23502': { status: 422, code: 'BUSINESS_RULE_VIOLATION', message: 'Campo obrigatório ausente' },
 };
 
-function pgError(err: unknown): { sqlState: string; constraint?: string } | undefined {
-  const e = err as { code?: unknown; constraint?: unknown; severity?: unknown; cause?: unknown };
+export function pgError(err: unknown): { sqlState: string; constraint?: string; message: string } | undefined {
+  const e = err as { code?: unknown; constraint?: unknown; severity?: unknown; cause?: unknown; message?: unknown };
   // O Drizzle embrulha o erro do driver em `cause`.
   if (typeof e.code === 'string' && typeof e.severity === 'string') {
-    return { sqlState: e.code, constraint: typeof e.constraint === 'string' ? e.constraint : undefined };
+    return {
+      sqlState: e.code,
+      constraint: typeof e.constraint === 'string' ? e.constraint : undefined,
+      message: typeof e.message === 'string' ? e.message : '',
+    };
   }
   return e.cause ? pgError(e.cause) : undefined;
 }
@@ -82,16 +88,23 @@ export function registerErrorHandling(app: FastifyInstance): void {
       );
     }
 
+    if (err instanceof RhDomainError) {
+      // A mensagem das regras puras nunca leva CPF, CID nem salário (rules-common/rules/errors.ts).
+      return reply.code(domainErrorStatus(err.code)).send(body(err.code, err.message));
+    }
+
     const pg = pgError(err);
-    const mapped = pg ? PG_ERRORS[pg.sqlState] : undefined;
+    // Regra conhecida (EXCLUDE, UNIQUE, trigger) → código de domínio; senão, o genérico do SQLSTATE.
+    const mapped = pg ? (mapDatabaseRule(pg.constraint, pg.message) ?? PG_ERRORS[pg.sqlState]) : undefined;
     if (pg && mapped) {
-      req.log.warn({ sqlState: pg.sqlState, constraint: pg.constraint }, 'regra do banco recusou a operação');
+      req.log.warn({ sqlState: pg.sqlState, constraint: pg.constraint, code: mapped.code }, 'regra do banco recusou a operação');
       return reply.code(mapped.status).send(body(mapped.code, mapped.message));
     }
 
     const status = (err as FastifyError).statusCode;
     if (typeof status === 'number' && status >= 400 && status < 500) {
       if (status === 404) return reply.code(404).send(body('NOT_FOUND', 'Recurso não encontrado'));
+      if (status === 413) return reply.code(413).send(body('ARQUIVO_INVALIDO', 'Arquivo maior que o permitido'));
       return reply.code(400).send(body('VALIDATION_ERROR', 'Requisição inválida'));
     }
 

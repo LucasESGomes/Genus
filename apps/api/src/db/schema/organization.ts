@@ -177,6 +177,14 @@ export const employees = rh.table(
     terminationDate: date('data_desligamento'),
     terminationReason: text('motivo_desligamento'),
     managerId: ref('gestor_id'),
+    /**
+     * PIN do modo alternativo (sem facial): matrícula ou CPF + PIN. Obrigatório:
+     * todo colaborador tem um. Só o hash scrypt com sal e pepper
+     * (`scrypt$<pepper>$N$r$p$sal$hash`, ver modules/employees/pin.ts).
+     * Nunca em log, resposta, auditoria nem na lista do aparelho.
+     */
+    pinHash: text('pin_hash').notNull(),
+    pinSetAt: timestamp('pin_definido_em', { withTimezone: true }).notNull(),
   },
   (t) => [
     foreignKey({
@@ -194,6 +202,11 @@ export const employees = rh.table(
     // desligamento sempre com motivo, e motivo só com desligamento
     check('colab_motivo_par', sql`(data_desligamento IS NULL) = (motivo_desligamento IS NULL)`),
     check('colab_nao_gestor_si', sql`gestor_id IS DISTINCT FROM id`),
+    // Recusa PIN em claro ou hash de outro formato; a conferência é no código
+    check(
+      'colab_pin_formato',
+      sql`pin_hash ~ '^scrypt\\$[0-9]+\\$[0-9]+\\$[0-9]+\\$[0-9]+\\$[A-Za-z0-9_-]+\\$[A-Za-z0-9_-]+$'`,
+    ),
     unique('colab_matricula_unica').on(t.establishmentId, t.registrationNumber),
     index('idx_colaborador_estab').on(t.establishmentId).where(sql`data_desligamento IS NULL`),
     index('idx_colaborador_gestor').on(t.managerId),
@@ -245,7 +258,9 @@ export const employeeAssignments = rh.table(
   ],
 );
 
-// [JÁ PODE EXISTIR] perfis de acesso
+// Perfis de acesso. É a tabela `user` do Better Auth (modules/auth/auth.ts): as
+// propriedades `name`, `email`, `emailVerified`, `image`, `createdAt` e `updatedAt`
+// são as que ele espera. A senha NÃO fica aqui: fica em `credenciais_login`.
 export const users = rh.table(
   'usuarios',
   {
@@ -253,13 +268,17 @@ export const users = rh.table(
     /** NULL só para super_admin (operador da plataforma, fora de qualquer conta). */
     tenantId: tenantId(),
     employeeId: ref('colaborador_id').unique('usuario_colaborador_id_key'),
+    name: text('nome').notNull(),
     /** Login: único na plataforma inteira. */
     email: citext('email').notNull().unique('usuario_email_key'),
-    /** Nunca sai na API nem em log. */
-    passwordHash: text('senha_hash').notNull(),
+    emailVerified: boolean('email_verificado').notNull().default(false),
+    image: text('imagem'),
     role: text('papel').notNull(),
+    /** `twoFactorEnabled` do plugin de 2FA (TOTP). */
     mfaEnabled: boolean('mfa_ativo').notNull().default(false),
     isActive: boolean('ativo').notNull().default(true),
+    createdAt: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('atualizado_em', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     foreignKey({ name: 'usuario_conta_id_fkey', columns: [t.tenantId], foreignColumns: [tenants.id] }),
@@ -269,12 +288,14 @@ export const users = rh.table(
       foreignColumns: [employees.tenantId, employees.id],
     }),
     unique('usuario_conta_id_id_key').on(t.tenantId, t.id),
-    check('usuario_papel', sql`papel IN ('admin','rh','gestor','contador','funcionario','super_admin')`),
+    // Seis papéis (04 §1.4, decidido em 18/11/2026)
+    check('usuario_papel', sql`papel IN ('admin','rh','gestor','contador','colaborador','super_admin')`),
     check('usuario_conta_obrigatoria', sql`(papel = 'super_admin') = (conta_id IS NULL)`),
-    // funcionário é sempre uma pessoa cadastrada; admin e contador podem ser externos
-    check('usuario_funcionario_tem_colaborador', sql`papel <> 'funcionario' OR colaborador_id IS NOT NULL`),
-    // super admin da plataforma só existe com 2FA
-    check('usuario_super_admin_mfa', sql`papel <> 'super_admin' OR mfa_ativo`),
+    // colaborador é sempre uma pessoa cadastrada; admin e contador podem ser externos
+    check('usuario_colaborador_tem_colaborador', sql`papel <> 'colaborador' OR colaborador_id IS NOT NULL`),
+    // super_admin sem 2FA: o 2FA só pode ser ativado depois do primeiro login (o segredo
+    // TOTP nasce no login), então a regra é da api: sem mfa_ativo, a sessão do super_admin
+    // só serve para ativar o 2FA (plugins/request-context.ts). Antes era um CHECK.
   ],
 );
 

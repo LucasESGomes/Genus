@@ -20,8 +20,22 @@
 # memória reservada e oom_score_adj negativo; Valkey, rep-core, apis vêm depois; jobs por último.
 name: genus
 
+# Cada service.compose.yml entra UMA vez. Incluir as entradas dos apps (apps/*/docker-compose.yml)
+# traria db/ duas vezes (coletor e api), e o Compose 5.x funde as cópias e recusa listas
+# duplicadas ("security_opt items at 0 and 1 are equal"). As entradas por pasta continuam valendo
+# para subir uma parte isolada.
 include:
-  - path: apps/collector-api/docker-compose.yml
+  - path: db/service.compose.yml
     env_file: .env
-  - path: apps/api/docker-compose.yml
+  - path: packages/queue/service.compose.yml
+    env_file: .env
+  - path: services/face-engine/service.compose.yml
+    env_file: .env
+  - path: apps/rep-core/service.compose.yml
+    env_file: .env
+  - path: apps/jobs/service.compose.yml
+    env_file: .env
+  - path: apps/collector-api/service.compose.yml
+    env_file: .env
+  - path: apps/api/service.compose.yml
     env_file: .env

@@ -3,14 +3,21 @@
  */
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
-import type { Logger } from '@genus/shared';
+import multipart from '@fastify/multipart';
+import type { Clock, Logger } from '@genus/shared';
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import type { Pool } from 'pg';
 import type { Database } from './db/client';
+import type { Auth } from './modules/auth/auth';
+import { meRoutes } from './modules/auth/me-routes';
+import { authRoutes } from './modules/auth/routes';
 import { healthRoutes } from './modules/health/routes';
+import type { PortalDeps } from './modules/portal/deps';
+import { portalRoutes } from './modules/portal/routes';
 import { registerApiDocs } from './plugins/api-docs';
 import { registerErrorHandling } from './plugins/error-handler';
+import { registerRequestContext } from './plugins/request-context';
 
 export interface AppDeps {
   logger: Logger;
@@ -20,6 +27,10 @@ export interface AppDeps {
   corsOrigins: string[];
   /** Swagger em /docs. Só true com APP_ENV=dev; mesmo assim só atende 127.0.0.1/::1. */
   apiDocs?: boolean;
+  /** Login (Better Auth). Sem ele, só /health responde (testes de health). */
+  auth?: { auth: Auth; baseURL: string; clock: Clock };
+  /** Módulos do portal de RH (/portal/*). Exigem `auth`. */
+  portal?: PortalDeps;
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
@@ -39,7 +50,24 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   await app.register(healthRoutes, { pool: deps.pool });
 
+  if (deps.auth) {
+    // req.ctx + app.authenticate/authorize; depois /auth/* (Better Auth) e /me.
+    registerRequestContext(app, { auth: deps.auth.auth, db: deps.db, clock: deps.auth.clock });
+    await app.register(authRoutes, { auth: deps.auth.auth, baseURL: deps.auth.baseURL });
+    await app.register(meRoutes, { db: deps.db });
+  }
+
   // Os módulos do portal (src/modules/<nome>/routes.ts) entram aqui, sob o prefixo /portal.
+  if (deps.auth && deps.portal) {
+    // Upload de atestado e das fotos do cadastro facial. Arquivo acima do limite: 413.
+    await app.register(multipart, {
+      // files: um a mais que o máximo de fotos, para a 6ª chegar à validação e virar 400
+      limits: { fileSize: deps.portal.maxAttachmentBytes, files: 6, fields: 10, fieldSize: 256, fieldNameSize: 64, parts: 16 },
+    });
+    const portal = deps.portal;
+    // O prefixo fica no escopo de fora: as opções dos módulos são só as dependências.
+    await app.register(async (scope) => scope.register(portalRoutes, portal), { prefix: '/portal' });
+  }
 
   return app;
 }

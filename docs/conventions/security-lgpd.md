@@ -15,7 +15,7 @@
 
 ## 2. Cifragem
 
-- **Envelope:** `MASTER_KEY` (KEK, 32 bytes, só no ambiente) cifra a **DEK da conta** (tenant), guardada cifrada em `chaves_conta`. A DEK cifra embeddings e colunas `_cifrado`. Rotação da KEK reencripta só as DEKs; rotação de DEK reencripta só os dados daquela conta (`versao_chave`).
+- **Envelope:** `MASTER_KEY` (KEK, 32 bytes, só no ambiente) cifra a **DEK da empresa** (uma por empresa cadastrada), guardada cifrada em `chaves_empresa` (migrations 0004/0005 do banco `app`). A DEK cifra os embeddings faciais (`embeddings_faciais`; quem cifra é a engine) e, **[A CONFIRMAR]**, as colunas `_cifrado`. Rotação da KEK reencripta só as DEKs; rotação de DEK reencripta só os dados daquela empresa (`versao_chave`).
 - **AES-256-GCM, IV único por operação** (`os.urandom(12)` / `crypto.randomBytes(12)`). **`InvalidTag` nunca é silenciado**: propaga como erro e gera log `critical`.
 - Em trânsito: TLS; entre as VMs, WireGuard (os recortes de rosto são biometria).
 - Em repouso: volume cifrado no Postgres; **SSE** no bucket do S3. Backups também cifrados.
@@ -41,9 +41,17 @@
 ## 5. Acesso e auditoria
 
 - Princípio do menor privilégio: papel (`rh`/`gestor`/`colaborador`) **e** escopo (conta, equipe, próprio).
+- `admin` (cliente) e `contador` **não** leem dado de saúde; o `contador` só baixa exportações e espelhos.
 - `super_admin` (operação do Genus) **não** lê dado de saúde nem biometria de cliente; o acesso excepcional exige justificativa e gera evento `critical`.
 - Trilha imutável (`logs_auditoria`): alteração **e** leitura de dado sensível. Detalhes em `database.md` §11.
-- Login do RH com senha + TOTP (Better Auth).
+- Login do RH com senha + TOTP (Better Auth, `apps/api/src/modules/auth/`):
+  - **Senha:** hash scrypt em `credenciais_login.senha_hash`, mínimo de 12 caracteres **[A CONFIRMAR]**. Sem cadastro público: usuário só nasce pelo `UserService`.
+  - **Sessão:** cookie `httpOnly`, `SameSite=Lax`, `Secure` fora do dev, 8 h **[A CONFIRMAR]**. Sign-out e usuário desativado (`ativo = false`, trigger) derrubam a sessão na hora.
+  - **JWT curto:** 15 min, EdDSA, em `GET /auth/token`, para cliente sem cookie. Só leva `sub` e `sid`; papel e conta são relidos do banco a cada requisição, e o JWT cai junto com a sessão de origem. A chave privada fica cifrada em `chaves_jwt`.
+  - **TOTP:** segredo e códigos de backup cifrados pelo Better Auth em `dois_fatores`. O `super_admin` sem 2FA só consegue ativá-lo; qualquer outra rota devolve 403.
+  - **Limite de tentativas** do Better Auth, por IP visto pelo Fastify (o cliente não escolhe o IP).
+  - `BETTER_AUTH_SECRET` cifra esses segredos: trocá-lo derruba as sessões e invalida o 2FA. Fica só no `.env` (nunca no Git).
+  - Nunca em log: senha, hash, token de sessão, JWT, segredo TOTP (teste em `apps/api/test/auth.test.ts`).
 
 ## 6. Direitos do titular
 
@@ -57,3 +65,16 @@ Acesso, correção, portabilidade, exclusão e revogação precisam ter caminho 
 - Ligar `BENCH_ENDPOINTS` ou `SAVE_AUDIT_FRAMES` em produção.
 - Commitar `.env`, `bench/.secrets.json`, `bench/data/` (vetores), `bench/frames/` (rostos) ou `bench/results/`.
 - Enviar atestado a um serviço de OCR externo sem decisão registrada e contrato.
+
+## 8. O que cada perfil vê na api do RH
+
+| Dado | rh | admin | contador | gestor (se ligado) | colaborador |
+|---|---|---|---|---|---|
+| CPF completo | sim | sim | mascarado | mascarado | o próprio |
+| Salário do vínculo | sim | sim [A CONFIRMAR: §1 diz só RH] | não | não | não |
+| Atestado: datas e status | sim | sim | não | equipe | o próprio |
+| Atestado: médico e arquivo | sim (download auditado como `leitura_sensivel`) | não | não | não | não |
+| CID | nunca nesta etapa (não é gravado) | nunca | nunca | nunca | nunca |
+| Aprovar atestado | sim | **não** | não | não | não |
+
+Mensagens de erro não repetem CPF, PIN, nome nem valor enviado. A trilha de auditoria troca por `[alterado]` as chaves que parecem segredo ou dado sensível. O totem responde do mesmo jeito para CPF inexistente e PIN errado (401 `CPF_OU_PIN_INVALIDO`) e bloqueia após 5 erros em 15 min por IP (429).

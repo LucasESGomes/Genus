@@ -153,6 +153,19 @@ O Swagger **não é público**: só existe com `APP_ENV=dev` (em homolog e prod 
 
 Se a engine estiver fora, a api continua no ar e responde `fallback_required` para as batidas. Isso é esperado.
 
+### 5.1 Login no portal de RH (api do RH, porta 3002)
+
+A api do RH exige `BETTER_AUTH_SECRET` no `.env` da raiz. **Depois de atualizar o repositório, rode `pnpm setup:dev` uma vez**: ele gera o segredo sem mexer no que já existe. Sem ele, o `docker compose up` para com a mensagem `Defina BETTER_AUTH_SECRET...`, em vez de subir a api quebrada.
+
+Não há cadastro público. Crie o primeiro usuário pelo script (a senha vem de `NEW_USER_PASSWORD` ou é gerada e mostrada uma vez):
+
+```bash
+pnpm rh:create-user -- --email admin@empresa.dev --name "Admin" --role admin --tenant 1
+pnpm rh:create-user -- --email root@genus.dev --name "Root" --role super_admin   # precisa ativar o 2FA no 1º login
+```
+
+Fluxo: `POST /auth/sign-in/email` `{ email, password }` devolve o cookie `genus.session_token`; `GET /me` mostra o usuário. Para cliente sem cookie, `GET /auth/token` devolve um JWT de 15 min, usado como `Authorization: Bearer <jwt>`. 2FA: `POST /auth/two-factor/enable` `{ password }` devolve o `totpURI` (QR no app autenticador) e `POST /auth/two-factor/verify-totp` `{ code }` confirma.
+
 ## 6. Testes e verificações
 
 ```bash
@@ -255,3 +268,15 @@ pnpm queue:inspect
 Mostra, para `punches` e `post-punch`, a contagem de jobs por estado (`waiting`, `active`, `delayed`, `completed`, `failed` etc.) e a profundidade da `post-punch` (`waiting` + `delayed` + `active`). Avisa quando a profundidade passa de `POST_PUNCH_DEPTH_WARN` (padrão 10000). A senha não é impressa. Códigos de saída: `0` ok, `2` configuração inválida, `1` o Valkey não respondeu.
 
 **A `post-punch` cresce sem consumidor. Isso é esperado nesta rodada.** Cada batida gera três jobs `waiting` nessa fila e três linhas `pendente` no `outbox`, porque ainda não existem os consumidores (PDF, jornada, QR). Não é erro, e não se deve criar consumidor falso que marque o `outbox` como processado. Com a política `noeviction` do Valkey, se a memória encher, ele recusa escritas; acompanhe com `pnpm queue:inspect`.
+
+## 13. Variáveis novas da api do RH
+
+`pnpm setup:dev` gera ou copia todas elas; rode uma vez depois do pull.
+
+| Variável | Para quê |
+|---|---|
+| `PIN_PEPPER` (64 hex, no `.env` da raiz) | PIN do colaborador no totem. Obrigatória: sem ela a api não sobe |
+| `ARP_READER_DATABASE_URL` | leitura das batidas do arp para a apuração (papel `arp_reader`, só SELECT) |
+| `ENGINE_URL`, `ENGINE_API_KEY` | cadastro facial no totem (`POST /embeddings/register`). Sem elas o cadastro responde 503 |
+| `ATTACHMENTS_DIR`, `MAX_ATTACHMENT_BYTES` | atestados em disco (volume `rh-anexos` no Docker; `apps/api/data/` fora do Git) |
+| `PORTAL_GESTOR_ENABLED` | liga o perfil gestor no portal (padrão `false`) |
