@@ -1,0 +1,59 @@
+/** Estados de tela do design: carregando (skeleton), vazio, erro e sem permissão. */
+import { ArrowClockwise, LockKey, SpinnerGap, WarningCircle} from '@phosphor-icons/react/dist/ssr';
+import type { Icon } from '@phosphor-icons/react';
+import { Button } from './Button';
+
+export function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`rounded-xs bg-skeleton ${className}`} />;
+}
+
+export function LoadingState({ label }: { label: string }) {
+  return (
+    <div aria-busy="true" aria-label="Carregando" className="flex flex-col gap-4">
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+        {Array.from({ length: 5 }, (_, i) => (
+          <div key={i} className="flex flex-col gap-3 rounded-card border border-line p-5">
+            <Skeleton className="h-3 w-[55%]" />
+            <Skeleton className="h-7 w-[70%] rounded-sm" />
+            <Skeleton className="h-3 w-[85%] bg-skeleton-soft" />
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5 text-xs text-muted"><SpinnerGap size={16} aria-hidden />{label}</div>
+    </div>
+  );
+}
+
+export function EmptyState({ icon: I, title, text }: { icon: Icon; title: string; text: string }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-line-strong bg-surface px-6 py-16 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-tint"><I size={28} className="text-brand" aria-hidden /></div>
+      <div className="text-xl font-bold tracking-[-0.01em]">{title}</div>
+      <div className="max-w-[460px] text-muted text-pretty">{text}</div>
+    </div>
+  );
+}
+
+export function ErrorState({ what, code, onRetry }: { what: string; code?: string; onRetry?: () => void }) {
+  return (
+    <div role="alert" className="flex flex-col items-center gap-3 rounded-card border border-danger-line bg-white px-6 py-12 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-danger-bg"><WarningCircle size={28} className="text-danger" aria-hidden /></div>
+      <div className="text-xl font-bold tracking-[-0.01em]">Não foi possível carregar {what}</div>
+      <div className="max-w-[480px] text-muted text-pretty">O servidor não respondeu a tempo. Nenhum dado foi perdido. Tente de novo em alguns segundos; se continuar, envie o código abaixo ao suporte.</div>
+      {code && <code className="rounded-xs border border-line bg-surface px-2 py-0.5 font-mono text-xs text-muted">{code}</code>}
+      {onRetry && <Button className="mt-2" onClick={onRetry} icon={<ArrowClockwise size={18} aria-hidden />}>Tentar de novo</Button>}
+    </div>
+  );
+}
+
+export function ForbiddenState({ screen, establishment, onBack }: { screen: string; establishment: string; onBack?: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-card border border-line px-6 py-14 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full border border-line bg-surface"><LockKey size={28} className="text-ink" aria-hidden /></div>
+      <div className="text-xs font-semibold tracking-[0.04em] text-muted">ERRO 403</div>
+      <div className="text-xl font-bold tracking-[-0.01em]">Sem permissão para esta tela</div>
+      <div className="max-w-[480px] text-muted text-pretty">Seu usuário não tem acesso a {screen} em {establishment}. Peça ao administrador da conta para incluir este estabelecimento no seu escopo.</div>
+      {onBack && <Button variant="secondary" className="mt-2" onClick={onBack}>Voltar para a visão geral</Button>}
+    </div>
+  );
+}

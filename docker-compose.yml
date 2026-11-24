@@ -39,3 +39,5 @@ include:
     env_file: .env
   - path: apps/api/service.compose.yml
     env_file: .env
+  - path: apps/portal/service.compose.yml
+    env_file: .env

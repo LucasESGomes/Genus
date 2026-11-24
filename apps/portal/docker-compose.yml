@@ -1,0 +1,7 @@
+# Entrada para subir ESTE serviço isolado, com as dependências dele: docker compose up
+name: genus
+
+include:
+  - path: ../api/docker-compose.yml
+  - path: service.compose.yml
+    env_file: ../../.env
