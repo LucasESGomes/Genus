@@ -6,6 +6,7 @@ import {
   date,
   foreignKey,
   index,
+  integer,
   jsonb,
   smallint,
   text,
@@ -106,20 +107,42 @@ export const medicalCertificates = rh.table(
   ],
 );
 
-// RF61 a RF67: a heurística só sinaliza; quem decide é o RH
+// RF61 a RF67: a heurística (regras + IA) só sinaliza; quem decide é o RH.
+// Várias análises por atestado (migration 0010): uma por provedor/modelo/versão do prompt,
+// o que permite reanalisar e comparar modelos sem apagar a anterior.
 export const certificateAnalyses = rh.table(
   'analises_atestado',
   {
     id: id(),
     tenantId: tenantId().notNull(),
-    certificateId: ref('atestado_id').notNull().unique('atestado_analise_atestado_id_key'),
-    /** Texto do OCR: dado de saúde, cifrado como o CID. */
+    certificateId: ref('atestado_id').notNull(),
+    /** Texto analisado, já sem CPF e nome: dado de saúde, cifrado (AES-256-GCM). Nulo sem chave. */
     ocrTextEnc: bytea('ocr_texto_cifrado'),
+    /** Nota de risco das regras, 0 a 100 (maior = mais sinais de problema). */
     score: smallint('score').notNull(),
     riskLevel: text('nota_risco').notNull(),
-    /** Regras disparadas, ex.: ["nome_divergente","crm_invalido"]. Nenhuma recusa o atestado sozinha. */
+    /** Regras disparadas, ex.: ["atestado_duplicado","crm_invalido"]. Nenhuma recusa o atestado sozinha. */
     reasons: jsonb('motivos').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     analyzedAt: timestamp('analisado_em', { withTimezone: true }).notNull().defaultNow(),
+    /** `regras` = a IA não foi chamada (barrada pelas regras); `mock` = simulação determinística. */
+    provider: text('provedor').notNull().default('regras'),
+    model: text('modelo'),
+    promptVersion: text('versao_prompt'),
+    /** SHA-256 do texto anonimizado + versão do prompt: mesma entrada, mesmo hash. */
+    inputHash: bytea('hash_entrada'),
+    /**
+     * Resumo estruturado sem texto livre: situação de cada campo, possibilidades (sem CID),
+     * confiabilidade indicativa. A saída da IA só entra aqui depois de validada contra o schema.
+     */
+    result: jsonb('resultado').$type<Record<string, unknown>>(),
+    recommendation: text('recomendacao').notNull().default('revisar_manual'),
+    /** CID extraído (dado de saúde): cifrado, só o RH lê. */
+    cidEnc: bytea('cid_cifrado'),
+    /** Trechos do texto citados como evidência (podem conter dado de saúde): cifrados. */
+    evidenceEnc: bytea('evidencias_cifradas'),
+    responseMs: integer('milissegundos_resposta'),
+    /** Código do erro tratado da IA (ex.: saida_fora_do_schema). Com falha, nada da IA é gravado. */
+    failure: text('falha'),
   },
   (t) => [
     foreignKey({
@@ -130,6 +153,13 @@ export const certificateAnalyses = rh.table(
     check('analise_nota', sql`nota_risco IN ('baixo','medio','alto')`),
     check('analise_score', sql`score BETWEEN 0 AND 100`),
     check('analise_motivos', sql`jsonb_typeof(motivos) = 'array'`),
+    check('analise_provedor', sql`provedor IN ('regras','mock','anthropic','openai_compativel')`),
+    check('analise_recomendacao', sql`recomendacao IN ('revisar_manual','sem_recomendacao')`),
+    check('analise_resultado', sql`resultado IS NULL OR jsonb_typeof(resultado) = 'object'`),
+    check('analise_ms', sql`milissegundos_resposta IS NULL OR milissegundos_resposta >= 0`),
+    // com falha da IA, nada dela é gravado: o resumo não traz campos verificados
+    check('analise_falha_sem_ia', sql`falha IS NULL OR resultado IS NULL OR NOT (resultado ? 'checkedFields')`),
+    index('idx_analise_atestado').on(t.tenantId, t.certificateId, t.analyzedAt.desc()),
   ],
 );
 

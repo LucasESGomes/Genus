@@ -69,6 +69,16 @@ services:
       ATTACHMENTS_DIR: /repo/apps/api/data/anexos
       MAX_ATTACHMENT_BYTES: ${MAX_ATTACHMENT_BYTES:-10485760}
       PORTAL_GESTOR_ENABLED: ${PORTAL_GESTOR_ENABLED:-false}
+      # Análise de atestado com IA (G6). Tudo opcional: vazio = mock determinística com aviso IA_SIMULADA.
+      # Chaves só no .env da raiz (fora do Git). Provedor: mock | anthropic | openai_compativel.
+      CERTIFICATE_AI_PROVIDER: ${CERTIFICATE_AI_PROVIDER:-}
+      CERTIFICATE_AI_MODEL: ${CERTIFICATE_AI_MODEL:-}
+      CERTIFICATE_AI_ANTHROPIC_API_KEY: ${CERTIFICATE_AI_ANTHROPIC_API_KEY:-}
+      CERTIFICATE_AI_OPENAI_API_KEY: ${CERTIFICATE_AI_OPENAI_API_KEY:-}
+      CERTIFICATE_AI_OPENAI_BASE_URL: ${CERTIFICATE_AI_OPENAI_BASE_URL:-}
+      CERTIFICATE_AI_TIMEOUT_MS: ${CERTIFICATE_AI_TIMEOUT_MS:-20000}
+      # Chave AES-256 (64 hex) do dado de saúde da análise (CID, texto, evidências). Sem ela, nada disso é gravado.
+      CERTIFICATE_DATA_KEY: ${CERTIFICATE_DATA_KEY:-}
     ports:
       - "127.0.0.1:${API_PORT:-3002}:3002"
     depends_on:

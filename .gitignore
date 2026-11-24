@@ -60,3 +60,6 @@ postman/export/
 
 # Anexos locais da api do RH (atestados: dado de saúde). Nunca versionar.
 apps/api/data/
+
+# Relatórios da comparação de modelos de IA (atestados): gerados localmente
+apps/api/reports/

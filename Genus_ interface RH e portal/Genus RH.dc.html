@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<style>
+body{margin:0;background:#FFFFFF;color:#111C2B;font-family:Manrope,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+button,input,select{font-family:inherit;font-size:inherit;color:inherit}
+a{color:#102C50;text-decoration:none}a:hover{color:#0B2140;text-decoration:underline}
+:focus-visible{outline:2px solid #102C50;outline-offset:2px}
+</style>
+</helmet>
+<div style="display:flex;min-height:100vh;background:#FFFFFF;color:#111C2B;font-family:Manrope,system-ui,sans-serif;font-size:14px;line-height:1.5">
+
+<aside style="position:sticky;top:0;height:100vh;flex:0 0 auto;width:{{ sideW }};background:#FFFFFF;border-right:1px solid #E3E8EF;display:flex;flex-direction:column;transition:width .18s ease;z-index:5">
+  <div style="display:flex;align-items:center;gap:10px;height:68px;padding:0 22px;flex:0 0 auto">
+    <div style="width:28px;height:28px;border-radius:8px;background:#102C50;position:relative;flex:0 0 auto">
+      <div style="position:absolute;right:6px;top:6px;width:8px;height:8px;border-radius:50%;background:#DBFF00"></div>
+      <div style="position:absolute;left:6px;right:6px;bottom:7px;height:3px;border-radius:2px;background:#FFFFFF"></div>
+    </div>
+    <sc-if value="{{ expanded }}" hint-placeholder-val="{{ true }}"><span style="font-size:20px;font-weight:700;letter-spacing:-0.03em">Genus</span></sc-if>
+  </div>
+
+  <div style="position:relative;padding:0 12px 12px;flex:0 0 auto">
+    <button onClick="{{ toggleEstab }}" aria-label="Trocar estabelecimento" style="width:100%;display:flex;align-items:center;gap:10px;padding:{{ estabPad }};min-height:48px;border:1px solid #E3E8EF;border-radius:10px;background:#F7FAFC;cursor:pointer;text-align:left" style-hover="border-color:#C8D1DC">
+      <i class="ph ph-buildings" style="font-size:20px;color:#102C50;flex:0 0 auto"></i>
+      <sc-if value="{{ expanded }}" hint-placeholder-val="{{ true }}">
+        <span style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ estab.nome }}</span>
+          <span style="font-size:12px;color:#5A6675">{{ estab.sub }}</span>
+        </span>
+        <i class="ph ph-caret-up-down" style="font-size:16px;color:#5A6675"></i>
+      </sc-if>
+    </button>
+    <sc-if value="{{ estabOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;left:12px;top:56px;width:216px;background:#FFFFFF;border:1px solid #E3E8EF;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,0.08);padding:6px;z-index:20">
+        <div style="font-size:12px;color:#5A6675;padding:6px 10px">Estabelecimentos</div>
+        <sc-for list="{{ estabs }}" as="e" hint-placeholder-count="3">
+          <button onClick="{{ e.pick }}" style="width:100%;display:flex;align-items:center;gap:10px;padding:8px 10px;border:0;border-radius:8px;background:{{ e.bg }};cursor:pointer;text-align:left" style-hover="background:#F7FAFC">
+            <span style="flex:1;display:flex;flex-direction:column"><span style="font-weight:600">{{ e.nome }}</span><span style="font-size:12px;color:#5A6675">{{ e.sub }}</span></span>
+            <i class="ph {{ e.check }}" style="font-size:16px;color:#102C50"></i>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+
+  <nav aria-label="Menu principal" style="flex:1;overflow-y:auto;padding:4px 12px;display:flex;flex-direction:column;gap:2px">
+    <sc-for list="{{ nav }}" as="item" hint-placeholder-count="10">
+      <button onClick="{{ item.go }}" aria-current="{{ item.current }}" title="{{ item.label }}" style="position:relative;display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border:0;border-radius:10px;background:{{ item.bg }};color:{{ item.color }};font-weight:{{ item.weight }};cursor:pointer;text-align:left;justify-content:{{ item.justify }}" style-hover="background:{{ item.hover }}">
+        <span style="position:absolute;left:-12px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:{{ item.bar }}"></span>
+        <i class="ph {{ item.icon }}" style="font-size:20px;flex:0 0 auto"></i>
+        <sc-if value="{{ expanded }}" hint-placeholder-val="{{ true }}"><span style="white-space:nowrap">{{ item.label }}</span></sc-if>
+      </button>
+    </sc-for>
+  </nav>
+
+  <div style="padding:12px;border-top:1px solid #E3E8EF;display:flex;flex-direction:column;gap:4px;flex:0 0 auto">
+    <button onClick="{{ toggleSide }}" title="{{ sideToggleLabel }}" style="display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border:0;border-radius:10px;background:transparent;color:#5A6675;cursor:pointer;justify-content:{{ navJustify }}" style-hover="background:#F7FAFC">
+      <i class="ph ph-sidebar-simple" style="font-size:20px"></i>
+      <sc-if value="{{ expanded }}" hint-placeholder-val="{{ true }}"><span>{{ sideToggleLabel }}</span></sc-if>
+    </button>
+    <div style="display:flex;align-items:center;gap:10px;padding:8px {{ userPad }}">
+      <div style="width:36px;height:36px;border-radius:50%;background:#E8EEF5;color:#102C50;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:0 0 auto">{{ user.ini }}</div>
+      <sc-if value="{{ expanded }}" hint-placeholder-val="{{ true }}">
+        <div style="min-width:0;display:flex;flex-direction:column"><span style="font-weight:600;white-space:nowrap">{{ user.nome }}</span><span style="font-size:12px;color:#5A6675">{{ user.perfil }}</span></div>
+      </sc-if>
+    </div>
+  </div>
+</aside>
+
+<main style="flex:1;min-width:0;display:flex;flex-direction:column">
+  <header style="padding:28px 32px 20px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px">
+    <div style="min-width:0;display:flex;flex-direction:column;gap:4px">
+      <sc-if value="{{ isEspelho }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#5A6675"><button onClick="{{ goApuracao }}" style="border:0;background:none;padding:0;color:#102C50;cursor:pointer;font-weight:600">Colaboradores</button><i class="ph ph-caret-right" style="font-size:12px"></i><span>{{ pessoa.nome }}</span></div>
+      </sc-if>
+      <h1 style="margin:0;font-size:28px;line-height:36px;font-weight:700;letter-spacing:-0.02em">{{ head.title }}</h1>
+      <div style="color:#5A6675;font-variant-numeric:tabular-nums">{{ head.sub }}</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <button style="display:flex;align-items:center;gap:8px;height:40px;padding:0 14px;border:1px solid #E3E8EF;border-radius:10px;background:#FFFFFF;cursor:pointer;font-weight:500;font-variant-numeric:tabular-nums" style-hover="border-color:#C8D1DC;background:#F7FAFC">
+        <i class="ph ph-calendar-blank" style="font-size:18px;color:#5A6675"></i><span>{{ head.periodo }}</span><i class="ph ph-caret-down" style="font-size:14px;color:#5A6675"></i>
+      </button>
+      <button onClick="{{ primary }}" style="display:flex;align-items:center;gap:8px;height:40px;padding:0 20px;border:0;border-radius:999px;background:#102C50;color:#FFFFFF;font-weight:600;cursor:pointer" style-hover="background:#0B2140" style-active="background:#081A33">
+        <i class="ph {{ head.icon }}" style="font-size:18px"></i><span>{{ head.primary }}</span>
+      </button>
+    </div>
+  </header>
+
+  <div style="padding:0 32px 112px;display:flex;flex-direction:column;gap:16px">
+
+    <sc-if value="{{ showLoading }}" hint-placeholder-val="{{ false }}">
+      <div aria-busy="true" aria-label="Carregando" style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px">
+          <sc-for list="{{ skel5 }}" as="s" hint-placeholder-count="5">
+            <div style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px">
+              <div style="width:55%;height:12px;border-radius:6px;background:#EDF1F6"></div>
+              <div style="width:70%;height:28px;border-radius:8px;background:#EDF1F6"></div>
+              <div style="width:85%;height:12px;border-radius:6px;background:#F2F5F9"></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="border:1px solid #E3E8EF;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px">
+          <div style="width:220px;height:16px;border-radius:6px;background:#EDF1F6"></div>
+          <sc-for list="{{ skel6 }}" as="s" hint-placeholder-count="6">
+            <div style="display:flex;gap:16px;align-items:center;padding:6px 0;border-top:1px solid #EFF3F7">
+              <div style="width:32px;height:32px;border-radius:50%;background:#EDF1F6"></div>
+              <div style="flex:2;height:12px;border-radius:6px;background:#EDF1F6"></div>
+              <div style="flex:3;height:12px;border-radius:6px;background:#F2F5F9"></div>
+              <div style="flex:1;height:12px;border-radius:6px;background:#EDF1F6"></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="color:#5A6675;font-size:12px;display:flex;align-items:center;gap:6px"><i class="ph ph-spinner-gap" style="font-size:16px"></i>Carregando dados de {{ estab.nome }}…</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px dashed #D3DAE3;border-radius:16px;padding:64px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;background:#F7FAFC">
+        <div style="width:56px;height:56px;border-radius:50%;background:#E8EEF5;display:flex;align-items:center;justify-content:center"><i class="ph {{ empty.icon }}" style="font-size:28px;color:#102C50"></i></div>
+        <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em">{{ empty.title }}</div>
+        <div style="max-width:460px;color:#5A6675;text-wrap:pretty">{{ empty.text }}</div>
+        <button style="margin-top:8px;height:40px;padding:0 18px;border:1px solid #D3DAE3;border-radius:999px;background:#FFFFFF;font-weight:600;cursor:pointer" style-hover="background:#F7FAFC">{{ empty.cta }}</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showError }}" hint-placeholder-val="{{ false }}">
+      <div role="alert" style="border:1px solid #F1D2CE;border-radius:16px;padding:48px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;background:#FFFFFF">
+        <div style="width:56px;height:56px;border-radius:50%;background:#FDECEA;display:flex;align-items:center;justify-content:center"><i class="ph ph-warning-circle" style="font-size:28px;color:#B42318"></i></div>
+        <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em">Não foi possível carregar {{ errorWhat }}</div>
+        <div style="max-width:480px;color:#5A6675;text-wrap:pretty">O servidor não respondeu a tempo. Nenhum dado foi perdido. Tente de novo em alguns segundos; se continuar, envie o código abaixo ao suporte.</div>
+        <code style="font-size:12px;color:#5A6675;background:#F7FAFC;border:1px solid #E3E8EF;border-radius:6px;padding:2px 8px">Erro 503 · ref. 7F2A-91C4</code>
+        <button onClick="{{ retry }}" style="margin-top:8px;display:flex;align-items:center;gap:8px;height:40px;padding:0 20px;border:0;border-radius:999px;background:#102C50;color:#FFFFFF;font-weight:600;cursor:pointer" style-hover="background:#0B2140"><i class="ph ph-arrow-clockwise" style="font-size:18px"></i>Tentar de novo</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ show403 }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid #E3E8EF;border-radius:16px;padding:56px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px">
+        <div style="width:56px;height:56px;border-radius:50%;background:#F7FAFC;border:1px solid #E3E8EF;display:flex;align-items:center;justify-content:center"><i class="ph ph-lock-key" style="font-size:28px;color:#111C2B"></i></div>
+        <div style="font-size:12px;font-weight:600;color:#5A6675;letter-spacing:0.04em">ERRO 403</div>
+        <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em">Sem permissão para esta tela</div>
+        <div style="max-width:480px;color:#5A6675;text-wrap:pretty">Seu usuário não tem acesso a {{ head.title }} em {{ estab.nome }}. Peça ao administrador da conta para incluir este estabelecimento no seu escopo.</div>
+        <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;justify-content:center">
+          <button onClick="{{ goGeral }}" style="height:40px;padding:0 18px;border:1px solid #D3DAE3;border-radius:999px;background:#FFFFFF;font-weight:600;cursor:pointer" style-hover="background:#F7FAFC">Voltar para a visão geral</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showGeral }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px">
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="5">
+          <div style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;background:#FFFFFF;box-shadow:0 1px 2px rgba(15,23,42,0.06);display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:12px;font-weight:500;color:#5A6675;display:flex;align-items:center;gap:6px"><i class="ph {{ k.icon }}" style="font-size:16px"></i>{{ k.label }}</div>
+            <div style="font-size:28px;line-height:36px;font-weight:700;letter-spacing:-0.02em;font-variant-numeric:tabular-nums">{{ k.value }}<span style="font-size:14px;font-weight:600;color:#5A6675;margin-left:4px">{{ k.unit }}</span></div>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px">
+              <span style="display:inline-flex;align-items:center;gap:2px;padding:2px 8px;border-radius:999px;background:{{ k.deltaBg }};color:{{ k.deltaColor }};font-weight:600;font-variant-numeric:tabular-nums"><i class="ph {{ k.arrow }}" style="font-size:12px"></i>{{ k.delta }}</span>
+              <span style="color:#5A6675">{{ k.cmp }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:stretch">
+        <section style="flex:2 1 560px;min-width:0;border:1px solid #E3E8EF;border-radius:16px;padding:24px;background:#FFFFFF;box-shadow:0 1px 2px rgba(15,23,42,0.06);display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+            <div>
+              <h2 style="margin:0;font-size:16px;font-weight:700;letter-spacing:-0.01em">Horas extras por dia</h2>
+              <div style="color:#5A6675;font-size:12px">Soma de todos os colaboradores do estabelecimento, em horas</div>
+            </div>
+            <div style="display:flex;gap:16px;font-size:12px;color:#5A6675">
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:16px;height:3px;border-radius:2px;background:#102C50"></span>1 a 21 de nov.</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:16px;height:0;border-top:2px dashed #9AA7B6"></span>1 a 21 de out.</span>
+            </div>
+          </div>
+          <svg viewBox="0 0 720 240" style="width:100%;height:auto;display:block" role="img" aria-label="Gráfico de horas extras por dia">
+            <sc-for list="{{ chart.grid }}" as="g" hint-placeholder-count="5">
+              <line x1="44" x2="708" y1="{{ g.y }}" y2="{{ g.y }}" stroke="#E3E8EF" stroke-width="1"></line>
+              <text x="36" y="{{ g.ty }}" text-anchor="end" font-size="12" fill="#5A6675" font-family="Manrope">{{ g.label }}</text>
+            </sc-for>
+            <path d="{{ chart.area }}" fill="#E8EEF5" opacity="0.7"></path>
+            <polyline points="{{ chart.prev }}" fill="none" stroke="#9AA7B6" stroke-width="2" stroke-dasharray="5 5" stroke-linejoin="round"></polyline>
+            <polyline points="{{ chart.cur }}" fill="none" stroke="#102C50" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>
+            <circle cx="{{ chart.last.x }}" cy="{{ chart.last.y }}" r="6" fill="#DBFF00" stroke="#102C50" stroke-width="2.5"></circle>
+            <sc-for list="{{ chart.xl }}" as="l" hint-placeholder-count="5">
+              <text x="{{ l.x }}" y="234" text-anchor="middle" font-size="12" fill="#5A6675" font-family="Manrope">{{ l.label }}</text>
+            </sc-for>
+          </svg>
+          <div style="display:flex;gap:24px;flex-wrap:wrap;padding-top:12px;border-top:1px solid #E3E8EF;font-variant-numeric:tabular-nums">
+            <sc-for list="{{ chart.stats }}" as="s" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column"><span style="font-size:12px;color:#5A6675">{{ s.label }}</span><span style="font-size:16px;font-weight:700">{{ s.value }}</span></div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="flex:1 1 320px;min-width:0;border:1px solid #E3E8EF;border-radius:16px;padding:24px;background:#FFFFFF;box-shadow:0 1px 2px rgba(15,23,42,0.06);display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h2 style="margin:0;font-size:16px;font-weight:700;letter-spacing:-0.01em">Alertas de inconsistência</h2>
+            <span style="font-size:12px;font-weight:600;color:#5A6675;font-variant-numeric:tabular-nums">{{ alertsCount }}</span>
+          </div>
+          <sc-for list="{{ alerts }}" as="a" hint-placeholder-count="4">
+            <div style="border-radius:12px;padding:14px 16px;background:{{ a.bg }};display:flex;flex-direction:column;gap:4px">
+              <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:{{ a.color }}"><i class="ph {{ a.icon }}" style="font-size:16px"></i>{{ a.tag }}</span>
+              <span style="font-weight:600">{{ a.title }}</span>
+              <span style="color:#3E4A5A;text-wrap:pretty">{{ a.text }}</span>
+              <button onClick="{{ a.go }}" style="align-self:flex-start;margin-top:4px;border:0;background:none;padding:0;color:{{ a.link }};font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px">{{ a.cta }}<i class="ph ph-arrow-right" style="font-size:14px"></i></button>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showApuracao }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:16px;border:1px solid #E3E8EF;border-radius:16px;background:#F7FAFC">
+        <label style="display:flex;flex-direction:column;gap:6px;flex:1 1 220px;min-width:0">
+          <span style="font-size:12px;font-weight:600;color:#3E4A5A">Estabelecimento</span>
+          <span style="position:relative;display:block">
+            <select value="{{ estabIdx }}" onChange="{{ onEstabSelect }}" style="appearance:none;width:100%;height:40px;padding:0 36px 0 12px;border:1px solid #D3DAE3;border-radius:10px;background:#FFFFFF;cursor:pointer" style-focus="outline:none;border-color:#102C50;box-shadow:0 0 0 3px #C9D6E8">
+              <sc-for list="{{ estabs }}" as="e" hint-placeholder-count="3"><option value="{{ $index }}">{{ e.nome }}</option></sc-for>
+            </select>
+            <i class="ph ph-caret-down" style="position:absolute;right:12px;top:12px;font-size:16px;color:#5A6675;pointer-events:none"></i>
+          </span>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;flex:1 1 180px;min-width:0">
+          <span style="font-size:12px;font-weight:600;color:#3E4A5A">Setor</span>
+          <span style="position:relative;display:block">
+            <select value="{{ apSetor }}" onChange="{{ onSetor }}" style="appearance:none;width:100%;height:40px;padding:0 36px 0 12px;border:1px solid #D3DAE3;border-radius:10px;background:#FFFFFF;cursor:pointer" style-focus="outline:none;border-color:#102C50;box-shadow:0 0 0 3px #C9D6E8">
+              <sc-for list="{{ setores }}" as="s" hint-placeholder-count="6"><option value="{{ s }}">{{ s }}</option></sc-for>
+            </select>
+            <i class="ph ph-caret-down" style="position:absolute;right:12px;top:12px;font-size:16px;color:#5A6675;pointer-events:none"></i>
+          </span>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;flex:2 1 260px;min-width:0">
+          <span style="font-size:12px;font-weight:600;color:#3E4A5A">Buscar colaborador</span>
+          <span style="position:relative;display:block">
+            <i class="ph ph-magnifying-glass" style="position:absolute;left:12px;top:12px;font-size:16px;color:#5A6675;pointer-events:none"></i>
+            <input value="{{ apBusca }}" onChange="{{ onBusca }}" placeholder="Nome ou matrícula" style="width:100%;height:40px;padding:0 12px 0 36px;border:1px solid #D3DAE3;border-radius:10px;background:#FFFFFF" style-focus="outline:none;border-color:#102C50;box-shadow:0 0 0 3px #C9D6E8">
+          </span>
+        </label>
+      </div>
+
+      <div role="tablist" style="display:flex;gap:4px;border-bottom:1px solid #E3E8EF">
+        <sc-for list="{{ apTabs }}" as="t" hint-placeholder-count="4">
+          <button role="tab" aria-selected="{{ t.sel }}" onClick="{{ t.go }}" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border:0;border-bottom:2px solid {{ t.line }};margin-bottom:-1px;background:none;color:{{ t.color }};font-weight:600;cursor:pointer" style-hover="color:#111C2B">
+            <span>{{ t.label }}</span><span style="font-size:12px;padding:0 8px;border-radius:999px;background:{{ t.badgeBg }};font-variant-numeric:tabular-nums">{{ t.n }}</span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="border:1px solid #E3E8EF;border-radius:16px;overflow:hidden;background:#FFFFFF;box-shadow:0 1px 2px rgba(15,23,42,0.06)">
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;min-width:920px">
+            <thead>
+              <tr style="background:#F7FAFC">
+                <th style="text-align:left;font-size:12px;font-weight:600;color:#5A6675;padding:10px 16px;border-bottom:1px solid #E3E8EF">Colaborador</th>
+                <th style="text-align:left;font-size:12px;font-weight:600;color:#5A6675;padding:10px 16px;border-bottom:1px solid #E3E8EF">Setor</th>
+                <th style="text-align:left;font-size:12px;font-weight:600;color:#5A6675;padding:10px 16px;border-bottom:1px solid #E3E8EF">Marcações</th>
+                <th style="text-align:right;font-size:12px;font-weight:600;color:#5A6675;padding:10px 16px;border-bottom:1px solid #E3E8EF">Jornada</th>
+                <th style="text-align:right;font-size:12px;font-weight:600;color:#5A6675;padding:10px 16px;border-bottom:1px solid #E3E8EF">Extra</th>
+                <th style="text-align:right;font-size:12px;font-weight:600;color:#5A6675;padding:10px 16px;border-bottom:1px solid #E3E8EF">Falta</th>
+                <th style="text-align:left;font-size:12px;font-weight:600;color:#5A6675;padding:10px 16px;border-bottom:1px solid #E3E8EF">Status</th>
+                <th style="width:40px;border-bottom:1px solid #E3E8EF"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ apRows }}" as="r" hint-placeholder-count="10">
+                <tr onClick="{{ r.open }}" style="cursor:pointer" style-hover="background:#FAFCFD">
+                  <td style="padding:12px 16px;border-bottom:1px solid #E3E8EF">
+                    <div style="display:flex;align-items:center;gap:10px">
+                      <div style="width:32px;height:32px;border-radius:50%;background:#F7FAFC;border:1px solid #E3E8EF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#3E4A5A;flex:0 0 auto">{{ r.ini }}</div>
+                      <div style="display:flex;flex-direction:column"><span style="font-weight:600">{{ r.nome }}</span><span style="font-size:12px;color:#5A6675;font-variant-numeric:tabular-nums">Mat. {{ r.mat }}</span></div>
+                    </div>
+                  </td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #E3E8EF;color:#3E4A5A">{{ r.setor }}</td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #E3E8EF">
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <sc-for list="{{ r.marcs }}" as="m" hint-placeholder-count="4">
+                        <span style="font-size:13px;font-variant-numeric:tabular-nums;padding:2px 8px;border-radius:6px;border:1px {{ m.border }};background:{{ m.bg }};color:{{ m.color }}">{{ m.t }}</span>
+                      </sc-for>
+                    </div>
+                  </td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #E3E8EF;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap"><span style="font-weight:600">{{ r.trab }}</span><span style="color:#5A6675"> / {{ r.prev }}</span></td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #E3E8EF;text-align:right;font-variant-numeric:tabular-nums;color:{{ r.extraColor }};font-weight:{{ r.extraW }}">{{ r.extra }}</td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #E3E8EF;text-align:right;font-variant-numeric:tabular-nums;color:{{ r.faltaColor }};font-weight:{{ r.faltaW }}">{{ r.falta }}</td>
+                  <td style="padding:12px 16px;border-bottom:1px solid #E3E8EF">
+                    <div style="display:flex;flex-direction:column">
+                      <span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:{{ r.st.color }}"><i class="ph {{ r.st.icon }}" style="font-size:18px"></i>{{ r.st.label }}</span>
+                      <span style="font-size:12px;color:#5A6675">{{ r.motivo }}</span>
+                    </div>
+                  </td>
+                  <td style="padding:12px 16px 12px 0;border-bottom:1px solid #E3E8EF;color:#5A6675"><i class="ph ph-caret-right" style="font-size:16px"></i></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <sc-if value="{{ apNone }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:40px 24px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">
+            <i class="ph ph-funnel-simple-x" style="font-size:28px;color:#5A6675"></i>
+            <span style="font-weight:600">Nenhum colaborador com esses filtros</span>
+            <button onClick="{{ clearAp }}" style="border:0;background:none;color:#102C50;font-weight:600;cursor:pointer">Limpar filtros</button>
+          </div>
+        </sc-if>
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 16px;font-size:12px;color:#5A6675;background:#FFFFFF">
+          <span style="font-variant-numeric:tabular-nums">{{ apFooter }}</span>
+          <span>Marcação original nunca é alterada. Ajustes ficam registrados à parte.</span>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showFerias }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;border-bottom:1px solid #E3E8EF">
+        <div role="tablist" style="display:flex;gap:4px">
+          <sc-for list="{{ ferTabs }}" as="t" hint-placeholder-count="3">
+            <button role="tab" aria-selected="{{ t.sel }}" onClick="{{ t.go }}" style="padding:10px 14px;border:0;border-bottom:2px solid {{ t.line }};margin-bottom:-1px;background:none;color:{{ t.color }};font-weight:600;cursor:pointer" style-hover="color:#111C2B">{{ t.label }}</button>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#3E4A5A;padding-bottom:10px">
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:10px;border-radius:3px;background:#102C50"></span>Aprovado</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:10px;border-radius:3px;background:#E8EEF5;border:1px dashed #102C50"></span>Pendente</span>
+          <span style="display:flex;align-items:center;gap:6px"><span style="width:18px;height:10px;border-radius:3px;background:#FDF6E7;border:1px dashed #B7791F"></span>Recusado</span>
+          <span style="display:flex;align-items:center;gap:6px"><i class="ph ph-warning" style="font-size:14px;color:#B7791F"></i>Dia acima do limite</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+        <div style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(15,23,42,0.06)"><div style="font-size:12px;color:#5A6675;font-weight:500">Limite de férias simultâneas</div><div style="font-size:28px;line-height:36px;font-weight:700;letter-spacing:-0.02em;font-variant-numeric:tabular-nums">{{ ferLimite }}<span style="font-size:14px;color:#5A6675;font-weight:600"> pessoas</span></div><div style="font-size:12px;color:#5A6675">de {{ ferTotal }} colaboradores em {{ ferSetor }}</div></div>
+        <div style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(15,23,42,0.06)"><div style="font-size:12px;color:#5A6675;font-weight:500">Pico de ocupação aprovada</div><div style="font-size:28px;line-height:36px;font-weight:700;letter-spacing:-0.02em;font-variant-numeric:tabular-nums">{{ ferPico }}</div><div style="font-size:12px;color:#5A6675">em dezembro de 2026</div></div>
+      </div>
+
+      <section style="border:1px solid #E3E8EF;border-radius:16px;background:#FFFFFF;box-shadow:0 1px 2px rgba(15,23,42,0.06);overflow:hidden">
+        <div style="overflow-x:auto">
+          <div style="min-width:1040px">
+            <div style="display:grid;grid-template-columns:220px minmax(0,1fr);background:#F7FAFC;border-bottom:1px solid #E3E8EF">
+              <div style="padding:10px 16px;font-size:12px;font-weight:600;color:#5A6675;display:flex;align-items:flex-end">Colaborador</div>
+              <div style="display:grid;grid-template-columns:repeat(31,minmax(0,1fr))">
+                <sc-for list="{{ ferDays }}" as="d" hint-placeholder-count="31">
+                  <div style="display:flex;flex-direction:column;align-items:center;padding:6px 0;background:{{ d.bg }};font-variant-numeric:tabular-nums;color:{{ d.color }}">
+                    <span style="font-size:12px">{{ d.wd }}</span><span style="font-size:13px;font-weight:{{ d.weight }}">{{ d.n }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <sc-for list="{{ ferRows }}" as="r" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:220px minmax(0,1fr);border-bottom:1px solid #E3E8EF">
+                <div style="padding:10px 16px;display:flex;flex-direction:column;justify-content:center">
+                  <span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.nome }}</span>
+                  <span style="font-size:12px;color:{{ r.stColor }};display:flex;align-items:center;gap:4px;font-weight:600"><i class="ph {{ r.stIcon }}" style="font-size:12px"></i>{{ r.stLabel }}</span>
+                </div>
+                <div style="position:relative;display:grid;grid-template-columns:repeat(31,minmax(0,1fr));min-height:52px">
+                  <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="31"><div style="background:{{ c.bg }};border-left:1px solid #EFF3F7"></div></sc-for>
+                  <div style="position:absolute;top:14px;height:24px;left:{{ r.left }};width:{{ r.width }};padding:0 3px">
+                    <div style="height:100%;border-radius:6px;background:{{ r.bbg }};border:{{ r.bborder }};color:{{ r.bcolor }};font-size:12px;font-weight:600;display:flex;align-items:center;padding:0 8px;white-space:nowrap;overflow:hidden;font-variant-numeric:tabular-nums">{{ r.blabel }}</div>
+                  </div>
+                </div>
+              </div>
+            </sc-for>
+            <div style="display:grid;grid-template-columns:220px minmax(0,1fr);background:#F7FAFC">
+              <div style="padding:10px 16px;font-size:12px;font-weight:600;color:#3E4A5A">Ocupação · limite {{ ferLimite }}</div>
+              <div style="display:grid;grid-template-columns:repeat(31,minmax(0,1fr))">
+                <sc-for list="{{ ferDays }}" as="d" hint-placeholder-count="31">
+                  <div style="display:flex;align-items:center;justify-content:center;padding:10px 0;background:{{ d.bg }};font-size:13px;font-variant-numeric:tabular-nums;color:{{ d.occColor }};font-weight:{{ d.occW }}">{{ d.occ }}</div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+        <section style="flex:1 1 420px;min-width:0;display:flex;flex-direction:column;gap:12px">
+          <h2 style="margin:0;font-size:16px;font-weight:700;letter-spacing:-0.01em">Dias acima do limite</h2>
+          <sc-for list="{{ ferMsgs }}" as="m" hint-placeholder-count="1">
+            <div style="border-radius:16px;padding:20px;background:#FDF6E7;border:1px solid #F1DFB8;display:flex;flex-direction:column;gap:6px">
+              <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#8A5A12"><i class="ph ph-warning" style="font-size:16px"></i>{{ m.tag }}</span>
+              <span style="font-weight:700;font-size:16px">{{ m.title }}</span>
+              <span style="color:#3E4A5A;text-wrap:pretty">{{ m.text }}</span>
+              <span style="color:#3E4A5A;font-size:12px">{{ m.hint }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ ferNoMsgs }}" hint-placeholder-val="{{ false }}">
+            <div style="border-radius:16px;padding:20px;background:#E8EEF5;display:flex;gap:10px;align-items:center"><i class="ph ph-check-circle" style="font-size:20px;color:#102C50"></i><span>Nenhum dia de dezembro passa do limite em {{ ferSetor }}.</span></div>
+          </sc-if>
+        </section>
+        <section style="flex:1 1 360px;min-width:0;border:1px solid #E3E8EF;border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(15,23,42,0.06);display:flex;flex-direction:column;gap:12px">
+          <h2 style="margin:0;font-size:16px;font-weight:700;letter-spacing:-0.01em">Pedidos aguardando decisão</h2>
+          <sc-for list="{{ ferPend }}" as="p" hint-placeholder-count="1">
+            <div style="display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid #E3E8EF">
+              <div style="display:flex;justify-content:space-between;gap:8px"><span style="font-weight:600">{{ p.nome }}</span><span style="color:#5A6675;font-size:12px;font-variant-numeric:tabular-nums">{{ p.dias }}</span></div>
+              <span style="color:#3E4A5A;font-variant-numeric:tabular-nums">{{ p.periodo }}</span>
+              <span style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:{{ p.warnColor }}"><i class="ph {{ p.warnIcon }}" style="font-size:14px"></i>{{ p.warn }}</span>
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <button onClick="{{ p.approve }}" disabled="{{ p.ex }}" aria-disabled="{{ p.ex }}" style="height:36px;padding:0 16px;border:0;border-radius:999px;background:{{ p.abg }};color:{{ p.acolor }};font-weight:600;cursor:{{ p.acursor }}">Aprovar</button>
+                <button onClick="{{ p.reject }}" style="height:36px;padding:0 16px;border:1px solid #D3DAE3;border-radius:999px;background:#FFFFFF;font-weight:600;cursor:pointer" style-hover="background:#F7FAFC">Recusar com motivo</button>
+              </div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ ferNoPend }}" hint-placeholder-val="{{ false }}"><span style="color:#5A6675">Nenhum pedido pendente neste setor.</span></sc-if>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showAtestados }}" hint-placeholder-val="{{ false }}">
+      <div role="tablist" style="display:flex;gap:4px;border-bottom:1px solid #E3E8EF">
+        <sc-for list="{{ atTabs }}" as="t" hint-placeholder-count="4">
+          <button role="tab" aria-selected="{{ t.sel }}" onClick="{{ t.go }}" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border:0;border-bottom:2px solid {{ t.line }};margin-bottom:-1px;background:none;color:{{ t.color }};font-weight:600;cursor:pointer" style-hover="color:#111C2B">
+            <span>{{ t.label }}</span><span style="font-size:12px;padding:0 8px;border-radius:999px;background:{{ t.badgeBg }};font-variant-numeric:tabular-nums">{{ t.n }}</span>
+          </button>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+        <div style="flex:1 1 340px;min-width:0;display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ atList }}" as="a" hint-placeholder-count="6">
+            <button onClick="{{ a.pick }}" aria-pressed="{{ a.current }}" style="display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border:1px solid {{ a.border }};box-shadow:{{ a.ring }};border-radius:14px;background:{{ a.bg }};cursor:pointer;text-align:left" style-hover="border-color:#9AA7B6">
+              <div style="width:36px;height:36px;border-radius:50%;background:#F7FAFC;border:1px solid #E3E8EF;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#3E4A5A;flex:0 0 auto">{{ a.ini }}</div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                <span style="font-weight:600">{{ a.nome }}</span>
+                <span style="font-size:12px;color:#5A6675">{{ a.meta }}</span>
+                <span style="font-size:12px;color:#3E4A5A;font-variant-numeric:tabular-nums">Afastamento: {{ a.periodo }}</span>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center">
+                  <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:{{ a.st.color }}"><i class="ph {{ a.st.icon }}" style="font-size:14px"></i>{{ a.st.label }}</span>
+                  <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;background:{{ a.rkBg }};color:{{ a.rkColor }}"><i class="ph {{ a.rkIcon }}" style="font-size:12px"></i>{{ a.rkLabel }}</span>
+                </div>
+              </div>
+            </button>
+          </sc-for>
+          <sc-if value="{{ atListEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:24px;border:1px dashed #D3DAE3;border-radius:14px;color:#5A6675;text-align:center">Nenhum atestado neste status.</div></sc-if>
+        </div>
+
+        <section aria-label="Detalhe do atestado" style="flex:1.6 1 480px;min-width:0;border:1px solid #E3E8EF;border-radius:16px;background:#FFFFFF;box-shadow:0 1px 2px rgba(15,23,42,0.06);display:flex;flex-direction:column">
+          <div style="padding:20px 24px;border-bottom:1px solid #E3E8EF;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+            <div style="width:44px;height:44px;border-radius:50%;background:#E8EEF5;color:#102C50;display:flex;align-items:center;justify-content:center;font-weight:700">{{ at.ini }}</div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+              <span style="font-size:20px;font-weight:700;letter-spacing:-0.01em">{{ at.nome }}</span>
+              <span style="font-size:12px;color:#5A6675">{{ at.meta }} · {{ at.enviado }}</span>
+            </div>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:{{ at.st.color }}"><i class="ph {{ at.st.icon }}" style="font-size:18px"></i>{{ at.st.label }}</span>
+          </div>
+
+          <div style="padding:20px 24px;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;gap:16px;flex-wrap:wrap">
+              <sc-if value="{{ atFileVisible }}" hint-placeholder-val="{{ true }}">
+                <div style="flex:0 0 180px;height:220px;border-radius:12px;border:1px solid #E3E8EF;background:repeating-linear-gradient(135deg,#F7FAFC 0 8px,#ECF1F6 8px 16px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;text-align:center">
+                  <i class="ph ph-file-image" style="font-size:24px;color:#5A6675"></i>
+                  <span style="font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#3E4A5A;word-break:break-all">{{ at.arquivo }}</span>
+                  <span style="font-size:12px;color:#5A6675">imagem do atestado</span>
+                </div>
+              </sc-if>
+              <sc-if value="{{ atFileRestricted }}" hint-placeholder-val="{{ false }}">
+                <div style="flex:0 0 180px;height:220px;border-radius:12px;border:1px solid #E3E8EF;background:#F7FAFC;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px;text-align:center">
+                  <i class="ph ph-lock-key" style="font-size:24px;color:#111C2B"></i>
+                  <span style="font-weight:600;font-size:12px">Arquivo restrito ao RH</span>
+                  <span style="font-size:12px;color:#5A6675">Seu perfil não acessa documentos médicos.</span>
+                </div>
+              </sc-if>
+              <div style="flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:10px">
+                <sc-if value="{{ atHasFields }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:inline-flex;align-self:flex-start;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:{{ at.rkBg }};color:{{ at.rkColor }};font-weight:700;font-size:12px"><i class="ph {{ at.rkIcon }}" style="font-size:14px"></i>{{ at.rkLabel }}</div>
+                  <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:28px;font-weight:700;letter-spacing:-0.02em;font-variant-numeric:tabular-nums">{{ at.nota }}</span><span style="color:#5A6675">pontos de risco, de 100</span></div>
+                  <div style="height:8px;border-radius:999px;background:#ECF1F6;overflow:hidden"><div style="height:100%;width:{{ at.notaW }};background:{{ at.rkBar }};border-radius:999px"></div></div>
+                  <span style="font-size:12px;color:#5A6675;text-wrap:pretty">A análise aponta sinais para conferência. Ela não aprova nem recusa: a decisão é do RH.</span>
+                </sc-if>
+                <sc-if value="{{ atReading }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:8px;font-weight:600"><i class="ph ph-spinner-gap" style="font-size:18px;color:#102C50"></i>Lendo o atestado</div>
+                  <span style="color:#5A6675;text-wrap:pretty">A leitura automática leva até 2 minutos. Os campos extraídos e os alertas aparecem aqui ao terminar.</span>
+                  <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px"><div style="height:12px;width:80%;border-radius:6px;background:#EDF1F6"></div><div style="height:12px;width:60%;border-radius:6px;background:#EDF1F6"></div><div style="height:12px;width:70%;border-radius:6px;background:#F2F5F9"></div></div>
+                </sc-if>
+              </div>
+            </div>
+
+            <sc-if value="{{ atHasFields }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <h3 style="margin:0;font-size:14px;font-weight:700">Campos extraídos</h3>
+                <div style="border:1px solid #E3E8EF;border-radius:12px;overflow:hidden">
+                  <sc-for list="{{ atCampos }}" as="c" hint-placeholder-count="6">
+                    <div style="display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid #E3E8EF">
+                      <span style="font-size:12px;color:#5A6675;font-weight:500">{{ c.k }}</span>
+                      <span style="font-weight:600;font-variant-numeric:tabular-nums">{{ c.v }}</span>
+                      <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:{{ c.color }};font-weight:600"><i class="ph {{ c.icon }}" style="font-size:14px"></i>{{ c.n }}</span>
+                    </div>
+                  </sc-for>
+                  <div style="display:grid;grid-template-columns:140px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 14px;background:#FAFCFD">
+                    <span style="font-size:12px;color:#5A6675;font-weight:500">CID</span>
+                    <sc-if value="{{ atCidVisible }}" hint-placeholder-val="{{ true }}"><span style="font-weight:600;font-variant-numeric:tabular-nums">{{ atCid }}</span><span style="font-size:12px;color:#5A6675;display:inline-flex;align-items:center;gap:4px"><i class="ph ph-shield-check" style="font-size:14px"></i>Visível só para o RH</span></sc-if>
+                    <sc-if value="{{ atCidRestricted }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:6px;font-weight:600"><i class="ph ph-lock-key" style="font-size:16px"></i>Dado sensível restrito</span><span style="font-size:12px;color:#5A6675">Perfil admin</span></sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ atHasAchados }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <h3 style="margin:0;font-size:14px;font-weight:700">Alertas de consistência</h3>
+                <sc-for list="{{ atAchados }}" as="x" hint-placeholder-count="2">
+                  <div style="border-radius:12px;padding:12px 14px;background:{{ x.bg }};display:flex;gap:10px;align-items:flex-start">
+                    <i class="ph {{ x.icon }}" style="font-size:18px;color:{{ x.color }};margin-top:1px"></i>
+                    <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;font-weight:700;color:{{ x.color }}">{{ x.tag }}</span><span style="font-weight:600">{{ x.t }}</span><span style="color:#3E4A5A;text-wrap:pretty">{{ x.d }}</span></div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+
+          <div style="margin-top:auto;padding:16px 24px;border-top:1px solid #E3E8EF;background:#FAFCFD;border-radius:0 0 16px 16px">
+            <sc-if value="{{ atCanDecide }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+                <span style="color:#5A6675;font-size:12px">Aprovar registra o afastamento e recalcula {{ at.periodo }}.</span>
+                <div style="display:flex;gap:8px">
+                  <button onClick="{{ atReject }}" style="height:40px;padding:0 18px;border:1px solid #D3DAE3;border-radius:999px;background:#FFFFFF;font-weight:600;cursor:pointer" style-hover="background:#F7FAFC">Recusar</button>
+                  <button onClick="{{ atApprove }}" style="display:flex;align-items:center;gap:6px;height:40px;padding:0 20px;border:0;border-radius:999px;background:#102C50;color:#FFFFFF;font-weight:600;cursor:pointer" style-hover="background:#0B2140"><i class="ph ph-check" style="font-size:16px"></i>Aprovar atestado</button>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ atDecided }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:8px;color:#3E4A5A"><i class="ph ph-seal-check" style="font-size:18px;color:#102C50"></i>{{ at.decisao }}</span></sc-if>
+            <sc-if value="{{ atAdminBlock }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:8px;color:#3E4A5A"><i class="ph ph-lock-key" style="font-size:18px"></i>Somente o RH decide atestados. Seu perfil pode acompanhar a fila.</span></sc-if>
+            <sc-if value="{{ atWaiting }}" hint-placeholder-val="{{ false }}"><span style="display:flex;align-items:center;gap:8px;color:#5A6675"><i class="ph ph-hourglass-medium" style="font-size:18px"></i>A decisão fica disponível quando a leitura terminar.</span></sc-if>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showEspelho }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:20px 24px;border:1px solid #E3E8EF;border-radius:16px;box-shadow:0 1px 2px rgba(15,23,42,0.06)">
+        <div style="width:48px;height:48px;border-radius:50%;background:#E8EEF5;color:#102C50;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px">{{ espPessoa.ini }}</div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column"><span style="font-size:20px;font-weight:700;letter-spacing:-0.01em">{{ espPessoa.nome }}</span><span style="color:#5A6675">{{ espPessoa.meta }}</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:#E8EEF5;color:#102C50;font-size:12px;font-weight:600"><i class="ph ph-scan-smiley" style="font-size:14px"></i>Facial ativo</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:#F7FAFC;border:1px solid #E3E8EF;color:#3E4A5A;font-size:12px;font-weight:600"><i class="ph ph-calendar" style="font-size:14px"></i>Escala 6x1 · 07:20 por dia</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px">
+        <sc-for list="{{ espResumo }}" as="k" hint-placeholder-count="5">
+          <div style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(15,23,42,0.06);display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:12px;color:#5A6675;font-weight:500">{{ k.label }}</span>
+            <span style="font-size:28px;line-height:36px;font-weight:700;letter-spacing:-0.02em;font-variant-numeric:tabular-nums">{{ k.value }}</span>
+            <span style="font-size:12px;color:#5A6675">{{ k.sub }}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+        <section style="flex:3 1 640px;min-width:0;border:1px solid #E3E8EF;border-radius:16px;box-shadow:0 1px 2px rgba(15,23,42,0.06);overflow:hidden">
+          <div style="padding:20px 24px 12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div><h2 style="margin:0;font-size:16px;font-weight:700;letter-spacing:-0.01em">Marcações</h2><span style="font-size:12px;color:#5A6675">Linha do tempo das 05h às 19h</span></div>
+            <div style="display:flex;gap:16px;font-size:12px;color:#3E4A5A">
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:16px;height:8px;border-radius:2px;background:#102C50"></span>Marcação original</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:16px;height:8px;border-radius:2px;background:#4A6A90"></span>Incluída por ajuste</span>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <div style="min-width:820px">
+              <div style="display:grid;grid-template-columns:96px minmax(0,1fr) 230px 64px 170px;gap:16px;padding:8px 24px;background:#F7FAFC;border-top:1px solid #E3E8EF;border-bottom:1px solid #E3E8EF;font-size:12px;font-weight:600;color:#5A6675">
+                <span>Dia</span>
+                <div style="position:relative;height:18px"><sc-for list="{{ espTicks }}" as="t" hint-placeholder-count="8"><span style="position:absolute;left:{{ t.left }};transform:translateX(-50%);font-variant-numeric:tabular-nums">{{ t.label }}</span></sc-for></div>
+                <span>Batidas</span><span style="text-align:right">Total</span><span>Status</span>
+              </div>
+              <sc-for list="{{ espRows }}" as="r" hint-placeholder-count="21">
+                <div style="display:grid;grid-template-columns:96px minmax(0,1fr) 230px 64px 170px;gap:16px;align-items:center;padding:8px 24px;border-bottom:1px solid #E3E8EF;background:{{ r.rowBg }}">
+                  <span style="font-weight:600;font-variant-numeric:tabular-nums">{{ r.label }}</span>
+                  <div style="position:relative;height:16px;border-radius:4px;background:#EFF3F7">
+                    <sc-for list="{{ r.segs }}" as="g" hint-placeholder-count="2"><div style="position:absolute;top:0;bottom:0;left:{{ g.left }};width:{{ g.width }};background:{{ g.bg }};border-radius:4px"></div></sc-for>
+                  </div>
+                  <span style="font-size:13px;font-variant-numeric:tabular-nums;color:#3E4A5A;white-space:nowrap">{{ r.marcs }}</span>
+                  <span style="text-align:right;font-weight:600;font-variant-numeric:tabular-nums">{{ r.trab }}</span>
+                  <div style="display:flex;flex-direction:column;line-height:1.3">
+                    <span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:{{ r.st.color }}"><i class="ph {{ r.st.icon }}" style="font-size:16px"></i>{{ r.st.label }}</span>
+                    <span style="font-size:12px;color:#5A6675">{{ r.note }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <aside style="flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:16px">
+          <section style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(15,23,42,0.06);display:flex;flex-direction:column;gap:14px">
+            <h2 style="margin:0;font-size:16px;font-weight:700;letter-spacing:-0.01em">Ciência do colaborador</h2>
+            <div style="display:flex;flex-direction:column;gap:6px;padding:14px;border-radius:12px;background:#E8EEF5">
+              <span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#102C50"><i class="ph ph-seal-check" style="font-size:18px"></i>Ciente</span>
+              <span style="font-weight:600">Outubro de 2026 · período fechado</span>
+              <span style="color:#3E4A5A;font-size:12px;font-variant-numeric:tabular-nums">Registrada em 04/11/2026 às 07:12, pelo portal do colaborador. IP e aparelho guardados.</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;padding:14px;border-radius:12px;border:1px solid #E3E8EF">
+              <span style="display:inline-flex;align-items:center;gap:6px;font-weight:700;color:#5A6675"><i class="ph ph-clock" style="font-size:18px"></i>Período aberto</span>
+              <span style="font-weight:600">Novembro de 2026</span>
+              <span style="color:#3E4A5A;font-size:12px">A ciência fica disponível depois do fechamento em 30/11. Se o período for reaberto, uma nova ciência é pedida.</span>
+            </div>
+          </section>
+          <section style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(15,23,42,0.06);display:flex;flex-direction:column;gap:10px">
+            <h2 style="margin:0;font-size:16px;font-weight:700;letter-spacing:-0.01em">Ajustes no período</h2>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <i class="ph ph-check-circle" style="font-size:18px;color:#102C50;margin-top:2px"></i>
+              <div style="display:flex;flex-direction:column"><span style="font-weight:600">Inclusão de saída · 18/11 às 15:20</span><span style="font-size:12px;color:#5A6675">Pedido do colaborador: esqueceu de bater a saída. Aprovado por Lúcia Martins em 19/11.</span></div>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showFora }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px dashed #D3DAE3;border-radius:16px;padding:56px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;background:#F7FAFC">
+        <i class="ph {{ head.icon }}" style="font-size:28px;color:#5A6675"></i>
+        <div style="font-weight:600">{{ head.title }} não faz parte deste protótipo</div>
+        <div style="color:#5A6675">As telas do MVP são Visão geral, Escala e apuração, Férias, Atestados e Colaboradores (espelho).</div>
+      </div>
+    </sc-if>
+  </div>
+</main>
+
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+  <div role="status" style="position:fixed;top:20px;right:24px;z-index:50;max-width:420px;display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:12px;background:#FFFFFF;border:1px solid #C9D6E8;box-shadow:0 8px 24px rgba(15,23,42,0.10)">
+    <i class="ph ph-check-circle" style="font-size:22px;color:#102C50;flex:0 0 auto"></i>
+    <div style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">{{ toast.title }}</span><span style="color:#3E4A5A;text-wrap:pretty">{{ toast.text }}</span></div>
+    <button onClick="{{ closeToast }}" aria-label="Fechar aviso" style="border:0;background:none;color:#5A6675;cursor:pointer;padding:2px"><i class="ph ph-x" style="font-size:16px"></i></button>
+  </div>
+</sc-if>
+
+<div style="position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:12px;padding:6px 8px 6px 16px;border-radius:999px;background:#FFFFFF;border:1px solid #E3E8EF;box-shadow:0 6px 20px rgba(15,23,42,0.10);font-size:12px;white-space:nowrap">
+  <span style="font-weight:600;color:#5A6675">Estado</span>
+  <div style="display:flex;gap:2px;background:#F7FAFC;border-radius:999px;padding:3px">
+    <sc-for list="{{ estados }}" as="s" hint-placeholder-count="5">
+      <button onClick="{{ s.go }}" style="border:0;border-radius:999px;padding:5px 12px;background:{{ s.bg }};color:{{ s.color }};font-weight:600;cursor:pointer;box-shadow:{{ s.shadow }}">{{ s.label }}</button>
+    </sc-for>
+  </div>
+  <span style="width:1px;height:20px;background:#E3E8EF"></span>
+  <span style="font-weight:600;color:#5A6675">Perfil</span>
+  <div style="display:flex;gap:2px;background:#F7FAFC;border-radius:999px;padding:3px">
+    <sc-for list="{{ perfis }}" as="s" hint-placeholder-count="2">
+      <button onClick="{{ s.go }}" style="border:0;border-radius:999px;padding:5px 12px;background:{{ s.bg }};color:{{ s.color }};font-weight:600;cursor:pointer;box-shadow:{{ s.shadow }}">{{ s.label }}</button>
+    </sc-for>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;tela&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;geral&quot;,&quot;apuracao&quot;,&quot;ferias&quot;,&quot;atestados&quot;,&quot;espelho&quot;],&quot;default&quot;:&quot;geral&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;estado&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;sucesso&quot;,&quot;vazio&quot;,&quot;carregando&quot;,&quot;erro&quot;,&quot;403&quot;],&quot;default&quot;:&quot;sucesso&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;perfil&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;rh&quot;,&quot;admin&quot;],&quot;default&quot;:&quot;rh&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;sidebarRecolhida&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const C = { green:'#102C50', tint:'#E8EEF5', amber:'#B7791F', amberText:'#8A5A12', amberBg:'#FDF6E7', text:'#111C2B', text2:'#5A6675', border:'#E3E8EF', surf:'#F7FAFC', moss:'#4A6A90', gg:'#9AA7B6' };
+const NAV = [
+  { id:'geral', label:'Visão geral', icon:'ph-squares-four', tela:'geral' },
+  { id:'colab', label:'Colaboradores', icon:'ph-users', tela:'espelho' },
+  { id:'escala', label:'Escala e apuração', icon:'ph-calendar-check', tela:'apuracao' },
+  { id:'ajustes', label:'Ajustes', icon:'ph-pencil-simple-line' },
+  { id:'ferias', label:'Férias', icon:'ph-sun-horizon', tela:'ferias' },
+  { id:'atest', label:'Atestados', icon:'ph-first-aid-kit', tela:'atestados' },
+  { id:'banco', label:'Banco de horas', icon:'ph-hourglass-medium' },
+  { id:'fech', label:'Fechamento', icon:'ph-lock-simple' },
+  { id:'rel', label:'Relatórios', icon:'ph-chart-bar' },
+  { id:'conf', label:'Configurações', icon:'ph-gear-six' },
+];
+const TELA_NAV = { geral:'geral', espelho:'colab', apuracao:'escala', ferias:'ferias', atestados:'atest' };
+const ESTABS = [
+  { nome:'Fazenda Santa Helena', sub:'CAEPF · Rio Verde/GO' },
+  { nome:'Usina Boa Vista', sub:'CNPJ · Quirinópolis/GO' },
+  { nome:'Granja São José', sub:'CNPJ · Chapecó/SC' },
+];
+const TZ = ' · America/Sao_Paulo';
+const PER = '1 a 21 de novembro de 2026';
+const toMin = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+const fmt = m => { const neg = m < 0; m = Math.abs(Math.round(m)); return (neg ? '−' : '') + String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+const ini = n => { const p = n.split(' '); return (p[0][0] + p[p.length - 1][0]).toUpperCase(); };
+const DOW = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+const ST = {
+  calculada:{ icon:'ph-check-circle', color:C.green, label:'Calculada' },
+  inconsistente:{ icon:'ph-warning', color:C.amberText, label:'Inconsistente' },
+  falta:{ icon:'ph-minus-circle', color:C.amberText, label:'Falta' },
+  abonado:{ icon:'ph-first-aid-kit', color:C.text2, label:'Atestado' },
+  folga:{ icon:'ph-moon', color:C.text2, label:'Folga' },
+  feriado:{ icon:'ph-flag', color:C.text2, label:'Feriado' },
+  ajustada:{ icon:'ph-check-circle', color:C.green, label:'Calculada' },
+};
+const APUR = [
+  { nome:'Antônio Carlos Ferreira', mat:'00412', setor:'Colheita', marc:['06:58','11:02','12:01','15:20'], prev:'07:20', st:'calculada', motivo:'Escala 6x1', cargo:'Operador de colhedora' },
+  { nome:'Maria Aparecida Souza', mat:'00418', setor:'Ordenha', marc:['04:02','08:00','09:01','12:24'], prev:'07:20', st:'calculada', motivo:'Escala 6x1', cargo:'Ordenhadora' },
+  { nome:'José Roberto Lima', mat:'00433', setor:'Colheita', marc:['06:55','11:00','12:02'], prev:'07:20', st:'inconsistente', motivo:'Marcações ímpares', cargo:'Trabalhador rural' },
+  { nome:'Luciana Pereira Alves', mat:'00451', setor:'Agroindústria', marc:['05:58','10:00','10:35','13:40'], prev:'07:20', st:'inconsistente', motivo:'Intervalo de 35 min, mínimo 60', cargo:'Auxiliar de produção' },
+  { nome:'Francisco das Chagas Silva', mat:'00467', setor:'Manutenção', marc:[], prev:'07:20', st:'falta', motivo:'Sem marcações no dia', cargo:'Mecânico' },
+  { nome:'Rita de Cássia Moura', mat:'00472', setor:'Ordenha', marc:[], prev:'07:20', st:'abonado', motivo:'Atestado em análise', cargo:'Ordenhadora' },
+  { nome:'Edson Barbosa Nunes', mat:'00488', setor:'Colheita', marc:['06:50','11:05','12:00','18:42'], prev:'07:20', st:'inconsistente', motivo:'Extras acima de 2 h', cargo:'Tratorista' },
+  { nome:'Cláudia Regina Teixeira', mat:'00490', setor:'Administrativo', marc:[], prev:'—', st:'folga', motivo:'Escala 5x2', cargo:'Assistente administrativa' },
+  { nome:'Valdir Antunes Rocha', mat:'00502', setor:'Manutenção', marc:['07:00','11:00','12:00','15:21'], prev:'07:20', st:'inconsistente', motivo:'Interjornada de 9 h 40 min', cargo:'Eletricista' },
+  { nome:'Paulo Henrique Dias', mat:'00515', setor:'Colheita', marc:['06:45','11:00','12:00','15:08'], prev:'07:20', st:'calculada', motivo:'Escala 6x1', cargo:'Trabalhador rural' },
+];
+function calcRow(r) {
+  let trab = 0; for (let i = 0; i + 1 < r.marc.length; i += 2) trab += toMin(r.marc[i + 1]) - toMin(r.marc[i]);
+  const prev = r.prev === '—' ? 0 : toMin(r.prev);
+  let extra = 0, falta = 0;
+  if (r.st === 'falta') falta = prev;
+  else if (r.marc.length && r.marc.length % 2 === 0) { const d = trab - prev; if (d > 10) extra = d; if (d < -10) falta = -d; }
+  return { trab, extra, falta };
+}
+
+const SETORES_FER = {
+  Ordenha:{ limite:3, total:12, rows:[
+    { nome:'Maria Aparecida Souza', ini:1, fim:20, st:'aprovado' },
+    { nome:'Rita de Cássia Moura', ini:8, fim:19, st:'aprovado' },
+    { nome:'Joaquim Mendes', ini:14, fim:28, st:'aprovado' },
+    { nome:'Joana Ribeiro', ini:15, fim:19, st:'recusado', quando:'18/11 por Lúcia Martins' },
+    { nome:'Sebastião Prado', ini:21, fim:31, st:'aprovado' },
+    { nome:'Daniela Costa', ini:29, fim:31, st:'pendente' },
+  ]},
+  Colheita:{ limite:5, total:38, rows:[
+    { nome:'Edson Barbosa Nunes', ini:1, fim:10, st:'aprovado' },
+    { nome:'Paulo Henrique Dias', ini:14, fim:23, st:'pendente' },
+    { nome:'Antônio Carlos Ferreira', ini:21, fim:31, st:'aprovado' },
+    { nome:'José Roberto Lima', ini:28, fim:31, st:'aprovado' },
+  ]},
+  'Agroindústria':{ limite:2, total:9, rows:[
+    { nome:'Luciana Pereira Alves', ini:7, fim:16, st:'aprovado' },
+    { nome:'Marcos Vinícius Rocha', ini:10, fim:19, st:'aprovado' },
+    { nome:'Tereza Gomes', ini:15, fim:24, st:'pendente' },
+  ]},
+};
+
+const AT = [
+  { id:1, nome:'Rita de Cássia Moura', mat:'00472', setor:'Ordenha', enviado:'21/11 às 08:14', periodo:'20 e 21/11', dias:2, st:'analise', risco:'medio', nota:46, arquivo:'atestado_20-11.jpg',
+    campos:[['Paciente','Rita de Cássia Moura','ok','Igual ao cadastro'],['Data de emissão','20/11/2026','ok',''],['Afastamento','2 dias, 20 e 21/11','ok','Igual ao informado'],['Médico','Henrique Vasconcelos','ok',''],['CRM','CRM-GO 18.442','ok','Formato válido'],['Assinatura','Detectada','ok','Carimbo e assinatura']], cid:'J11',
+    achados:[{ sev:'alerta', t:'Recorrência em sextas-feiras', d:'3 afastamentos em sextas ou vésperas de feriado nos últimos 90 dias.' },{ sev:'sinal', t:'Enviado no prazo', d:'Recebido 1 dia após a emissão. O prazo da empresa é de 2 dias.' }] },
+  { id:2, nome:'Edson Barbosa Nunes', mat:'00488', setor:'Colheita', enviado:'21/11 às 07:40', periodo:'21/11', dias:1, st:'recebido', risco:null, nota:null, arquivo:'IMG_2031.jpg', campos:null, cid:null, achados:[] },
+  { id:3, nome:'Luciana Pereira Alves', mat:'00451', setor:'Agroindústria', enviado:'20/11 às 17:02', periodo:'18 a 20/11', dias:3, st:'recebido', risco:'baixo', nota:12, arquivo:'atestado_luciana.pdf',
+    campos:[['Paciente','Luciana Pereira Alves','ok','Igual ao cadastro'],['Data de emissão','18/11/2026','ok',''],['Afastamento','3 dias, 18 a 20/11','ok','Igual ao informado'],['Médico','Carla Menezes','ok',''],['CRM','CRM-GO 22.910','ok','Formato válido'],['Assinatura','Detectada','ok','']], cid:'M54.5',
+    achados:[{ sev:'sinal', t:'Sem pontos de atenção', d:'Todos os campos conferem com o cadastro e com a ausência declarada.' }] },
+  { id:4, nome:'Francisco das Chagas Silva', mat:'00467', setor:'Manutenção', enviado:'19/11 às 21:47', periodo:'14/11', dias:1, st:'analise', risco:'alto', nota:81, arquivo:'foto_atestado.jpg',
+    campos:[['Paciente','Francisco C. Silva','warn','Nome abreviado; confira'],['Data de emissão','14/11/2026','ok',''],['Afastamento','1 dia, 14/11','ok',''],['Médico','Ilegível','warn','Leitura fraca'],['CRM','CRM 4471','warn','Sem UF; formato inválido'],['Assinatura','Não detectada','warn','']], cid:'R51',
+    achados:[{ sev:'alerta', t:'Enviado fora do prazo', d:'Recebido 5 dias após a emissão. O prazo da empresa é de 2 dias.' },{ sev:'alerta', t:'Imagem semelhante a envio anterior', d:'Parecida com o atestado enviado em 02/10/2026 (hash perceptual).' },{ sev:'alerta', t:'CRM em formato inválido', d:'Não foi possível identificar a UF do CRM. Não há consulta a base externa.' }] },
+  { id:5, nome:'Joaquim Mendes', mat:'00436', setor:'Ordenha', enviado:'12/11 às 09:20', periodo:'10 a 14/11', dias:5, st:'aprovado', risco:'baixo', nota:8, arquivo:'atestado_joaquim.pdf', decisao:'Aprovado em 12/11 por Lúcia Martins',
+    campos:[['Paciente','Joaquim Mendes','ok','Igual ao cadastro'],['Data de emissão','10/11/2026','ok',''],['Afastamento','5 dias, 10 a 14/11','ok',''],['Médico','Paulo Andrade','ok',''],['CRM','CRM-GO 9.318','ok','Formato válido'],['Assinatura','Detectada','ok','']], cid:'S93.4',
+    achados:[{ sev:'sinal', t:'Afastamento registrado', d:'Os dias 10 a 14/11 foram abonados e recalculados.' }] },
+  { id:6, nome:'Sebastião Prado', mat:'00441', setor:'Colheita', enviado:'10/11 às 13:05', periodo:'03/11', dias:1, st:'recusado', risco:'alto', nota:74, arquivo:'IMG_1877.jpg', decisao:'Recusado em 11/11 por Lúcia Martins: atestado duplicado',
+    campos:[['Paciente','Sebastião Prado','ok',''],['Data de emissão','03/11/2026','ok',''],['Afastamento','1 dia, 03/11','ok',''],['Médico','Henrique Vasconcelos','ok',''],['CRM','CRM-GO 18.442','ok',''],['Assinatura','Detectada','ok','']], cid:'K52.9',
+    achados:[{ sev:'alerta', t:'Atestado duplicado', d:'Mesmo médico e data de um atestado já registrado para outro período.' }] },
+];
+const AT_ST = {
+  recebido:{ icon:'ph-tray', color:C.text2, label:'Recebido', grupo:'recebido' },
+  analise:{ icon:'ph-magnifying-glass', color:C.green, label:'Em análise', grupo:'analise' },
+  aprovado:{ icon:'ph-check-circle', color:C.green, label:'Decidido · aprovado', grupo:'decidido' },
+  recusado:{ icon:'ph-x-circle', color:C.text2, label:'Decidido · recusado', grupo:'decidido' },
+};
+const RISCO = {
+  baixo:{ label:'Risco baixo', bg:C.tint, color:C.green, icon:'ph-shield-check', bar:C.green },
+  medio:{ label:'Risco médio', bg:C.amberBg, color:C.amberText, icon:'ph-warning', bar:C.amber },
+  alto:{ label:'Risco alto', bg:'#FBEFD9', color:'#7A4E0E', icon:'ph-warning-octagon', bar:'#9A6516' },
+};
+
+const ESP = {
+  2:['06:58','11:02','12:01','15:22'], 3:['06:55','11:00','12:00','15:20'], 4:['06:57','11:03','12:02','16:40'], 5:['07:01','11:00','12:00','15:21'],
+  6:['06:59','11:01','12:00','15:25'], 7:['06:58','11:00','12:01','15:19'], 9:['06:50','11:00','12:00','17:05'], 10:['06:58','11:02','12:01','15:20'],
+  11:['07:14','11:00','12:00','15:20'], 12:['06:58','11:00','12:00','15:22'], 13:['06:57','11:01','12:01','15:20'], 14:['06:58','11:00','12:00','15:21'],
+  16:['06:56','11:00','12:00','18:10'], 17:['06:58','11:00','12:00','15:20'], 18:['06:59','11:02','12:00','15:20*'], 19:['06:58','11:00','12:01','15:21'], 21:['06:58','11:01','12:00','15:22'],
+};
+function buildEspelho() {
+  const W0 = 5 * 60, W1 = 19 * 60, span = W1 - W0;
+  let prevT = 0, trabT = 0, extraT = 0, atrasoT = 0, inc = 0;
+  const rows = [];
+  for (let d = 1; d <= 21; d++) {
+    const dow = (d - 1) % 7;
+    const label = DOW[dow] + ' ' + String(d).padStart(2, '0') + '/11';
+    if (dow === 0) { rows.push({ label, segs:[], marcs:'—', trab:'—', st:{ ...ST.folga, label:'Folga' }, note:'Descanso semanal', rowBg:'#FAFCFD' }); continue; }
+    if (d === 20) { rows.push({ label, segs:[], marcs:'—', trab:'—', st:{ ...ST.feriado }, note:'Dia da Consciência Negra', rowBg:'#FAFCFD' }); continue; }
+    const raw = ESP[d]; const ms = raw.map(s => s.replace('*', '')); const trat = raw.map(s => s.endsWith('*'));
+    const segs = []; let trab = 0;
+    for (let i = 0; i + 1 < ms.length; i += 2) {
+      const a = toMin(ms[i]), b = toMin(ms[i + 1]); trab += b - a;
+      segs.push({ left:((a - W0) / span * 100).toFixed(2) + '%', width:((b - a) / span * 100).toFixed(2) + '%', bg:trat[i + 1] ? C.moss : C.green });
+    }
+    const prev = 440; prevT += prev; trabT += trab;
+    const diff = trab - prev; let st = { ...ST.calculada }, note = '';
+    if (diff > 120) { st = { ...ST.inconsistente, label:'Extras acima de 2 h' }; note = 'Extra ' + fmt(diff); extraT += diff; inc++; }
+    else if (diff > 10) { note = 'Extra ' + fmt(diff); extraT += diff; }
+    if (toMin(ms[0]) - 7 * 60 > 10) { st = { icon:'ph-clock-countdown', color:C.amberText, label:'Atraso' }; note = 'Entrada ' + fmt(toMin(ms[0]) - 420) + ' após o horário'; atrasoT += toMin(ms[0]) - 420; }
+    if (trat.some(Boolean)) { st = { icon:'ph-check-circle', color:C.green, label:'Ajustada' }; note = 'Saída incluída por ajuste aprovado'; }
+    rows.push({ label, segs, marcs:ms.join('  ·  '), trab:fmt(trab), st, note, rowBg:'#FFFFFF' });
+  }
+  const ticks = [5,7,9,11,13,15,17,19].map(h => ({ label:String(h).padStart(2,'0') + 'h', left:((h * 60 - W0) / span * 100).toFixed(2) + '%' }));
+  return {
+    rows, ticks,
+    resumo:[
+      { label:'Previsto', value:fmt(prevT), sub:'18 dias úteis · 07:20 por dia' },
+      { label:'Trabalhado', value:fmt(trabT), sub:'Até 21/11, inclusive' },
+      { label:'Extras a 50%', value:fmt(extraT), sub:'Destino: banco de horas' },
+      { label:'Atrasos e faltas', value:fmt(atrasoT), sub:'1 atraso, nenhuma falta' },
+      { label:'Saldo do banco', value:'+06:40', sub:'Vence 01:20 em 31/12' },
+    ],
+  };
+}
+
+function buildChart() {
+  const base = [6,48,52,50,55,58,31,7,54,57,60,58,62,33,8,61,64,66,63,22,36];
+  const pb = [5,44,47,49,50,51,28,6,49,50,52,51,55,29,7,52,54,55,53,47,30];
+  const s1 = base.reduce((a, b) => a + b, 0), s2 = pb.reduce((a, b) => a + b, 0);
+  const cur = base.map(v => v * 1126 / s1), prev = pb.map(v => v * 1002 / s2);
+  const W = 720, H = 240, L = 44, R = 12, T = 12, B = 28;
+  const max = Math.ceil(Math.max(...cur, ...prev) / 20) * 20;
+  const x = i => L + i * (W - L - R) / 20, y = v => T + (H - T - B) * (1 - v / max);
+  const pts = a => a.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
+  const area = 'M' + x(0) + ',' + y(0) + ' L' + cur.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' L') + ' L' + x(20) + ',' + y(0) + ' Z';
+  const grid = []; for (let v = 0; v <= max; v += 20) grid.push({ y:y(v).toFixed(1), ty:(y(v) + 4).toFixed(1), label:String(v) });
+  const xl = [0,4,9,14,20].map(i => ({ x:x(i).toFixed(1), label:(i + 1) + '/11' }));
+  const pk = cur.indexOf(Math.max(...cur));
+  return { cur:pts(cur), prev:pts(prev), area, grid, xl, last:{ x:x(20).toFixed(1), y:y(cur[20]).toFixed(1) },
+    stats:[
+      { label:'Total no período', value:'1.126 h' },
+      { label:'Média por dia útil', value:(1126 / 18).toFixed(1).replace('.', ',') + ' h' },
+      { label:'Pico', value:Math.round(cur[pk]) + ' h em ' + (pk + 1) + '/11' },
+      { label:'Acima de 2 h por dia', value:'23 ocorrências' },
+    ] };
+}
+
+class Component extends DCLogic {
+  state = {
+    tela:this.props.tela ?? 'geral', estado:this.props.estado ?? 'sucesso', perfil:this.props.perfil ?? 'rh',
+    collapsed:this.props.sidebarRecolhida ?? false, estabOpen:false, estabIdx:0,
+    apSt:'todos', apSetor:'Todos os setores', apBusca:'', pessoa:0,
+    ferSetor:'Ordenha', ferOv:{}, atSel:0, atTab:'todos', atOv:{}, toast:null,
+  };
+  componentDidUpdate(pp) {
+    const p = this.props, s = {};
+    if (pp.tela !== p.tela && p.tela) s.tela = p.tela;
+    if (pp.estado !== p.estado && p.estado) s.estado = p.estado;
+    if (pp.perfil !== p.perfil && p.perfil) s.perfil = p.perfil;
+    if (pp.sidebarRecolhida !== p.sidebarRecolhida) s.collapsed = !!p.sidebarRecolhida;
+    if (Object.keys(s).length) this.setState(s);
+  }
+  showToast(title, text) { clearTimeout(this._t); this.setState({ toast:{ title, text } }); this._t = setTimeout(() => this.setState({ toast:null }), 5000); }
+  go(tela) { this.setState({ tela, estabOpen:false }); }
+
+  renderVals() {
+    const s = this.state, expanded = !s.collapsed;
+    const estab = ESTABS[s.estabIdx];
+    const activeNav = TELA_NAV[s.tela] || s.tela;
+    const nav = NAV.map(n => {
+      const on = n.id === activeNav;
+      return { ...n, current:on ? 'page' : undefined, bg:on ? C.tint : 'transparent', hover:on ? C.tint : C.surf, color:on ? C.green : '#3E4A5A', weight:on ? 600 : 500, bar:on ? '#DBFF00' : 'transparent', justify:expanded ? 'flex-start' : 'center',
+        go:() => this.go(n.tela || n.id) };
+    });
+    const fora = !['geral','apuracao','ferias','atestados','espelho'].includes(s.tela);
+    const foraNav = NAV.find(n => n.id === s.tela);
+    const pessoa = APUR[s.pessoa];
+    const HEAD = {
+      geral:{ title:'Visão geral', sub:PER + TZ, periodo:'1 a 21 nov. 2026', primary:'Revisar inconsistências', icon:'ph-list-checks' },
+      apuracao:{ title:'Apuração do dia', sub:'Sábado, 21 de novembro de 2026 · atualizado às 18:50' + TZ, periodo:'21 nov. 2026', primary:'Recalcular dia', icon:'ph-arrow-clockwise' },
+      ferias:{ title:'Férias', sub:'Dezembro de 2026 · limite de férias simultâneas por setor' + TZ, periodo:'Dezembro 2026', primary:'Exportar calendário', icon:'ph-download-simple' },
+      atestados:{ title:'Atestados', sub:PER + TZ, periodo:'1 a 21 nov. 2026', primary:'Abrir próximo da fila', icon:'ph-arrow-right' },
+      espelho:{ title:'Espelho do colaborador', sub:PER + TZ, periodo:'1 a 21 nov. 2026', primary:'Gerar espelho em PDF', icon:'ph-file-pdf' },
+    };
+    const head = fora ? { title:foraNav ? foraNav.label : '', sub:PER + TZ, periodo:'1 a 21 nov. 2026', primary:'Voltar à visão geral', icon:foraNav ? foraNav.icon : 'ph-info' } : HEAD[s.tela];
+    const EMPTY = {
+      geral:{ icon:'ph-chart-line', title:'Ainda não há dados neste período', text:'Os indicadores aparecem assim que os coletores de ' + estab.nome + ' sincronizarem as primeiras marcações.', cta:'Ver coletores' },
+      apuracao:{ icon:'ph-fingerprint-simple', title:'Nenhuma marcação em 21/11', text:'Nenhum colaborador deste estabelecimento registrou ponto hoje. Se for folga coletiva ou feriado local, não há nada a fazer.', cta:'Ver escala do dia' },
+      ferias:{ icon:'ph-sun-horizon', title:'Nenhum período de férias em dezembro', text:'Quando houver férias aprovadas ou pedidas no setor, elas aparecem no calendário com a ocupação diária.', cta:'Lançar férias' },
+      atestados:{ icon:'ph-tray', title:'Fila vazia', text:'Nenhum atestado aguardando análise. Os envios feitos pelos colaboradores no portal chegam aqui automaticamente.', cta:'Ver decididos' },
+      espelho:{ icon:'ph-calendar-x', title:'Sem marcações no período', text:pessoa.nome + ' não tem marcações de 1 a 21 de novembro. Confira afastamentos e férias.', cta:'Ver afastamentos' },
+    };
+    const live = s.estado === 'sucesso';
+
+    // apuração
+    const apRowsAll = APUR.map((r, i) => {
+      const c = calcRow(r); const st = ST[r.st];
+      const marcs = r.marc.map(t => ({ t, border:'solid ' + C.border, bg:'#FFFFFF', color:C.text }));
+      if (r.marc.length % 2 === 1) marcs.push({ t:'sem saída', border:'dashed ' + C.amber, bg:C.amberBg, color:C.amberText });
+      if (!r.marc.length) marcs.push({ t:'—', border:'solid transparent', bg:'transparent', color:C.text2 });
+      const ext = c.extra > 120;
+      return { ...r, ini:ini(r.nome), marcs, st, idx:i,
+        trab:r.marc.length ? fmt(c.trab) : '—', extra:c.extra ? fmt(c.extra) : '—', falta:c.falta ? fmt(c.falta) : '—',
+        extraColor:ext ? C.amberText : (c.extra ? C.green : C.text2), extraW:c.extra ? 600 : 400,
+        faltaColor:c.falta ? C.amberText : C.text2, faltaW:c.falta ? 600 : 400,
+        open:() => this.setState({ pessoa:i, tela:'espelho' }) };
+    });
+    const bySetor = apRowsAll.filter(r => (s.apSetor === 'Todos os setores' || r.setor === s.apSetor) && (!s.apBusca || (r.nome + r.mat).toLowerCase().includes(s.apBusca.toLowerCase())));
+    const tabDefs = [['todos','Todos',() => true],['inconsistente','Inconsistentes',r => r.st.label === 'Inconsistente'],['falta','Faltas',r => r.st.label === 'Falta'],['calculada','Calculadas',r => r.st.label === 'Calculada']];
+    const apTabs = tabDefs.map(([id, label, f]) => ({ label, n:bySetor.filter(f).length, sel:s.apSt === id ? 'true' : 'false', line:s.apSt === id ? C.green : 'transparent', color:s.apSt === id ? C.green : C.text2, badgeBg:s.apSt === id ? C.tint : C.surf, go:() => this.setState({ apSt:id }) }));
+    const apRows = bySetor.filter(tabDefs.find(t => t[0] === s.apSt)[2]);
+    const nInc = bySetor.filter(r => r.st.label === 'Inconsistente').length;
+
+    const estados = [['sucesso','Sucesso'],['vazio','Vazio'],['carregando','Carregando'],['erro','Erro'],['403','Sem permissão']].map(([id, label]) => ({ label, bg:s.estado === id ? '#FFFFFF' : 'transparent', color:s.estado === id ? C.text : C.text2, shadow:s.estado === id ? '0 1px 2px rgba(15,23,42,0.10)' : 'none', go:() => this.setState({ estado:id }) }));
+    const perfis = [['rh','RH'],['admin','Admin']].map(([id, label]) => ({ label, bg:s.perfil === id ? '#FFFFFF' : 'transparent', color:s.perfil === id ? C.text : C.text2, shadow:s.perfil === id ? '0 1px 2px rgba(15,23,42,0.10)' : 'none', go:() => this.setState({ perfil:id }) }));
+
+    return {
+      expanded, sideW:expanded ? '240px' : '72px', estabPad:expanded ? '8px 12px' : '8px 0', navJustify:expanded ? 'flex-start' : 'center', userPad:expanded ? '4px' : '6px',
+      sideToggleLabel:expanded ? 'Recolher menu' : 'Expandir menu', toggleSide:() => this.setState({ collapsed:!s.collapsed, estabOpen:false }),
+      estab, estabIdx:s.estabIdx, estabOpen:s.estabOpen, toggleEstab:() => this.setState({ estabOpen:!s.estabOpen }),
+      estabs:ESTABS.map((e, i) => ({ ...e, bg:i === s.estabIdx ? C.tint : 'transparent', check:i === s.estabIdx ? 'ph-check' : '', pick:() => this.setState({ estabIdx:i, estabOpen:false }) })),
+      onEstabSelect:e => this.setState({ estabIdx:Number(e.target.value) }),
+      nav, user:s.perfil === 'rh' ? { ini:'LM', nome:'Lúcia Martins', perfil:'RH · Todos os estabelecimentos' } : { ini:'RA', nome:'Ricardo Almeida', perfil:'Administrador da conta' },
+      head, isEspelho:s.tela === 'espelho', pessoa, goApuracao:() => this.go('apuracao'), goGeral:() => this.setState({ tela:'geral', estado:'sucesso' }),
+      primary:() => {
+        if (s.tela === 'geral') return this.setState({ tela:'apuracao', apSt:'inconsistente' });
+        if (s.tela === 'apuracao') return this.showToast('Recálculo iniciado', '21/11 será recalculado para ' + APUR.length + ' colaboradores. As marcações originais não mudam.');
+        if (s.tela === 'ferias') return this.showToast('Calendário exportado', 'Férias de dezembro, setor ' + s.ferSetor + ', salvas em Relatórios.');
+        if (s.tela === 'espelho') return this.showToast('Espelho gerado', 'Espelho de ' + pessoa.nome + ', 1 a 21/11, assinado e salvo em Relatórios.');
+        if (s.tela === 'atestados') { const nx = this.atQueue().findIndex((a, i) => i > s.atSel && (a.stCur === 'recebido' || a.stCur === 'analise')); return this.setState({ atSel:nx >= 0 ? nx : 0, atTab:'todos' }); }
+        this.go('geral');
+      },
+      showLoading:s.estado === 'carregando', showEmpty:s.estado === 'vazio' && !fora, showError:s.estado === 'erro', show403:s.estado === '403',
+      showGeral:live && s.tela === 'geral', showApuracao:live && s.tela === 'apuracao', showFerias:live && s.tela === 'ferias', showAtestados:live && s.tela === 'atestados', showEspelho:live && s.tela === 'espelho',
+      showFora:fora && (live || s.estado === 'vazio'),
+      empty:EMPTY[s.tela] || EMPTY.geral, errorWhat:(head.title || '').toLowerCase(), retry:() => this.setState({ estado:'sucesso' }),
+      skel5:[1,2,3,4,5], skel6:[1,2,3,4,5,6],
+      kpis:[
+        { icon:'ph-clock', label:'Horas trabalhadas', value:'18.432', unit:'h', delta:'3,1%', arrow:'ph-arrow-up-right', deltaBg:C.tint, deltaColor:C.green, cmp:'vs. 17.878 h em 1 a 21 de out.' },
+        { icon:'ph-timer', label:'Horas extras', value:'1.126', unit:'h', delta:'12,4%', arrow:'ph-arrow-up-right', deltaBg:C.amberBg, deltaColor:C.amberText, cmp:'vs. 1.002 h no período anterior' },
+        { icon:'ph-user-minus', label:'Faltas', value:'37', unit:'dias', delta:'17,8%', arrow:'ph-arrow-down-right', deltaBg:C.tint, deltaColor:C.green, cmp:'vs. 45 no período anterior' },
+        { icon:'ph-first-aid-kit', label:'Atestados pendentes', value:'9', unit:'', delta:'+3', arrow:'ph-arrow-up-right', deltaBg:C.amberBg, deltaColor:C.amberText, cmp:'4 há mais de 2 dias na fila' },
+        { icon:'ph-sun-horizon', label:'Férias em curso', value:'14', unit:'pessoas', delta:'+2', arrow:'ph-arrow-up-right', deltaBg:C.surf, deltaColor:C.text2, cmp:'de 412 colaboradores ativos' },
+      ],
+      chart:buildChart(), alertsCount:'4 abertos',
+      alerts:[
+        { tag:'Alerta', icon:'ph-warning', bg:C.amberBg, color:C.amberText, link:C.amberText, title:'Marcações ímpares em Colheita', text:'6 colaboradores sem saída registrada ontem. Revise antes do fechamento de 30/11.', cta:'Revisar marcações', go:() => this.setState({ tela:'apuracao', apSt:'inconsistente', apSetor:'Colheita' }) },
+        { tag:'Alerta', icon:'ph-warning', bg:C.amberBg, color:C.amberText, link:C.amberText, title:'Interjornada menor que 11 h', text:'3 ocorrências em Manutenção nesta semana.', cta:'Ver ocorrências', go:() => this.setState({ tela:'apuracao', apSt:'inconsistente', apSetor:'Manutenção' }) },
+        { tag:'Sinal', icon:'ph-info', bg:C.tint, color:C.green, link:C.green, title:'Jornada de 42 h a partir de 16/12', text:'18 escalas ficam acima do novo limite semanal. Ajuste antes da vigência.', cta:'Revisar escalas', go:() => this.go('apuracao') },
+        { tag:'Sinal', icon:'ph-info', bg:C.tint, color:C.green, link:C.green, title:'Lote offline sincronizado', text:'O coletor do Talhão 7 enviou 214 marcações de 19 e 20/11. Os dias foram recalculados.', cta:'Ver apuração', go:() => this.go('apuracao') },
+      ],
+      setores:['Todos os setores','Colheita','Ordenha','Agroindústria','Manutenção','Administrativo'],
+      apSetor:s.apSetor, apBusca:s.apBusca, onSetor:e => this.setState({ apSetor:e.target.value }), onBusca:e => this.setState({ apBusca:e.target.value }),
+      apTabs, apRows, apNone:apRows.length === 0, clearAp:() => this.setState({ apSt:'todos', apSetor:'Todos os setores', apBusca:'' }),
+      apFooter:bySetor.length + ' colaboradores · ' + nInc + (nInc === 1 ? ' inconsistência' : ' inconsistências') + ' para revisar antes do fechamento',
+      ...this.feriasVals(), ...this.atestadoVals(), ...this.espelhoVals(),
+      toast:s.toast, closeToast:() => this.setState({ toast:null }), estados, perfis,
+    };
+  }
+
+  feriasVals() {
+    const s = this.state, setor = SETORES_FER[s.ferSetor];
+    const rows = setor.rows.map((r, i) => ({ ...r, st:s.ferOv[s.ferSetor + ':' + i] || r.st, i }));
+    const occ = [], req = [];
+    for (let d = 1; d <= 31; d++) { occ[d] = rows.filter(r => r.st === 'aprovado' && d >= r.ini && d <= r.fim).length; req[d] = rows.filter(r => r.st !== 'aprovado' && d >= r.ini && d <= r.fim).length; }
+    const over = d => occ[d] + req[d] > setor.limite;
+    const dow = d => (d + 1) % 7;
+    const days = []; for (let d = 1; d <= 31; d++) {
+      const wk = dow(d) === 0 || dow(d) === 6, hol = d === 25, ov = over(d) && req[d] > 0;
+      days.push({ n:d, wd:'DSTQQSS'[dow(d)], color:ov ? C.amberText : (wk || hol ? C.text2 : C.text), weight:ov ? 700 : 500, bg:ov ? C.amberBg : (hol ? '#ECF1F6' : (wk ? C.surf : '#FFFFFF')),
+        occ:String(occ[d] + req[d]), occColor:ov ? C.amberText : (occ[d] ? C.text : C.gg), occW:ov ? 700 : 600 });
+    }
+    const span = (a, b) => a === b ? String(a) : a + ' a ' + b;
+    const msgs = [];
+    const feRows = rows.map(r => {
+      const exceedDays = []; for (let d = r.ini; d <= r.fim; d++) if (r.st !== 'aprovado' && over(d)) exceedDays.push(d);
+      const ex = exceedDays.length > 0;
+      const cells = days.map(d => ({ bg:d.bg }));
+      const kind = { aprovado:{ bg:C.green, color:'#FFFFFF', border:'1px solid ' + C.green, label:'Aprovado', icon:'ph-check' },
+        pendente:{ bg:C.tint, color:C.green, border:'1px dashed ' + C.green, label:'Pendente', icon:'ph-hourglass-medium' },
+        recusado:{ bg:C.amberBg, color:C.amberText, border:'1px dashed ' + C.amber, label:'Recusado', icon:'ph-x' } }[r.st];
+      if (ex) {
+        const rng = span(exceedDays[0], exceedDays[exceedDays.length - 1]) + ' de dezembro';
+        msgs.push(r.st === 'recusado'
+          ? { tag:'Pedido recusado', title:r.nome + ' · ' + span(r.ini, r.fim) + '/12', text:'Motivo: em ' + rng + ' o setor ' + s.ferSetor + ' já tem ' + setor.limite + ' colaboradores em férias, que é o limite de férias simultâneas. Recusado em ' + (r.quando || 'hoje') + '.', hint:'Primeiras datas com vaga: 5 a 9 de janeiro.' }
+          : { tag:'Acima do limite', title:r.nome + ' · ' + span(r.ini, r.fim) + '/12', text:'Aprovar deixaria o setor com ' + (setor.limite + 1) + ' pessoas em férias em ' + rng + '. O limite é ' + setor.limite + '. Ajuste o período ou recuse com este motivo.', hint:'' });
+      }
+      return { nome:r.nome, cells, left:((r.ini - 1) / 31 * 100).toFixed(3) + '%', width:((r.fim - r.ini + 1) / 31 * 100).toFixed(3) + '%', bbg:kind.bg, bcolor:kind.color, bborder:kind.border, blabel:span(r.ini, r.fim), stLabel:kind.label, stIcon:kind.icon, stColor:r.st === 'recusado' ? C.amberText : (r.st === 'aprovado' ? C.green : C.text2) };
+    });
+    const pend = rows.filter(r => r.st === 'pendente').map(r => {
+      let ex = false; for (let d = r.ini; d <= r.fim; d++) if (over(d)) ex = true;
+      return { nome:r.nome, periodo:span(r.ini, r.fim) + ' de dezembro', dias:(r.fim - r.ini + 1) + ' dias', ex, canApprove:!ex, abg:ex ? '#E3E8EF' : C.green, acolor:ex ? '#5A6675' : '#FFFFFF', acursor:ex ? 'not-allowed' : 'pointer', warn:ex ? 'Ultrapassa o limite do setor' : 'Dentro do limite do setor',
+        warnColor:ex ? C.amberText : C.green, warnIcon:ex ? 'ph-warning' : 'ph-check-circle',
+        approve:() => { if (ex) return; this.setState({ ferOv:{ ...s.ferOv, [s.ferSetor + ':' + r.i]:'aprovado' } }); this.showToast('Férias aprovadas', r.nome + ', ' + span(r.ini, r.fim) + '/12. O colaborador será avisado no portal.'); },
+        reject:() => { this.setState({ ferOv:{ ...s.ferOv, [s.ferSetor + ':' + r.i]:'recusado', } }); this.showToast('Pedido recusado', 'O motivo foi registrado e enviado a ' + r.nome + '.'); } };
+    });
+    const maxOcc = Math.max(...occ.slice(1));
+    return {
+      ferTabs:Object.keys(SETORES_FER).map(k => ({ label:k, sel:s.ferSetor === k ? 'true' : 'false', line:s.ferSetor === k ? C.green : 'transparent', color:s.ferSetor === k ? C.green : C.text2, go:() => this.setState({ ferSetor:k }) })),
+      ferSetor:s.ferSetor, ferLimite:setor.limite, ferTotal:setor.total, ferDays:days, ferRows:feRows, ferMsgs:msgs, ferHasMsgs:msgs.length > 0, ferNoMsgs:msgs.length === 0,
+      ferPend:pend, ferHasPend:pend.length > 0, ferNoPend:pend.length === 0, ferPico:maxOcc + ' de ' + setor.limite,
+    };
+  }
+
+  atQueue() { return AT.map(a => ({ ...a, stCur:this.state.atOv[a.id] || a.st })); }
+  atestadoVals() {
+    const s = this.state, admin = s.perfil === 'admin';
+    const all = this.atQueue();
+    const counts = { recebido:0, analise:0, decidido:0 };
+    all.forEach(a => counts[AT_ST[a.stCur].grupo]++);
+    const tabs = [['todos','Todos',all.length],['recebido','Recebidos',counts.recebido],['analise','Em análise',counts.analise],['decidido','Decididos',counts.decidido]]
+      .map(([id, label, n]) => ({ label, n, sel:s.atTab === id ? 'true' : 'false', line:s.atTab === id ? C.green : 'transparent', color:s.atTab === id ? C.green : C.text2, badgeBg:s.atTab === id ? C.tint : C.surf, go:() => this.setState({ atTab:id }) }));
+    const list = all.map((a, i) => ({ a, i })).filter(({ a }) => s.atTab === 'todos' || AT_ST[a.stCur].grupo === s.atTab).map(({ a, i }) => {
+      const st = AT_ST[a.stCur], rk = a.risco ? RISCO[a.risco] : null, sel = i === s.atSel;
+      return { nome:a.nome, ini:ini(a.nome), meta:a.setor + ' · enviado ' + a.enviado, periodo:a.periodo + ' · ' + a.dias + (a.dias > 1 ? ' dias' : ' dia'), st,
+        rkLabel:rk ? rk.label : 'Lendo atestado', rkBg:rk ? rk.bg : C.surf, rkColor:rk ? rk.color : C.text2, rkIcon:rk ? rk.icon : 'ph-spinner-gap',
+        bg:sel ? '#F1F5FA' : '#FFFFFF', border:sel ? C.green : C.border, ring:sel ? '0 0 0 1px ' + C.green : 'none', current:sel ? 'true' : 'false', pick:() => this.setState({ atSel:i }) };
+    });
+    const a = all[s.atSel], st = AT_ST[a.stCur], rk = a.risco ? RISCO[a.risco] : null;
+    const decided = a.stCur === 'aprovado' || a.stCur === 'recusado';
+    const campos = (a.campos || []).map(([k, v, ok, n]) => ({ k, v, n, icon:ok === 'ok' ? 'ph-check-circle' : 'ph-warning', color:ok === 'ok' ? C.green : C.amberText }));
+    const decide = res => () => {
+      this.setState({ atOv:{ ...s.atOv, [a.id]:res } });
+      this.showToast(res === 'aprovado' ? 'Atestado aprovado' : 'Atestado recusado', res === 'aprovado' ? 'Afastamento de ' + a.periodo + ' registrado para ' + a.nome + '. Os dias serão recalculados.' : a.nome + ' será avisado no portal com o motivo da recusa.');
+    };
+    const ov = s.atOv[a.id];
+    return {
+      atTabs:tabs, atList:list, atListEmpty:list.length === 0,
+      at:{ nome:a.nome, ini:ini(a.nome), meta:'Mat. ' + a.mat + ' · ' + a.setor, enviado:'Enviado ' + a.enviado + ' pelo portal', periodo:a.periodo, dias:a.dias + (a.dias > 1 ? ' dias' : ' dia'), arquivo:a.arquivo, st,
+        rkLabel:rk ? rk.label : '', rkBg:rk ? rk.bg : C.surf, rkColor:rk ? rk.color : C.text2, rkIcon:rk ? rk.icon : '', rkBar:rk ? rk.bar : C.gg, nota:a.nota, notaW:(a.nota || 0) + '%', notaTxt:(a.nota || 0) + ' de 100',
+        decisao:ov ? (ov === 'aprovado' ? 'Aprovado agora por Lúcia Martins' : 'Recusado agora por Lúcia Martins') : (a.decisao || '') },
+      atReading:!a.campos, atHasFields:!!a.campos, atCampos:campos,
+      atCid:a.cid || '—', atCidVisible:!admin, atCidRestricted:admin,
+      atFileVisible:!admin, atFileRestricted:admin,
+      atAchados:a.achados.map(x => ({ ...x, icon:x.sev === 'alerta' ? 'ph-warning' : 'ph-info', bg:x.sev === 'alerta' ? C.amberBg : C.tint, color:x.sev === 'alerta' ? C.amberText : C.green, tag:x.sev === 'alerta' ? 'Alerta' : 'Sinal' })),
+      atHasAchados:a.achados.length > 0,
+      atCanDecide:!admin && !decided && !!a.campos, atDecided:decided, atAdminBlock:admin && !decided, atWaiting:!admin && !decided && !a.campos,
+      atApprove:decide('aprovado'), atReject:decide('recusado'),
+    };
+  }
+
+  espelhoVals() {
+    const e = buildEspelho(), p = APUR[this.state.pessoa];
+    return { esp:e, espRows:e.rows, espTicks:e.ticks, espResumo:e.resumo, espPessoa:{ nome:p.nome, ini:ini(p.nome), meta:'Mat. ' + p.mat + ' · ' + p.cargo + ' · ' + p.setor } };
+  }
+}
+</script>
+</body>
+</html>

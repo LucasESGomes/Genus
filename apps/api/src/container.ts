@@ -10,6 +10,8 @@ import { createAuth } from './modules/auth/auth';
 import pg from 'pg';
 import { PgArpPunchReader } from './arp/punch-reader';
 import { PortalAccess } from './http/access';
+import { CertificateAiRegistry } from './modules/certificate-analysis/ai/registry';
+import { HealthDataCipher } from './modules/certificate-analysis/health-crypto';
 import { HttpFacialEngineClient } from './modules/facial/engine-client';
 import { LocalDiskStorage } from './storage/file-storage';
 
@@ -43,6 +45,12 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
   });
   const pinPepper = { version: env.pinPepper.version, key: Buffer.from(env.pinPepper.keyHex, 'hex') };
 
+  // Análise de atestado (G6): avisa na partida se a IA é a simulada ou se falta a chave do dado de saúde.
+  const certificateAi = new CertificateAiRegistry(env.certificateAi);
+  const ai = certificateAi.default();
+  if (ai.warnings.length > 0) logger.warn({ provider: ai.provider.provider, model: ai.provider.model }, 'análise de atestado: IA simulada (mock), sem provedor real configurado');
+  if (env.certificateDataKeyHex === null) logger.warn('análise de atestado: sem CERTIFICATE_DATA_KEY, CID, texto e evidências não serão gravados');
+
   return {
     logger,
     clock,
@@ -63,6 +71,10 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
         engine: env.engine ? new HttpFacialEngineClient({ baseUrl: env.engine.url, apiKey: env.engine.apiKey }) : null,
         pin: { current: pinPepper, all: [pinPepper] },
         maxAttachmentBytes: env.maxAttachmentBytes,
+        certificateAi: {
+          registry: certificateAi,
+          healthCipher: HealthDataCipher.fromHex(env.certificateDataKeyHex),
+        },
       },
     },
     close: async () => {

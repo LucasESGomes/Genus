@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<style>
+body{margin:0;background:#FFFFFF;color:#111C2B;font-family:Manrope,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+button,input{font-family:inherit;font-size:inherit;color:inherit}
+a{color:#102C50}a:hover{color:#0B2140}
+:focus-visible{outline:2px solid #102C50;outline-offset:2px}
+</style>
+</helmet>
+<div style="max-width:1200px;margin:0 auto;padding:48px 32px 96px;display:flex;flex-direction:column;gap:56px;font-size:14px;line-height:1.5">
+
+  <header style="display:flex;flex-direction:column;gap:16px;padding-bottom:32px;border-bottom:1px solid #E3E8EF">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:40px;height:40px;border-radius:11px;background:#102C50;position:relative">
+        <div style="position:absolute;right:9px;top:9px;width:11px;height:11px;border-radius:50%;background:#DBFF00"></div>
+        <div style="position:absolute;left:9px;right:9px;bottom:10px;height:4px;border-radius:2px;background:#FFFFFF"></div>
+      </div>
+      <span style="font-size:28px;font-weight:700;letter-spacing:-0.03em">Genus</span>
+    </div>
+    <h1 style="margin:0;font-size:40px;line-height:48px;font-weight:700;letter-spacing:-0.03em">Guia de identidade visual</h1>
+    <p style="margin:0;max-width:680px;color:#5A6675;font-size:16px;text-wrap:pretty">Tokens e componentes do sistema de RH e ponto eletrônico para propriedades rurais e agroindústrias. Ferramenta de gestão: sóbria, legível e consistente no escritório e no campo.</p>
+  </header>
+
+  <section style="display:flex;flex-direction:column;gap:20px">
+    <h2 style="margin:0;font-size:20px;font-weight:700;letter-spacing:-0.01em">Marca</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+      <div style="border:1px solid #E3E8EF;border-radius:16px;padding:32px;display:flex;align-items:center;justify-content:center;gap:10px;min-height:140px">
+        <div style="width:28px;height:28px;border-radius:8px;background:#102C50;position:relative"><div style="position:absolute;right:6px;top:6px;width:8px;height:8px;border-radius:50%;background:#DBFF00"></div><div style="position:absolute;left:6px;right:6px;bottom:7px;height:3px;border-radius:2px;background:#FFFFFF"></div></div>
+        <span style="font-size:20px;font-weight:700;letter-spacing:-0.03em">Genus</span>
+      </div>
+      <div style="border-radius:16px;padding:32px;display:flex;align-items:center;justify-content:center;gap:10px;min-height:140px;background:#102C50">
+        <div style="width:28px;height:28px;border-radius:8px;background:#FFFFFF;position:relative"><div style="position:absolute;right:6px;top:6px;width:8px;height:8px;border-radius:50%;background:#102C50"></div><div style="position:absolute;left:6px;right:6px;bottom:7px;height:3px;border-radius:2px;background:#4A6A90"></div></div>
+        <span style="font-size:20px;font-weight:700;letter-spacing:-0.03em;color:#FFFFFF">Genus</span>
+      </div>
+      <div style="border:1px solid #E3E8EF;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:8px;color:#3E4A5A">
+        <span style="font-weight:700;color:#111C2B">Uso</span>
+        <span>Wordmark em Manrope 700, tracking −3%. Símbolo: sol sobre linha de plantio. O ponto em Electric Lime é o único detalhe de destaque da marca.</span>
+        <span>Área de respiro igual à altura do símbolo. Na sidebar recolhida, só o símbolo.</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:20px">
+    <h2 style="margin:0;font-size:20px;font-weight:700;letter-spacing:-0.01em">Cores</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px">
+      <div style="border:1px solid #E3E8EF;border-radius:14px;overflow:hidden"><div style="height:72px;background:#102C50"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">Midnight Navy</span><code style="font-size:12px;color:#5A6675">#102C50 · accent</code><span style="font-size:12px;color:#3E4A5A">Ação, item ativo, positivo, série principal. 14:1 no branco.</span></div></div>
+      <div style="border:1px solid #E3E8EF;border-radius:14px;overflow:hidden"><div style="height:72px;background:#DBFF00;display:flex;align-items:center;justify-content:center"><span style="font-weight:700;color:#102C50">Aa 06:40</span></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">Electric Lime</span><code style="font-size:12px;color:#5A6675">#DBFF00 · highlight</code><span style="font-size:12px;color:#3E4A5A">Uso raro: símbolo, item ativo, ponto atual do gráfico, saldo sobre navy. Nunca como texto sobre branco.</span></div></div>
+      <div style="border:1px solid #E3E8EF;border-radius:14px;overflow:hidden"><div style="height:72px;background:#E8EEF5"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">Navy claro</span><code style="font-size:12px;color:#5A6675">#E8EEF5 · accent-soft</code><span style="font-size:12px;color:#3E4A5A">Fundos de destaque, item ativo, sinais.</span></div></div>
+      <div style="border:1px solid #E3E8EF;border-radius:14px;overflow:hidden"><div style="height:72px;background:#4A6A90"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">Azul-aço</span><code style="font-size:12px;color:#5A6675">#4A6A90 · chart-2</code><span style="font-size:12px;color:#3E4A5A">Série secundária, marcação tratada.</span></div></div>
+      <div style="border:1px solid #E3E8EF;border-radius:14px;overflow:hidden"><div style="height:72px;background:#9AA7B6"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">Cinza-azulado</span><code style="font-size:12px;color:#5A6675">#9AA7B6 · chart-3</code><span style="font-size:12px;color:#3E4A5A">Período anterior em gráficos. Não usar em texto.</span></div></div>
+      <div style="border:1px solid #E3E8EF;border-radius:14px;overflow:hidden"><div style="height:72px;background:#111C2B"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">Texto principal</span><code style="font-size:12px;color:#5A6675">#111C2B · text</code><span style="font-size:12px;color:#3E4A5A">16,6:1 no branco.</span></div></div>
+      <div style="border:1px solid #E3E8EF;border-radius:14px;overflow:hidden"><div style="height:72px;background:#5A6675"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">Texto secundário</span><code style="font-size:12px;color:#5A6675">#5A6675 · text-muted</code><span style="font-size:12px;color:#3E4A5A">Rótulos e apoio. 6,0:1 no branco.</span></div></div>
+      <div style="border:1px solid #E3E8EF;border-radius:14px;overflow:hidden"><div style="height:72px;background:#F7FAFC;border-bottom:1px solid #E3E8EF"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">Cloud White</span><code style="font-size:12px;color:#5A6675">#F7FAFC · surface-2</code><span style="font-size:12px;color:#3E4A5A">Cabeçalho de tabela, filtros, apoio.</span></div></div>
+      <div style="border:1px solid #E3E8EF;border-radius:14px;overflow:hidden"><div style="height:72px;background:#FFFFFF;display:flex;align-items:flex-end;padding:10px"><div style="width:100%;height:1px;background:#E3E8EF"></div></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px;border-top:1px solid #E3E8EF"><span style="font-weight:700">Fundo e borda</span><code style="font-size:12px;color:#5A6675">#FFFFFF · #E3E8EF</code><span style="font-size:12px;color:#3E4A5A">Fundo principal, sidebar e divisores de 1px.</span></div></div>
+      <div style="border:1px solid #E3E8EF;border-radius:14px;overflow:hidden"><div style="height:72px;background:#FDF6E7;display:flex;align-items:center;justify-content:center;gap:8px"><i class="ph ph-warning" style="font-size:22px;color:#B7791F"></i><span style="font-weight:700;color:#8A5A12">Atenção</span></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">Âmbar</span><code style="font-size:12px;color:#5A6675">#B7791F · #FDF6E7 · texto #8A5A12</code><span style="font-size:12px;color:#3E4A5A">#B7791F só em ícones e bordas (3,4:1). Texto âmbar usa #8A5A12 (5,6:1).</span></div></div>
+      <div style="border:1px solid #E3E8EF;border-radius:14px;overflow:hidden"><div style="height:72px;background:#B42318"></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">Vermelho-tijolo</span><code style="font-size:12px;color:#5A6675">#B42318 · danger</code><span style="font-size:12px;color:#3E4A5A">Somente erro e exclusão. Nunca decorativo.</span></div></div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:20px">
+    <h2 style="margin:0;font-size:20px;font-weight:700;letter-spacing:-0.01em">Tipografia</h2>
+    <div style="border:1px solid #E3E8EF;border-radius:16px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr) 200px;gap:16px;align-items:baseline;padding:16px 24px;border-bottom:1px solid #E3E8EF"><code style="font-size:12px;color:#5A6675">40 / 48 · 700</code><span style="font-size:40px;line-height:48px;font-weight:700;letter-spacing:-0.03em">Saldo +06:40</span><span style="font-size:12px;color:#5A6675">Número de destaque mobile</span></div>
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr) 200px;gap:16px;align-items:baseline;padding:16px 24px;border-bottom:1px solid #E3E8EF"><code style="font-size:12px;color:#5A6675">28 / 36 · 700</code><span style="font-size:28px;line-height:36px;font-weight:700;letter-spacing:-0.02em">Apuração do dia</span><span style="font-size:12px;color:#5A6675">Título de página, valor de KPI</span></div>
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr) 200px;gap:16px;align-items:baseline;padding:16px 24px;border-bottom:1px solid #E3E8EF"><code style="font-size:12px;color:#5A6675">20 / 28 · 700</code><span style="font-size:20px;line-height:28px;font-weight:700;letter-spacing:-0.01em">Antônio Carlos Ferreira</span><span style="font-size:12px;color:#5A6675">Título de painel</span></div>
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr) 200px;gap:16px;align-items:baseline;padding:16px 24px;border-bottom:1px solid #E3E8EF"><code style="font-size:12px;color:#5A6675">16 / 24 · 600</code><span style="font-size:16px;line-height:24px;font-weight:600">Horas extras por dia</span><span style="font-size:12px;color:#5A6675">Título de card · corpo mobile</span></div>
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr) 200px;gap:16px;align-items:baseline;padding:16px 24px;border-bottom:1px solid #E3E8EF"><code style="font-size:12px;color:#5A6675">14 / 20 · 400</code><span style="font-size:14px">Marcação original nunca é alterada. Ajustes ficam registrados à parte.</span><span style="font-size:12px;color:#5A6675">Corpo desktop, tabelas</span></div>
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr) 200px;gap:16px;align-items:baseline;padding:16px 24px"><code style="font-size:12px;color:#5A6675">12 / 16 · 500</code><span style="font-size:12px;font-weight:500;color:#5A6675">Rótulo de KPI · comparação ao período anterior</span><span style="font-size:12px;color:#5A6675">Rótulos, legendas</span></div>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div style="flex:1 1 280px;border:1px solid #E3E8EF;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:6px"><span style="font-weight:700">Manrope 400, 500, 600 e 700</span><span style="color:#5A6675">Títulos com tracking negativo (−1% a −3%). Corpo sem tracking.</span></div>
+      <div style="flex:1 1 280px;border:1px solid #E3E8EF;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:6px"><span style="font-weight:700">Números tabulares</span><span style="font-variant-numeric:tabular-nums;font-size:16px">06:58 · 11:02 · 12:01 · 15:20</span><span style="color:#5A6675">font-variant-numeric: tabular-nums em horas, saldos e totais.</span></div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:20px">
+    <h2 style="margin:0;font-size:20px;font-weight:700;letter-spacing:-0.01em">Espaço, forma e elevação</h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px">
+      <div style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:10px">
+        <span style="font-weight:700">Grade de 8 px</span>
+        <div style="display:flex;align-items:center;gap:10px"><div style="width:4px;height:16px;background:#102C50;border-radius:2px"></div><code style="font-size:12px;color:#5A6675">4 · ajuste fino</code></div>
+        <div style="display:flex;align-items:center;gap:10px"><div style="width:8px;height:16px;background:#102C50;border-radius:2px"></div><code style="font-size:12px;color:#5A6675">8</code></div>
+        <div style="display:flex;align-items:center;gap:10px"><div style="width:16px;height:16px;background:#102C50;border-radius:2px"></div><code style="font-size:12px;color:#5A6675">16 · gap entre cards</code></div>
+        <div style="display:flex;align-items:center;gap:10px"><div style="width:24px;height:16px;background:#102C50;border-radius:2px"></div><code style="font-size:12px;color:#5A6675">24 · padding de card</code></div>
+        <div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:16px;background:#102C50;border-radius:2px"></div><code style="font-size:12px;color:#5A6675">32 · margem da página</code></div>
+        <div style="display:flex;align-items:center;gap:10px"><div style="width:48px;height:16px;background:#102C50;border-radius:2px"></div><code style="font-size:12px;color:#5A6675">48 · entre seções</code></div>
+      </div>
+      <div style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-weight:700">Raios</span>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:64px;height:48px;border:1.5px solid #102C50;border-radius:16px;background:#E8EEF5"></div><code style="font-size:12px;color:#5A6675">16 card</code></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:64px;height:48px;border:1.5px solid #102C50;border-radius:10px;background:#E8EEF5"></div><code style="font-size:12px;color:#5A6675">10 campo</code></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:64px;height:32px;border:1.5px solid #102C50;border-radius:999px;background:#E8EEF5"></div><code style="font-size:12px;color:#5A6675">pill botão</code></div>
+        </div>
+      </div>
+      <div style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-weight:700">Elevação</span>
+        <div style="height:72px;border:1px solid #E3E8EF;border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,0.06);display:flex;align-items:center;justify-content:center"><code style="font-size:12px;color:#5A6675">0 1px 2px rgba(15,23,42,.06)</code></div>
+        <span style="color:#5A6675;font-size:12px">Única sombra de conteúdo. Menus e avisos flutuantes usam 0 8px 24px a 8%.</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:20px">
+    <h2 style="margin:0;font-size:20px;font-weight:700;letter-spacing:-0.01em">Ícones</h2>
+    <div style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">
+        <span style="display:flex;align-items:center;gap:10px;padding:8px"><i class="ph ph-squares-four" style="font-size:20px"></i>Visão geral</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:8px"><i class="ph ph-users" style="font-size:20px"></i>Colaboradores</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:8px"><i class="ph ph-calendar-check" style="font-size:20px"></i>Escala e apuração</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:8px"><i class="ph ph-pencil-simple-line" style="font-size:20px"></i>Ajustes</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:8px"><i class="ph ph-sun-horizon" style="font-size:20px"></i>Férias</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:8px"><i class="ph ph-first-aid-kit" style="font-size:20px"></i>Atestados</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:8px"><i class="ph ph-hourglass-medium" style="font-size:20px"></i>Banco de horas</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:8px"><i class="ph ph-lock-simple" style="font-size:20px"></i>Fechamento</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:8px"><i class="ph ph-chart-bar" style="font-size:20px"></i>Relatórios</span>
+        <span style="display:flex;align-items:center;gap:10px;padding:8px"><i class="ph ph-gear-six" style="font-size:20px"></i>Configurações</span>
+      </div>
+      <span style="color:#5A6675;font-size:12px">Phosphor Regular: traço de 1,5 px em 24 px, cantos arredondados. 20 px no menu, 16 a 18 px em linha com texto. Sempre acompanhados de texto.</span>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:20px">
+    <h2 style="margin:0;font-size:20px;font-weight:700;letter-spacing:-0.01em">Componentes</h2>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px">
+      <div style="border:1px solid #E3E8EF;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px">
+        <span style="font-weight:700">Botões</span>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <button style="display:flex;align-items:center;gap:8px;height:40px;padding:0 20px;border:0;border-radius:999px;background:#102C50;color:#FFFFFF;font-weight:600;cursor:pointer" style-hover="background:#0B2140"><i class="ph ph-arrow-clockwise" style="font-size:18px"></i>Primário</button>
+          <button style="height:40px;padding:0 20px;border:0;border-radius:999px;background:#0B2140;color:#FFFFFF;font-weight:600">Hover</button>
+          <button style="height:40px;padding:0 20px;border:0;border-radius:999px;background:#102C50;color:#FFFFFF;font-weight:600;outline:2px solid #102C50;outline-offset:2px">Foco</button>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <button style="height:40px;padding:0 20px;border:1px solid #D3DAE3;border-radius:999px;background:#FFFFFF;font-weight:600;cursor:pointer" style-hover="background:#F7FAFC">Secundário</button>
+          <button style="height:40px;padding:0 20px;border:0;border-radius:999px;background:#E3E8EF;color:#5A6675;font-weight:600;cursor:not-allowed">Desabilitado</button>
+          <button style="height:40px;padding:0 20px;border:1px solid #B42318;border-radius:999px;background:#FFFFFF;color:#B42318;font-weight:600">Excluir</button>
+        </div>
+        <span style="font-size:12px;color:#5A6675">Altura 40 px no desktop, 52 a 60 px no mobile. Foco: contorno verde de 2 px com 2 px de afastamento.</span>
+      </div>
+
+      <div style="border:1px solid #E3E8EF;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px">
+        <span style="font-weight:700">Campos</span>
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12px;font-weight:600;color:#3E4A5A">Matrícula</span><input placeholder="Ex.: 00412" style="height:40px;padding:0 12px;border:1px solid #D3DAE3;border-radius:10px" style-focus="outline:none;border-color:#102C50;box-shadow:0 0 0 3px #C9D6E8"></label>
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12px;font-weight:600;color:#3E4A5A">Setor · em foco</span><input value="Colheita" readOnly="{{ true }}" style="height:40px;padding:0 12px;border:1px solid #102C50;border-radius:10px;box-shadow:0 0 0 3px #C9D6E8;outline:none"></label>
+        <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12px;font-weight:600;color:#3E4A5A">CPF</span><input value="123.456.789-00" readOnly="{{ true }}" aria-invalid="true" style="height:40px;padding:0 12px;border:1px solid #B42318;border-radius:10px;font-variant-numeric:tabular-nums"><span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#B42318;font-weight:600"><i class="ph ph-warning-circle" style="font-size:14px"></i>CPF inválido. Confira os dígitos.</span></label>
+      </div>
+
+      <div style="border:1px solid #E3E8EF;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px;background:#F7FAFC">
+        <span style="font-weight:700">Card KPI</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;background:#FFFFFF;box-shadow:0 1px 2px rgba(15,23,42,0.06);display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:12px;font-weight:500;color:#5A6675">Faltas</span>
+            <span style="font-size:28px;line-height:36px;font-weight:700;letter-spacing:-0.02em;font-variant-numeric:tabular-nums">37</span>
+            <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px"><span style="display:inline-flex;align-items:center;gap:2px;padding:2px 8px;border-radius:999px;background:#E8EEF5;color:#102C50;font-weight:600"><i class="ph ph-arrow-down-right" style="font-size:12px"></i>17,8%</span><span style="color:#5A6675">vs. 45</span></span>
+          </div>
+          <div style="border:1px solid #E3E8EF;border-radius:16px;padding:20px;background:#FFFFFF;box-shadow:0 1px 2px rgba(15,23,42,0.06);display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:12px;font-weight:500;color:#5A6675">Horas extras</span>
+            <span style="font-size:28px;line-height:36px;font-weight:700;letter-spacing:-0.02em;font-variant-numeric:tabular-nums">1.126 h</span>
+            <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px"><span style="display:inline-flex;align-items:center;gap:2px;padding:2px 8px;border-radius:999px;background:#FDF6E7;color:#8A5A12;font-weight:600"><i class="ph ph-arrow-up-right" style="font-size:12px"></i>12,4%</span><span style="color:#5A6675">vs. 1.002 h</span></span>
+          </div>
+        </div>
+        <span style="font-size:12px;color:#5A6675">Verde para melhora, âmbar para atenção. A direção da seta segue o número; a cor segue o significado.</span>
+      </div>
+
+      <div style="border:1px solid #E3E8EF;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:12px">
+        <span style="font-weight:700">Card de alerta</span>
+        <div style="border-radius:12px;padding:14px 16px;background:#FDF6E7;display:flex;flex-direction:column;gap:4px">
+          <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#8A5A12"><i class="ph ph-warning" style="font-size:16px"></i>Alerta</span>
+          <span style="font-weight:600">Interjornada menor que 11 h</span>
+          <span style="color:#3E4A5A">3 ocorrências em Manutenção nesta semana.</span>
+          <span style="color:#8A5A12;font-weight:600;display:flex;align-items:center;gap:4px">Ver ocorrências<i class="ph ph-arrow-right" style="font-size:14px"></i></span>
+        </div>
+        <div style="border-radius:12px;padding:14px 16px;background:#E8EEF5;display:flex;flex-direction:column;gap:4px">
+          <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#102C50"><i class="ph ph-info" style="font-size:16px"></i>Sinal</span>
+          <span style="font-weight:600">Jornada de 42 h a partir de 16/12</span>
+          <span style="color:#3E4A5A">18 escalas ficam acima do novo limite semanal.</span>
+          <span style="color:#102C50;font-weight:600;display:flex;align-items:center;gap:4px">Revisar escalas<i class="ph ph-arrow-right" style="font-size:14px"></i></span>
+        </div>
+      </div>
+    </div>
+
+    <div style="border:1px solid #E3E8EF;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px">
+      <span style="font-weight:700">Status · sempre ícone e texto</span>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#102C50"><i class="ph ph-check-circle" style="font-size:18px"></i>Calculada</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#8A5A12"><i class="ph ph-warning" style="font-size:18px"></i>Inconsistente</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#8A5A12"><i class="ph ph-minus-circle" style="font-size:18px"></i>Falta</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#5A6675"><i class="ph ph-tray" style="font-size:18px"></i>Recebido</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#102C50"><i class="ph ph-magnifying-glass" style="font-size:18px"></i>Em análise</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#5A6675"><i class="ph ph-moon" style="font-size:18px"></i>Folga</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#B42318"><i class="ph ph-warning-circle" style="font-size:18px"></i>Erro de envio</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#111C2B"><i class="ph ph-lock-key" style="font-size:18px"></i>Dado sensível restrito</span>
+      </div>
+    </div>
+
+    <div style="border:1px solid #E3E8EF;border-radius:16px;overflow:hidden">
+      <div style="padding:16px 24px;font-weight:700">Tabela</div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;min-width:560px">
+          <thead><tr style="background:#F7FAFC">
+            <th style="text-align:left;font-size:12px;font-weight:600;color:#5A6675;padding:10px 24px;border-top:1px solid #E3E8EF;border-bottom:1px solid #E3E8EF">Colaborador</th>
+            <th style="text-align:right;font-size:12px;font-weight:600;color:#5A6675;padding:10px 16px;border-top:1px solid #E3E8EF;border-bottom:1px solid #E3E8EF">Jornada</th>
+            <th style="text-align:left;font-size:12px;font-weight:600;color:#5A6675;padding:10px 24px;border-top:1px solid #E3E8EF;border-bottom:1px solid #E3E8EF">Status</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="padding:12px 24px;border-bottom:1px solid #E3E8EF;font-weight:600">Antônio Carlos Ferreira</td><td style="padding:12px 16px;border-bottom:1px solid #E3E8EF;text-align:right;font-variant-numeric:tabular-nums">07:23 / 07:20</td><td style="padding:12px 24px;border-bottom:1px solid #E3E8EF"><span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#102C50"><i class="ph ph-check-circle" style="font-size:18px"></i>Calculada</span></td></tr>
+            <tr><td style="padding:12px 24px;font-weight:600">José Roberto Lima</td><td style="padding:12px 16px;text-align:right;font-variant-numeric:tabular-nums">04:05 / 07:20</td><td style="padding:12px 24px"><span style="display:inline-flex;align-items:center;gap:6px;font-weight:600;color:#8A5A12"><i class="ph ph-warning" style="font-size:18px"></i>Inconsistente</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:12px 24px;font-size:12px;color:#5A6675;border-top:1px solid #E3E8EF">Cabeçalho em #F7FAFC, separador de 1 px, sem zebra. Horas alinhadas à direita com números tabulares.</div>
+    </div>
+
+    <div style="border:1px solid #E3E8EF;border-radius:16px;padding:24px;display:flex;gap:32px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:12px;width:240px">
+        <span style="font-weight:700">Item de menu</span>
+        <div style="position:relative;display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:10px;background:#E8EEF5;color:#102C50;font-weight:600;margin-left:12px"><span style="position:absolute;left:-12px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:#DBFF00"></span><i class="ph ph-calendar-check" style="font-size:20px"></i>Ativo</div>
+        <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:10px;background:#F7FAFC;color:#3E4A5A;font-weight:500;margin-left:12px"><i class="ph ph-users" style="font-size:20px"></i>Hover</div>
+        <div style="display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-radius:10px;color:#3E4A5A;font-weight:500;margin-left:12px"><i class="ph ph-chart-bar" style="font-size:20px"></i>Padrão</div>
+      </div>
+      <div style="flex:1 1 300px;display:flex;flex-direction:column;gap:8px;color:#3E4A5A">
+        <span style="font-weight:700;color:#111C2B">Acessibilidade e tom</span>
+        <span>Contraste mínimo de 4,5:1 para texto normal. Foco visível em todos os elementos interativos.</span>
+        <span>Status nunca só por cor. Alvos de toque de no mínimo 44 px no mobile.</span>
+        <span>Português do Brasil, direto, sem emojis e sem linguagem de marketing. Exemplo: “Não foi possível carregar a apuração. Tente de novo.”</span>
+      </div>
+    </div>
+  </section>
+
+  <footer style="display:flex;gap:16px;flex-wrap:wrap;padding-top:24px;border-top:1px solid #E3E8EF;color:#5A6675">
+    <a href="Genus RH.dc.html" style="font-weight:600">Telas do RH (desktop)</a>
+    <a href="Portal do Funcionário.dc.html" style="font-weight:600">Portal do funcionário (mobile)</a>
+  </footer>
+</div>
+</x-dc>
+</body>
+</html>

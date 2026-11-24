@@ -585,6 +585,8 @@ CREATE TABLE atestados (
 );
 
 -- RF61 a RF67 — a heurística só sinaliza; quem decide é o RH
+-- (Desenho original. Migration 0010: várias análises por atestado, uma por modelo, com
+--  provedor, modelo, versão do prompt, hash da entrada, resultado e CID/evidências cifrados.)
 CREATE TABLE analises_atestado (
     id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     atestado_id   bigint      NOT NULL UNIQUE REFERENCES atestados(id) ON DELETE CASCADE,

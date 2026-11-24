@@ -2,6 +2,7 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { absenceRoutes } from '../absences/routes';
 import { adjustmentRoutes } from '../adjustments/routes';
+import { certificateAnalysisRoutes } from '../certificate-analysis/routes';
 import { certificateRoutes } from '../certificates/routes';
 import { closingRoutes } from '../closing/routes';
 import { employeePortalRoutes } from '../employee-portal/routes';
@@ -19,6 +20,7 @@ export const portalRoutes: FastifyPluginAsyncZod<PortalDeps> = async (app, deps)
   await app.register(adjustmentRoutes, deps);
   await app.register(absenceRoutes, deps);
   await app.register(certificateRoutes, deps);
+  await app.register(certificateAnalysisRoutes, deps);
   await app.register(vacationRoutes, deps);
   await app.register(closingRoutes, deps);
   await app.register(employeePortalRoutes, deps);

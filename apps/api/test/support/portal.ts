@@ -19,6 +19,8 @@ import { UserService } from '../../src/modules/auth/user-service';
 import type { FacialEngineClient } from '../../src/modules/facial/engine-client';
 import type { PinPepper } from '../../src/modules/employees/pin';
 import { MemoryStorage } from '../../src/storage/file-storage';
+import { CertificateAiRegistry, MOCK_ONLY_CONFIG } from '../../src/modules/certificate-analysis/ai/registry';
+import { HealthDataCipher } from '../../src/modules/certificate-analysis/health-crypto';
 import type { Role } from '../../src/plugins/request-context';
 import { FAKE_PIN_HASH, FAKE_PIN_SET_AT } from './fake-pin';
 import { startRhTestDatabase, type RhTestDatabase } from './rh-database';
@@ -28,6 +30,8 @@ export const BASE_URL = 'http://localhost:3002';
 const SECRET = 'segredo-de-teste-com-mais-de-32-caracteres-0123456789';
 export const PASSWORD = 'senha-ficticia-forte-123';
 export const TEST_PEPPER: PinPepper = { version: 1, key: Buffer.alloc(32, 7) };
+/** Chave fictícia do dado de saúde (64 hex), só para teste. */
+export const TEST_HEALTH_KEY = '11'.repeat(32);
 
 export interface Org {
   tenantId: number;
@@ -45,6 +49,10 @@ export interface HarnessOptions {
   gestorEnabled?: boolean;
   clock?: Clock;
   engine?: FacialEngineClient | null;
+  /** Provedores de IA da análise de atestado (padrão: só a mock). */
+  certificateAi?: CertificateAiRegistry;
+  /** Cifra do dado de saúde; null = sem chave. Padrão: chave fictícia de teste. */
+  healthCipher?: HealthDataCipher | null;
 }
 
 let seq = 0;
@@ -123,6 +131,10 @@ export class PortalHarness {
         engine: o.engine ?? null,
         pin: { current: TEST_PEPPER, all: [TEST_PEPPER] },
         maxAttachmentBytes: 1024 * 1024,
+        certificateAi: {
+          registry: o.certificateAi ?? new CertificateAiRegistry(MOCK_ONLY_CONFIG),
+          healthCipher: o.healthCipher === undefined ? HealthDataCipher.fromHex(TEST_HEALTH_KEY) : o.healthCipher,
+        },
       },
     });
   }
