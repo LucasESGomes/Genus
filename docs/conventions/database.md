@@ -149,7 +149,7 @@ Pedido que passa por aprovação (ajuste, atestado, férias, folga compensatóri
 
 `CHECK` amarra estado e carimbo: `status IN ('pendente','cancelado') OR (decidido_por_id IS NOT NULL AND decidido_em IS NOT NULL)`. A regra "ninguém decide o próprio pedido" fica no service **e** num `CHECK (decidido_por_id IS DISTINCT FROM solicitado_por_id)`.
 
-**Papéis** (`usuarios.papel`): `super_admin`, `rh`, `gestor`, `colaborador`.
+**Papéis** (`usuarios.papel`): `super_admin`, `admin`, `rh`, `gestor`, `colaborador`, `contador`. Escopo por estabelecimento em `usuarios_estabelecimentos` (`04` §1.4).
 
 ## 10. Dados cifrados e arquivos
 
@@ -230,7 +230,10 @@ export const employees = pgTable('colaboradores', {
 | `marcacoes_tratadas` | `treatedPunches` | `preferencias_notificacao` | `notificationPreferences` |
 | `abonos` | `timeWaivers` | `logs_auditoria` | `auditLogs` |
 | `consentimentos_biometricos` | `biometricConsents` | `embeddings_faciais` | `facialEmbeddings` |
-| `chaves_conta` | `tenantKeys` | | |
+| `chaves_empresa` | `companyKeys` | `usuarios_estabelecimentos` | `userEstablishments` |
+| `sessoes` | `sessions` | `credenciais_login` | `loginCredentials` |
+| `dois_fatores` | `twoFactors` | `verificacoes` | `verifications` |
+| `chaves_jwt` | `jwtKeys` | | |
 
 **Banco `arp` (nomes dos docs `02` e `03` → identificadores).** O `arp` já estava em português; só ganhou plural e o padrão de colunas:
 
@@ -299,7 +302,7 @@ Colunas fora das regras de §12.1: `ativo` → `isActive`, `folga` → `isDayOff
 - Uma migration, uma intenção. Mudança de schema e carga de dados em arquivos separados. Dados iniciais (feriados nacionais, licenças legais) ficam em `db/seeds/`, idempotentes.
 - Migration destrutiva (`DROP`, mudança de tipo) leva comentário com o plano de reversão e passa por revisão.
 - `arp`: SQL escrito à mão, com os triggers de imutabilidade; um teste automatizado tenta `UPDATE`/`DELETE` e espera falha.
-- **Better Auth** cria tabelas próprias (`user`, `session` etc.), em inglês. **[A DECIDIR]** mapear para português pela configuração dele (`modelName`/`fields`) ou mantê-las em um schema `auth` separado, fora desta convenção. Ver `04` §9.
+- **Better Auth** (decidido em 22/11/2026): as tabelas dele ficam no schema `rh`, **em português**, e o usuário é a própria `usuarios` (sem cadastro duplicado). O adaptador Drizzle liga cada modelo à tabela de `apps/api/src/db/schema/auth.ts`: `user` → `usuarios`, `session` → `sessoes`, `account` → `credenciais_login` (a senha mora aqui, em `senha_hash`), `verification` → `verificacoes`, `jwks` → `chaves_jwt`, `twoFactor` → `dois_fatores` (`twoFactorEnabled` → `usuarios.mfa_ativo`). Ids `bigint` (`generateId: 'serial'`). O `conta_id` de `sessoes`, `credenciais_login` e `dois_fatores` é copiado do usuário por trigger (migration 0008); `verificacoes` e `chaves_jwt` são da plataforma e não têm `conta_id`. Tabela nova de plugin do Better Auth segue o mesmo caminho: schema Drizzle em português + migration.
 
 ## 14. Exemplo completo
 

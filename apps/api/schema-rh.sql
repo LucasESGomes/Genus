@@ -93,7 +93,13 @@ CREATE TABLE colaboradores (
     data_desligamento    date,
     motivo_desligamento  text,
     gestor_id            bigint   REFERENCES colaboradores(id),
+    -- PIN do modo alternativo (matrícula ou CPF + PIN), obrigatório: só o hash
+    -- scrypt com sal e pepper (apps/api/src/modules/employees/pin.ts)
+    pin_hash             text        NOT NULL,
+    pin_definido_em      timestamptz NOT NULL,
 
+    CONSTRAINT colab_pin_formato     CHECK (pin_hash ~
+        '^scrypt\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9]+\$[A-Za-z0-9_-]+\$[A-Za-z0-9_-]+$'),
     CONSTRAINT colab_cpf_formato     CHECK (cpf ~ '^[0-9]{11}$'),
     CONSTRAINT colab_admissao_valida CHECK (data_admissao > data_nascimento),
     CONSTRAINT colab_desligamento    CHECK (data_desligamento IS NULL
@@ -129,24 +135,82 @@ CREATE TABLE vinculos_colaborador (
     )
 );
 
--- [JÁ PODE EXISTIR] perfis de acesso
+-- Perfis de acesso. É a tabela `user` do Better Auth (migrations 0006 a 0008).
+-- A senha não fica aqui: fica em credenciais_login.senha_hash.
 CREATE TABLE usuarios (
-    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    colaborador_id  bigint  UNIQUE REFERENCES colaboradores(id),
-    email           citext  NOT NULL UNIQUE,
-    senha_hash      text    NOT NULL,
-    papel           text    NOT NULL,
-    mfa_ativo       boolean NOT NULL DEFAULT false,
-    ativo           boolean NOT NULL DEFAULT true,
+    id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    colaborador_id   bigint  UNIQUE REFERENCES colaboradores(id),
+    nome             text    NOT NULL,
+    email            citext  NOT NULL UNIQUE,
+    email_verificado boolean NOT NULL DEFAULT false,
+    imagem           text,
+    papel            text    NOT NULL,
+    mfa_ativo        boolean NOT NULL DEFAULT false,   -- twoFactorEnabled (TOTP)
+    ativo            boolean NOT NULL DEFAULT true,    -- false derruba as sessões (trigger)
+    criado_em        timestamptz NOT NULL DEFAULT now(),
+    atualizado_em    timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT usuario_papel CHECK (papel IN
-        ('admin','rh','gestor','contador','funcionario','super_admin')),
-    -- funcionário é sempre uma pessoa cadastrada; admin e contador podem ser externos
-    CONSTRAINT usuario_funcionario_tem_colaborador
-        CHECK (papel <> 'funcionario' OR colaborador_id IS NOT NULL),
-    -- super admin da plataforma só existe com 2FA
-    CONSTRAINT usuario_super_admin_mfa
-        CHECK (papel <> 'super_admin' OR mfa_ativo)
+        ('admin','rh','gestor','contador','colaborador','super_admin')),
+    -- colaborador é sempre uma pessoa cadastrada; admin e contador podem ser externos
+    CONSTRAINT usuario_colaborador_tem_colaborador
+        CHECK (papel <> 'colaborador' OR colaborador_id IS NOT NULL)
+    -- super_admin sem 2FA: regra da api (a sessão só serve para ativar o 2FA),
+    -- porque o segredo TOTP só nasce depois do primeiro login.
+);
+
+-- Login (Better Auth). conta_id copiado do usuário por trigger; NULL no super_admin.
+CREATE TABLE sessoes (            -- session
+    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    usuario_id      bigint NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    token           text   NOT NULL UNIQUE,              -- nunca em log
+    expira_em       timestamptz NOT NULL,
+    endereco_ip     text,
+    agente_usuario  text,
+    criado_em       timestamptz NOT NULL DEFAULT now(),
+    atualizado_em   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE credenciais_login (  -- account (provedor 'credential' = e-mail + senha)
+    id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    usuario_id         bigint NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    conta_provedor_id  text   NOT NULL,
+    provedor           text   NOT NULL,
+    senha_hash         text,                             -- scrypt do Better Auth
+    -- token_acesso, token_renovacao, token_id, escopo e validades: OAuth, sem uso hoje
+    criado_em          timestamptz NOT NULL DEFAULT now(),
+    atualizado_em      timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (provedor, conta_provedor_id)
+);
+
+CREATE TABLE dois_fatores (       -- twoFactor (TOTP)
+    id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    usuario_id         bigint NOT NULL UNIQUE REFERENCES usuarios(id) ON DELETE CASCADE,
+    segredo            text   NOT NULL,                  -- cifrado pelo Better Auth
+    codigos_backup     text   NOT NULL,                  -- cifrados
+    verificado         boolean NOT NULL DEFAULT true,
+    tentativas_falhas  integer NOT NULL DEFAULT 0,
+    bloqueado_ate      timestamptz
+);
+
+-- Da plataforma, sem conta_id:
+CREATE TABLE verificacoes (       -- verification (2FA em andamento, redefinição de senha)
+    id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    identificador  text NOT NULL,
+    valor          text NOT NULL,
+    expira_em      timestamptz NOT NULL,
+    criado_em      timestamptz NOT NULL DEFAULT now(),
+    atualizado_em  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE chaves_jwt (         -- jwks (assinatura EdDSA do JWT curto)
+    id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    chave_publica  text NOT NULL,
+    chave_privada  text NOT NULL,                        -- cifrada pelo Better Auth
+    algoritmo      text,
+    curva          text,
+    criado_em      timestamptz NOT NULL DEFAULT now(),
+    expira_em      timestamptz
 );
 
 -- RNF02 — escopo por estabelecimento
@@ -155,6 +219,65 @@ CREATE TABLE usuarios_estabelecimentos (
     estabelecimento_id  bigint NOT NULL REFERENCES estabelecimentos(id),
     PRIMARY KEY (usuario_id, estabelecimento_id)
 );
+
+-- RF04 — biometria facial (migrations 0004 e 0005). Criptografia dupla já pronta
+-- (packages/shared/src/crypto.ts e o face-engine); o banco só guarda:
+--   embedding cifrado pela engine com a DEK da empresa; DEK cifrada com a MASTER_KEY.
+CREATE TABLE chaves_empresa (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    empresa_id    bigint      NOT NULL REFERENCES empresas(id),
+    versao_chave  integer     NOT NULL,              -- versão da DEK da empresa
+    dek_iv        bytea       NOT NULL,
+    dek_tag       bytea       NOT NULL,
+    dek_ct        bytea       NOT NULL,
+    versao_kek    integer     NOT NULL DEFAULT 1,    -- versão da MASTER_KEY
+    eh_ativa      boolean     NOT NULL DEFAULT true,
+    criado_em     timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT chave_empresa_versao_key UNIQUE (empresa_id, versao_chave),
+    CONSTRAINT chave_empresa_versao_pos CHECK (versao_chave >= 1 AND versao_kek >= 1),
+    CONSTRAINT chave_empresa_tamanhos   CHECK (octet_length(dek_iv) = 12
+                                               AND octet_length(dek_tag) = 16
+                                               AND octet_length(dek_ct) = 32)
+);
+CREATE UNIQUE INDEX uq_chave_empresa_ativa ON chaves_empresa (empresa_id) WHERE eh_ativa;
+
+CREATE TABLE consentimentos_biometricos (
+    id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    colaborador_id    bigint      NOT NULL REFERENCES colaboradores(id),
+    versao_texto      text        NOT NULL,
+    consentido_em     timestamptz NOT NULL,
+    endereco_ip       inet,
+    aparelho_id       bigint      REFERENCES aparelhos(id),
+    coletado_por_id   bigint      REFERENCES usuarios(id),
+    revogado_em       timestamptz,
+    motivo_revogacao  text,
+    criado_em         timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT consentimento_revogacao_par  CHECK ((revogado_em IS NULL) = (motivo_revogacao IS NULL)),
+    CONSTRAINT consentimento_revogacao_data CHECK (revogado_em IS NULL OR revogado_em >= consentido_em)
+);
+CREATE UNIQUE INDEX uq_consentimento_ativo ON consentimentos_biometricos (colaborador_id) WHERE revogado_em IS NULL;
+
+CREATE TABLE embeddings_faciais (
+    id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    colaborador_id    bigint      NOT NULL UNIQUE REFERENCES colaboradores(id),
+    empresa_id        bigint      NOT NULL,          -- dona da DEK (trigger confere)
+    consentimento_id  bigint      NOT NULL REFERENCES consentimentos_biometricos(id),
+    versao_chave      integer     NOT NULL,          -- FK (empresa_id, versao_chave) → chaves_empresa
+    embedding_iv      bytea       NOT NULL,
+    embedding_tag     bytea       NOT NULL,
+    embedding_ct      bytea       NOT NULL,
+    versao_modelo     text        NOT NULL,
+    qtd_imagens       smallint    NOT NULL,
+    origem            text        NOT NULL,
+    criado_em         timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT embedding_tamanhos     CHECK (octet_length(embedding_iv) = 12
+                                             AND octet_length(embedding_tag) = 16
+                                             AND octet_length(embedding_ct) = 2048),
+    CONSTRAINT embedding_qtd_imagens  CHECK (qtd_imagens BETWEEN 1 AND 5),
+    CONSTRAINT embedding_origem       CHECK (origem IN ('quiosque','portal'))
+);
+-- Triggers (0005): fn_embedding_valido (consentimento ativo e DEK da empresa do
+-- colaborador) e fn_consentimento_revogado_apaga_embedding.
 
 
 -- ============================================================================
@@ -378,7 +501,9 @@ CREATE TABLE inconsistencias (
     CONSTRAINT inconsistencia_unica UNIQUE (apuracao_dia_id, tipo),
     CONSTRAINT inconsistencia_tipo  CHECK (tipo IN (
         'batida_faltando','batidas_impares','interjornada_menor_11h',
-        'extra_acima_2h','intervalo_nao_cumprido')),
+        'extra_acima_2h','intervalo_nao_cumprido',
+        -- 0009: códigos que a apuração gera além dos cinco do 04 (RF21)
+        'marcacao_duplicada','marcacao_fora_de_ordem','marcacao_fora_da_escala')),
     CONSTRAINT inconsistencia_resolucao CHECK (
         (NOT resolvida AND resolvida_por IS NULL     AND resolvida_em IS NULL)
      OR (resolvida     AND resolvida_por IS NOT NULL AND resolvida_em IS NOT NULL)

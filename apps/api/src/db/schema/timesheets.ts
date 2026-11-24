@@ -111,9 +111,11 @@ export const timesheetIssues = rh.table(
     }).onDelete('cascade'),
     foreignKey({ name: 'inconsistencia_resolvida_por_fkey', columns: [t.resolvedById], foreignColumns: [users.id] }),
     unique('inconsistencia_unica').on(t.dailyTimesheetId, t.type),
+    // 0009: + marcacao_duplicada, marcacao_fora_de_ordem e marcacao_fora_da_escala, que a
+    // apuração (timesheets/rules/day.ts) gera e o RH precisa tratar (RF21, G5)
     check(
       'inconsistencia_tipo',
-      sql`tipo IN ('batida_faltando','batidas_impares','interjornada_menor_11h','extra_acima_2h','intervalo_nao_cumprido')`,
+      sql`tipo IN ('batida_faltando','batidas_impares','interjornada_menor_11h','extra_acima_2h','intervalo_nao_cumprido','marcacao_duplicada','marcacao_fora_de_ordem','marcacao_fora_da_escala')`,
     ),
     check(
       'inconsistencia_resolucao',

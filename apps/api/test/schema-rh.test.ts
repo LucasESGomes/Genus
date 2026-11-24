@@ -11,6 +11,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type DatabaseHandle } from '../src/db/client';
 import { employees } from '../src/db/schema';
 import { startRhTestDatabase, type RhTestDatabase } from './support/rh-database';
+import { hashPin, verifyPin } from '../src/modules/employees/pin';
+import { FAKE_PIN_HASH, FAKE_PIN_SET_AT } from './support/fake-pin';
 
 let db: RhTestDatabase;
 let client: pg.Client;
@@ -65,7 +67,7 @@ async function createOrg(name: string): Promise<Org> {
   ).id;
   const user = async (role: string) =>
     (
-      await one<{ id: number }>('INSERT INTO rh.usuarios (conta_id, email, senha_hash, papel) VALUES ($1, $2, $3, $4) RETURNING id', [
+      await one<{ id: number }>('INSERT INTO rh.usuarios (conta_id, email, nome, papel) VALUES ($1, $2, $3, $4) RETURNING id', [
         tenantId,
         `${role}${seq}@teste.dev`,
         'x',
@@ -77,9 +79,9 @@ async function createOrg(name: string): Promise<Org> {
 
 function insertEmployee(org: Org, cpf: string, establishmentId = org.establishmentId) {
   return client.query(
-    `INSERT INTO rh.colaboradores (conta_id, estabelecimento_id, cpf, nome, data_nascimento, data_admissao)
-     VALUES ($1, $2, $3, 'Pessoa Fictícia', '1990-01-01', '2025-01-01') RETURNING id`,
-    [org.tenantId, establishmentId, cpf],
+    `INSERT INTO rh.colaboradores (conta_id, estabelecimento_id, cpf, nome, data_nascimento, data_admissao, pin_hash, pin_definido_em)
+     VALUES ($1, $2, $3, 'Pessoa Fictícia', '1990-01-01', '2025-01-01', $4, $5) RETURNING id`,
+    [org.tenantId, establishmentId, cpf, FAKE_PIN_HASH, FAKE_PIN_SET_AT],
   );
 }
 
@@ -134,11 +136,11 @@ afterAll(async () => {
 });
 
 describe('migrations', () => {
-  it('criam as 32 tabelas, a view e as extensões', async () => {
+  it('criam as 40 tabelas, a view e as extensões', async () => {
     const tables = await one<{ n: number }>(
       "SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema = 'rh' AND table_type = 'BASE TABLE'",
     );
-    expect(tables.n).toBe(32);
+    expect(tables.n).toBe(40);
     const view = await one<{ n: number }>(
       "SELECT count(*)::int AS n FROM information_schema.views WHERE table_schema = 'rh' AND table_name = 'vw_saldos_banco_horas'",
     );
@@ -147,10 +149,12 @@ describe('migrations', () => {
     expect(ext.rows.map((r) => r.extname)).toEqual(['btree_gist', 'citext']);
   });
 
-  it('toda tabela tem conta_id', async () => {
+  it('toda tabela tem conta_id (menos as da plataforma, listadas aqui)', async () => {
+    // verificacoes e chaves_jwt são do Better Auth e não guardam dado de conta (0008).
     const without = await client.query(
       `SELECT t.table_name FROM information_schema.tables t
-        WHERE t.table_schema = 'rh' AND t.table_type = 'BASE TABLE' AND t.table_name <> 'contas'
+        WHERE t.table_schema = 'rh' AND t.table_type = 'BASE TABLE'
+          AND t.table_name NOT IN ('contas', 'verificacoes', 'chaves_jwt')
           AND NOT EXISTS (SELECT 1 FROM information_schema.columns c
                            WHERE c.table_schema = 'rh' AND c.table_name = t.table_name AND c.column_name = 'conta_id')`,
     );
@@ -160,7 +164,7 @@ describe('migrations', () => {
   it('e-mail do usuário não diferencia maiúsculas (citext)', async () => {
     expect(
       await sqlState(
-        client.query("INSERT INTO rh.usuarios (conta_id, email, senha_hash, papel) VALUES ($1, 'RH1@Teste.dev', 'x', 'rh')", [org.tenantId]),
+        client.query("INSERT INTO rh.usuarios (conta_id, email, nome, papel) VALUES ($1, 'RH1@Teste.dev', 'RH 1', 'rh')", [org.tenantId]),
       ),
     ).toBe('23505');
   });
@@ -196,8 +200,8 @@ describe('multi-tenant', () => {
   });
 
   it('só o super_admin fica sem conta', async () => {
-    await client.query("INSERT INTO rh.usuarios (email, senha_hash, papel, mfa_ativo) VALUES ('root@genus.dev', 'x', 'super_admin', true)");
-    expect(await sqlState(client.query("INSERT INTO rh.usuarios (email, senha_hash, papel) VALUES ('semconta@teste.dev', 'x', 'rh')"))).toBe(
+    await client.query("INSERT INTO rh.usuarios (email, nome, papel, mfa_ativo) VALUES ('root@genus.dev', 'Root', 'super_admin', true)");
+    expect(await sqlState(client.query("INSERT INTO rh.usuarios (email, nome, papel) VALUES ('semconta@teste.dev', 'Sem conta', 'rh')"))).toBe(
       '23514',
     );
   });
@@ -220,6 +224,8 @@ describe('Drizzle', () => {
         name: 'Maria Drizzle',
         birthDate: '1995-05-05',
         admissionDate: '2024-02-01',
+        pinHash: FAKE_PIN_HASH,
+        pinSetAt: new Date(FAKE_PIN_SET_AT),
       })
       .returning();
     expect(inserted?.id).toBeTypeOf('number');
@@ -367,5 +373,39 @@ describe('banco de horas', () => {
       [org.tenantId, e.employeeId],
     );
     expect(Number(saldo.saldo_minutos)).toBe(90);
+  });
+});
+
+describe('PIN do colaborador (migration 0003)', () => {
+  const insertWithPin = (cpf: string, pinHash: string | null, pinSetAt: string | null) =>
+    client.query(
+      `INSERT INTO rh.colaboradores (conta_id, estabelecimento_id, cpf, nome, data_nascimento, data_admissao, pin_hash, pin_definido_em)
+       VALUES ($1, $2, $3, 'Pessoa Fictícia', '1990-01-01', '2025-01-01', $4, $5) RETURNING id`,
+      [org.tenantId, org.establishmentId, cpf, pinHash, pinSetAt],
+    );
+  const nextCpf = () => {
+    seq += 1;
+    return String(20_000_000_000 + seq);
+  };
+
+  it('todo colaborador tem PIN: sem hash ou sem data, recusa', async () => {
+    expect(await sqlState(insertWithPin(nextCpf(), null, FAKE_PIN_SET_AT))).toBe('23502');
+    expect(await sqlState(insertWithPin(nextCpf(), FAKE_PIN_HASH, null))).toBe('23502');
+    const id = ((await insertWithPin(nextCpf(), FAKE_PIN_HASH, FAKE_PIN_SET_AT)).rows[0] as { id: number }).id;
+    expect(await sqlState(client.query('UPDATE rh.colaboradores SET pin_hash = NULL WHERE id = $1', [id]))).toBe('23502');
+  });
+
+  it('recusa PIN em claro ou hash de outro formato', async () => {
+    for (const value of ['1234', '482915', 'bcrypt$2b$10$abc', 'scrypt$1$2$3', 'scrypt$1$32768$8$1$sal$hash com espaço']) {
+      expect(await sqlState(insertWithPin(nextCpf(), value, FAKE_PIN_SET_AT)), value).toBe('23514');
+    }
+  });
+
+  it('aceita o hash gerado por hashPin', async () => {
+    const pepper = { version: 1, key: Buffer.alloc(32, 7) };
+    const hash = await hashPin('482915', pepper);
+    const id = ((await insertWithPin(nextCpf(), hash, FAKE_PIN_SET_AT)).rows[0] as { id: number }).id;
+    const row = await one<{ pin_hash: string }>('SELECT pin_hash FROM rh.colaboradores WHERE id = $1', [id]);
+    expect(await verifyPin('482915', row.pin_hash, [pepper])).toBe(true);
   });
 });

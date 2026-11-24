@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { checkArp } from '../src/arp/check-arp';
 import { compareArpWithRh, type ArpPunchRef, type ArpRecordRef, type RhSnapshot } from '../src/arp/consistency';
 import { startRhTestDatabase, type RhTestDatabase } from './support/rh-database';
+import { FAKE_PIN_HASH, FAKE_PIN_SET_AT } from './support/fake-pin';
 
 const rh: RhSnapshot = {
   establishments: [{ tenantId: 1, id: 10 }],
@@ -62,9 +63,9 @@ describe('checkArp (dois bancos reais)', () => {
         establishmentId,
       ]);
       const employeeId = await one(
-        `INSERT INTO rh.colaboradores (conta_id, estabelecimento_id, cpf, nome, data_nascimento, data_admissao)
-         VALUES ($1, $2, '12345678901', 'Pessoa Fictícia', '1990-01-01', '2025-01-01') RETURNING id`,
-        [tenantId, establishmentId],
+        `INSERT INTO rh.colaboradores (conta_id, estabelecimento_id, cpf, nome, data_nascimento, data_admissao, pin_hash, pin_definido_em)
+         VALUES ($1, $2, '12345678901', 'Pessoa Fictícia', '1990-01-01', '2025-01-01', $3, $4) RETURNING id`,
+        [tenantId, establishmentId, FAKE_PIN_HASH, FAKE_PIN_SET_AT],
       );
       ids = { tenantId, establishmentId, deviceId, employeeId };
     } finally {

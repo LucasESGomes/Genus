@@ -53,6 +53,22 @@ services:
       # Papel rh_api: DML no schema rh, sem DDL.
       RH_DATABASE_URL: postgres://rh_api:${RH_API_PASSWORD}@postgres:5432/app
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      # Login do portal (Better Auth). Sem o segredo o compose para aqui, em vez de subir a api quebrada.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Defina BETTER_AUTH_SECRET no .env da raiz (pnpm setup:dev)}
+      AUTH_BASE_URL: ${AUTH_BASE_URL:-http://localhost:3002}
+      # Batidas do arp para a apuração: papel arp_reader, só SELECT. O RH nunca escreve no arp.
+      ARP_READER_DATABASE_URL: postgres://arp_reader:${ARP_READER_PASSWORD}@postgres:5432/arp
+      # PIN do colaborador (totem). Sem o pepper o compose para aqui, em vez de subir a api quebrada.
+      PIN_PEPPER: ${PIN_PEPPER:?Defina PIN_PEPPER no .env da raiz (pnpm setup:dev)}
+      PIN_PEPPER_VERSION: ${PIN_PEPPER_VERSION:-1}
+      # Cadastro facial: chama só POST /embeddings/register da engine (que não é alterada).
+      # Sem a engine no ar (compose só desta pasta), o cadastro responde 503; o resto funciona.
+      ENGINE_URL: http://face-engine:8001
+      ENGINE_API_KEY: ${ENGINE_API_KEY}
+      # Atestados em disco, no volume rh-anexos (dado de saúde: nunca em log, nunca no Git).
+      ATTACHMENTS_DIR: /repo/apps/api/data/anexos
+      MAX_ATTACHMENT_BYTES: ${MAX_ATTACHMENT_BYTES:-10485760}
+      PORTAL_GESTOR_ENABLED: ${PORTAL_GESTOR_ENABLED:-false}
     ports:
       - "127.0.0.1:${API_PORT:-3002}:3002"
     depends_on:
@@ -69,6 +85,9 @@ services:
     mem_reservation: 128m
     read_only: true
     tmpfs: ["/tmp"]
+    # O contêiner é read_only: os anexos ficam neste volume (a pasta já existe na imagem, dona do usuário node).
+    volumes:
+      - rh-anexos:/repo/apps/api/data
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     init: true
@@ -85,3 +104,6 @@ services:
           target: /repo/packages/shared/src
         - action: rebuild
           path: ./package.json
+
+volumes:
+  rh-anexos:

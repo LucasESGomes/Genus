@@ -27,6 +27,7 @@ COPY . .
 # Instala só este pacote e as dependências dele dentro do monorepo (--filter "<pkg>...").
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --offline --frozen-lockfile --filter "${PKG}..." \
+ && mkdir -p /repo/${DIR}/data \
  && chown -R node:node /repo/${DIR}
 USER node
 WORKDIR /repo/${DIR}
