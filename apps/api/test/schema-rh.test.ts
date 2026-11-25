@@ -136,17 +136,17 @@ afterAll(async () => {
 });
 
 describe('migrations', () => {
-  it('criam as 40 tabelas, a view e as extensões', async () => {
+  it('criam as 42 tabelas, a view e as extensões', async () => {
     const tables = await one<{ n: number }>(
       "SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema = 'rh' AND table_type = 'BASE TABLE'",
     );
-    expect(tables.n).toBe(40);
+    expect(tables.n).toBe(42);
     const view = await one<{ n: number }>(
       "SELECT count(*)::int AS n FROM information_schema.views WHERE table_schema = 'rh' AND table_name = 'vw_saldos_banco_horas'",
     );
     expect(view.n).toBe(1);
-    const ext = await client.query("SELECT extname FROM pg_extension WHERE extname IN ('btree_gist','citext') ORDER BY 1");
-    expect(ext.rows.map((r) => r.extname)).toEqual(['btree_gist', 'citext']);
+    const ext = await client.query("SELECT extname FROM pg_extension WHERE extname IN ('btree_gist','citext','unaccent') ORDER BY 1");
+    expect(ext.rows.map((r) => r.extname)).toEqual(['btree_gist', 'citext', 'unaccent']);
   });
 
   it('toda tabela tem conta_id (menos as da plataforma, listadas aqui)', async () => {

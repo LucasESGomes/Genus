@@ -54,6 +54,10 @@ const rawSchema = z.object({
   // Engine facial, só para o cadastro do rosto no totem (POST /embeddings/register). Sem ela: 503.
   ENGINE_URL: z.url({ error: 'ENGINE_URL deve ser uma URL' }).optional(),
   ENGINE_API_KEY: z.string().min(1).optional(),
+  // Limiares padrão da engine (config.py: recognition_threshold 1.10 e liveness_threshold 0.85). Só servem
+  // para mostrar o valor efetivo de um totem sem calibração; quem decide é a engine. Mudou lá, mude aqui.
+  ENGINE_DEFAULT_RECOGNITION_THRESHOLD: z.coerce.number().min(0.5).max(2).default(1.1),
+  ENGINE_DEFAULT_LIVENESS_THRESHOLD: z.coerce.number().min(0.5).max(0.95).default(0.85),
   // Pasta dos arquivos de atestado (adaptador em disco; o S3 entra depois).
   ATTACHMENTS_DIR: z.string().min(1).default('./data/anexos'),
   MAX_ATTACHMENT_BYTES: positiveInt('MAX_ATTACHMENT_BYTES').default(10 * 1024 * 1024),
@@ -90,6 +94,7 @@ export interface Env {
   arpReaderDatabaseUrl: string;
   pinPepper: { version: number; keyHex: string };
   engine: { url: string; apiKey: string } | null;
+  engineDefaults: { recognitionThreshold: number; livenessThreshold: number };
   attachmentsDir: string;
   maxAttachmentBytes: number;
   gestorEnabled: boolean;
@@ -145,6 +150,7 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     arpReaderDatabaseUrl: raw.ARP_READER_DATABASE_URL,
     pinPepper: { version: raw.PIN_PEPPER_VERSION, keyHex: raw.PIN_PEPPER },
     engine: raw.ENGINE_URL && raw.ENGINE_API_KEY ? { url: raw.ENGINE_URL, apiKey: raw.ENGINE_API_KEY } : null,
+    engineDefaults: { recognitionThreshold: raw.ENGINE_DEFAULT_RECOGNITION_THRESHOLD, livenessThreshold: raw.ENGINE_DEFAULT_LIVENESS_THRESHOLD },
     attachmentsDir: raw.ATTACHMENTS_DIR,
     maxAttachmentBytes: raw.MAX_ATTACHMENT_BYTES,
     gestorEnabled: raw.PORTAL_GESTOR_ENABLED === 'true',

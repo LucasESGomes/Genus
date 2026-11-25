@@ -16,6 +16,7 @@ import { healthRoutes } from './modules/health/routes';
 import type { PortalDeps } from './modules/portal/deps';
 import { portalRoutes } from './modules/portal/routes';
 import { registerApiDocs } from './plugins/api-docs';
+import { registerDeviceAuth } from './plugins/device-auth';
 import { registerErrorHandling } from './plugins/error-handler';
 import { registerRequestContext } from './plugins/request-context';
 
@@ -33,8 +34,19 @@ export interface AppDeps {
   portal?: PortalDeps;
 }
 
+/**
+ * O log de requisição do Fastify traz a URL: `?q=` (busca por nome) é dado pessoal, e o header
+ * `X-Device-Key` é credencial. O serializador grava só método, caminho (sem query) e IP; nenhum header.
+ */
+export function serializeRequest(req: { method?: string; url?: string; ip?: string }) {
+  const url = req.url ?? '';
+  const at = url.indexOf('?');
+  return { method: req.method, url: at === -1 ? url : url.slice(0, at), remoteAddress: req.ip };
+}
+
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
-  const app = Fastify({ loggerInstance: deps.logger as FastifyBaseLogger });
+  const logger = deps.logger.child({}, { serializers: { req: serializeRequest } });
+  const app = Fastify({ loggerInstance: logger as FastifyBaseLogger });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   registerErrorHandling(app);
@@ -65,6 +77,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       limits: { fileSize: deps.portal.maxAttachmentBytes, files: 6, fields: 10, fieldSize: 256, fieldNameSize: 64, parts: 16 },
     });
     const portal = deps.portal;
+    // Totem: `X-Device-Key` → `req.device` (rotas /portal/totem/*). Chave inválida: 401, sem diferenciar o motivo.
+    registerDeviceAuth(app, { db: deps.db, clock: portal.clock });
     // O prefixo fica no escopo de fora: as opções dos módulos são só as dependências.
     await app.register(async (scope) => scope.register(portalRoutes, portal), { prefix: '/portal' });
   }

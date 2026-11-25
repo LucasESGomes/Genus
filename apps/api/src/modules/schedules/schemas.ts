@@ -1,6 +1,7 @@
 /** Contratos HTTP de escala (G2, RF07 a RF12). */
 import { z } from 'zod';
 import { civilDate, positiveId } from '../../http/schemas';
+import { searchText } from '../../http/search';
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'use HH:mm');
 
@@ -57,7 +58,8 @@ export const updateScheduleBody = z
   .partial()
   .refine((b) => Object.keys(b).length > 0, 'envie ao menos um campo');
 
-export const listSchedulesQuery = z.object({ establishmentId: positiveId.optional() });
+/** `q`: nome da escala (contém, sem diferenciar maiúsculas). */
+export const listSchedulesQuery = z.object({ establishmentId: positiveId.optional(), q: searchText.optional() });
 
 const scheduleDayDto = z.object({
   position: z.number(),

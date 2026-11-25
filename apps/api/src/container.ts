@@ -69,6 +69,7 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
         arp: new PgArpPunchReader(arpPool),
         storage: new LocalDiskStorage(env.attachmentsDir),
         engine: env.engine ? new HttpFacialEngineClient({ baseUrl: env.engine.url, apiKey: env.engine.apiKey }) : null,
+        engineDefaults: env.engineDefaults,
         pin: { current: pinPepper, all: [pinPepper] },
         maxAttachmentBytes: env.maxAttachmentBytes,
         certificateAi: {

@@ -14,7 +14,8 @@
     "db:studio": "drizzle-kit studio",
     "check-arp": "tsx --env-file-if-exists=.env.dev scripts/check-arp.ts",
     "rh:create-user": "tsx --env-file-if-exists=.env.dev scripts/create-user.ts",
-    "rh:compare-ai": "tsx --env-file-if-exists=.env.dev scripts/compare-certificate-models.ts"
+    "rh:compare-ai": "tsx --env-file-if-exists=.env.dev scripts/compare-certificate-models.ts",
+    "rh:seed-dev": "tsx --env-file-if-exists=.env.dev scripts/seed-dev.ts"
   },
   "dependencies": {
     "@fastify/cors": "11.4.2",

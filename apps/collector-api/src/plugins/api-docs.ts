@@ -89,12 +89,18 @@ export async function registerApiDocs(app: FastifyInstance): Promise<void> {
             name: 'X-Service-Key',
             description: 'Chave de serviço (uma das COLLECTOR_SERVICE_KEYS). Provisória: será trocada por certificado mTLS do aparelho.',
           },
+          deviceKey: {
+            type: 'apiKey',
+            in: 'header',
+            name: 'X-Device-Key',
+            description: 'Chave do aparelho (totem web), gerada no painel de RH. Só nas rotas /coletor/totem/*.',
+          },
         },
       },
     },
     transform: (input) => {
       const out = jsonSchemaTransform(input);
-      if (input.url === '/coletor/batidas' && input.route.method === 'POST') {
+      if ((input.url === '/coletor/batidas' || input.url === '/coletor/totem/batidas') && input.route.method === 'POST') {
         const schema = out.schema as Record<string, unknown>;
         schema.consumes = ['multipart/form-data'];
         schema.body = punchMultipartBody;

@@ -8,3 +8,4 @@ export * from './vacations';
 export * from './closing';
 export * from './biometrics';
 export * from './auth';
+export * from './totem';

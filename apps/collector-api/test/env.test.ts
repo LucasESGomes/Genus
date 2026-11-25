@@ -23,9 +23,28 @@ function base(over: Record<string, string | undefined> = {}): Record<string, str
 }
 
 const prod = (over: Record<string, string | undefined> = {}) =>
-  base({ APP_ENV: 'prod', FAKE_CANDIDATES_ENABLED: 'false', COLLECTOR_SERVICE_KEYS: LONG_KEY, ...over });
+  base({
+    APP_ENV: 'prod',
+    FAKE_CANDIDATES_ENABLED: 'false',
+    COLLECTOR_SERVICE_KEYS: LONG_KEY,
+    APP_READONLY_DATABASE_URL: 'postgres://genus_coletor_leitura:senha-secreta@localhost:5432/app',
+    ...over,
+  });
 
 describe('loadEnv', () => {
+  it('APP_READONLY_DATABASE_URL: opcional com candidatos fictícios, obrigatória sem eles', () => {
+    expect(loadEnv(base()).appReadonlyDatabaseUrl).toBeUndefined();
+    expect(() => loadEnv(base({ FAKE_CANDIDATES_ENABLED: 'false' }))).toThrow(/APP_READONLY_DATABASE_URL/);
+    const url = 'postgres://genus_coletor_leitura:senha-secreta@localhost:5432/app';
+    expect(loadEnv(base({ FAKE_CANDIDATES_ENABLED: 'false', APP_READONLY_DATABASE_URL: url })).appReadonlyDatabaseUrl).toBe(url);
+    // A mensagem de erro nunca traz o valor.
+    try {
+      loadEnv(base({ FAKE_CANDIDATES_ENABLED: 'false' }));
+    } catch (e) {
+      expect(String(e)).not.toContain('senha-secreta');
+    }
+  });
+
   it('aplica padrões', () => {
     const env = loadEnv(base());
     expect(env).toMatchObject({

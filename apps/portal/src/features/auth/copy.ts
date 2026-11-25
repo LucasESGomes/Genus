@@ -1,0 +1,31 @@
+/** Textos da entrada e da sessão (pt-BR). Mensagens de erro nunca repetem o que foi digitado. */
+export const COPY = {
+  title: 'Entrar no Genus',
+  subtitle: 'Use o e-mail e a senha da sua conta.',
+  totpTitle: 'Confirme que é você',
+  totpSubtitle: 'Digite o código de 6 dígitos do seu aplicativo autenticador.',
+  sessionEnded: 'Sua sessão terminou. Entre de novo para continuar.',
+  email: 'E-mail',
+  password: 'Senha',
+  code: 'Código de verificação',
+  submit: 'Entrar',
+  verify: 'Verificar',
+  back: 'Voltar',
+  forgot: 'Esqueci a senha',
+  invalidCredentials: 'E-mail ou senha incorretos. Confira e tente de novo.',
+  invalidCode: 'Código inválido ou vencido. Confira o aplicativo e tente de novo.',
+  locked: 'Muitas tentativas. Aguarde alguns minutos.',
+  verificationExpired: 'A verificação expirou. Entre de novo com e-mail e senha.',
+  emailRequired: 'Informe o e-mail.',
+  emailInvalid: 'Informe um e-mail válido.',
+  passwordRequired: 'Informe a senha.',
+  codeInvalid: 'O código tem 6 números.',
+  brandTitle: 'Ponto eletrônico que o RH pode conferir.',
+  brandText: 'Registro de ponto REP-P, apuração, escalas, atestados e fechamento em um só painel.',
+  brandFooter: 'Portaria MTP 671/2021',
+  demoTitle: 'Modo demonstração',
+  demoText: 'Os dados são fictícios. Use qualquer senha com um destes e-mails:',
+  demo2fa: 'Para testar a verificação em duas etapas, use rh2fa@exemplo.test e o código 123456.',
+} as const;
+
+export const DEMO_EMAILS = ['rh@exemplo.test', 'admin@exemplo.test', 'gestor@exemplo.test', 'contador@exemplo.test', 'colaborador@exemplo.test'] as const;

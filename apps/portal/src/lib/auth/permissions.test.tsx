@@ -2,26 +2,46 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { CidValue } from '@/components/ui/SensitiveValue';
 import type { Role } from '../api/contracts';
-import { can, SENSITIVE_PLACEHOLDER } from './permissions';
+import { can, homeFor, SENSITIVE_PLACEHOLDER } from './permissions';
 
 const ALL: Role[] = ['super_admin', 'admin', 'rh', 'gestor', 'contador', 'colaborador'];
 
 describe('regras de exibição', () => {
-  it.each(ALL)('%s: CID e aprovar atestado só para o RH', (role) => {
+  it.each(ALL)('%s: CID, arquivo e aprovar atestado só para o RH', (role) => {
     expect(can(role, 'certificate.viewCid')).toBe(role === 'rh');
+    expect(can(role, 'certificate.viewFile')).toBe(role === 'rh');
     expect(can(role, 'certificate.approve')).toBe(role === 'rh');
   });
-  it('admin vê "Dado sensível restrito" no lugar do CID', () => {
-    render(<CidValue role="admin" value="J11" />);
+  it('admin vê "Dado sensível restrito" no lugar do CID, e o valor nem entra no DOM', () => {
+    const { container } = render(<CidValue role="admin" value="J11" />);
     expect(screen.getByText(SENSITIVE_PLACEHOLDER)).toBeInTheDocument();
-    expect(screen.queryByText('J11')).toBeNull();
+    expect(container.innerHTML).not.toContain('J11');
   });
   it('RH vê o CID', () => {
     render(<CidValue role="rh" value="J11" />);
     expect(screen.getByText('J11')).toBeInTheDocument();
   });
-  it('colaborador não entra no painel de RH', () => {
+  it('colaborador não entra no painel de RH; super_admin também não', () => {
     expect(can('colaborador', 'rh.panel')).toBe(false);
+    expect(can('super_admin', 'rh.panel')).toBe(false);
     expect(can('colaborador', 'employee.portal')).toBe(true);
+  });
+  it('contador só vê fechamento, relatórios e colaboradores', () => {
+    const navs = ['nav.overview', 'nav.employees', 'nav.timesheets', 'nav.adjustments', 'nav.vacations', 'nav.certificates', 'nav.timeBank', 'nav.closings', 'nav.reports', 'nav.devices', 'nav.settings'] as const;
+    expect(navs.filter((a) => can('contador', a))).toEqual(['nav.employees', 'nav.closings', 'nav.reports']);
+  });
+  it('abono só o RH decide; gestor decide os demais ajustes', () => {
+    expect(can('gestor', 'adjustment.decide')).toBe(true);
+    expect(can('gestor', 'adjustment.decideAllowance')).toBe(false);
+    expect(can('admin', 'adjustment.decide')).toBe(false);
+  });
+  it('totens: só rh e admin gerenciam', () => {
+    expect(ALL.filter((r) => can(r, 'device.manage'))).toEqual(['admin', 'rh']);
+  });
+  it('primeira tela por papel', () => {
+    expect(homeFor('colaborador')).toBe('/me');
+    expect(homeFor('contador')).toBe('/rh/fechamento');
+    expect(homeFor('rh')).toBe('/rh');
+    expect(homeFor('super_admin')).toBe('/sem-acesso');
   });
 });

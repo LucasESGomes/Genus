@@ -236,6 +236,9 @@ function buildForm(req: RecognizeRequest): FormData {
   form.append('dek_tag', req.tenantDek.tagHex);
   form.append('dek_key_version', String(req.tenantDek.keyVersion));
   form.append('trace_id', req.traceId);
+  // Limiares calibrados do aparelho; NULL = a engine usa o padrão dela (o campo nem vai).
+  if (req.recognitionThreshold != null) form.append('recognition_threshold', String(req.recognitionThreshold));
+  if (req.livenessThreshold != null) form.append('liveness_threshold', String(req.livenessThreshold));
   return form;
 }
 

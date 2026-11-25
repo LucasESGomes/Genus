@@ -1,0 +1,13 @@
+$kind: http-request
+description: "Chave desconhecida: 401 `CHAVE_APARELHO_INVALIDA` (a mesma resposta de chave ausente ou de aparelho inativo)."
+url: "{{portalUrl}}/portal/totem/context"
+method: GET
+headers:
+  X-Device-Key: gk_0000000000000000000000000000000000000000
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 401', () => pm.response.to.have.status(401));
+      pm.test('Código CHAVE_APARELHO_INVALIDA', () => pm.expect(pm.response.json().code).to.eql('CHAVE_APARELHO_INVALIDA'));
+    language: text/javascript
+order: 2000

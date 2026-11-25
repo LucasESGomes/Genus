@@ -5,12 +5,15 @@
  */
 import { z } from 'zod';
 import { civilDate, listMeta, pagination, positiveId, reasonText } from '../../http/schemas';
+import { searchText } from '../../http/search';
 
 export const CERTIFICATE_STATUSES = ['pendente', 'aprovado', 'recusado'] as const;
 
 export const listCertificatesQuery = pagination.extend({
   status: z.enum(CERTIFICATE_STATUSES).optional(),
   employeeId: positiveId.optional(),
+  /** Nome ou matrícula do colaborador. */
+  q: searchText.optional(),
 });
 
 export const rejectCertificateBody = z.object({ reason: reasonText });

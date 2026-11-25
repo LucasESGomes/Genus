@@ -15,6 +15,8 @@ import {
 } from '@genus/shared';
 import { createProducerConnection, createQueuePublisher, type ClosableQueuePublisher } from '@genus/queue';
 import pg from 'pg';
+import { DbCandidateProvider } from './candidates/db-candidate-provider';
+import { DbDeviceAuthenticator } from './auth/db-device-authenticator';
 import { FixedDeviceAuthenticator } from './auth/fixed-device-authenticator';
 import { FakeCandidateProvider } from './candidates/fake-candidate-provider';
 import type { AppDeps } from './app';
@@ -83,26 +85,33 @@ export function createContainer(
   const logger = overrides.logger ?? createLogger({ level: env.logLevel, service: 'collector-api' });
   const clock = overrides.clock ?? new SystemClock();
 
-  // Provedor real de candidatos (galeria do estabelecimento no banco `app`) ainda não existe.
-  // Até lá, só o provedor fictício serve; sem ele a api não tem como montar a lista.
-  if (!env.fakeCandidatesEnabled) {
-    throw new Error(
-      'FAKE_CANDIDATES_ENABLED=false, mas nenhum CandidateProvider real disponível nesta entrega',
-    );
-  }
-  const candidateProvider = new FakeCandidateProvider({
-    masterKeyHex: env.masterKey,
-    count: env.fakeCandidatesCount,
-    tenantId: String(env.devTenantId),
-    galleryPath: env.devGalleryPath ? path.resolve(APP_ROOT, env.devGalleryPath) : undefined,
-    logger,
-  });
-
   const pool = new pg.Pool({ connectionString: env.arpDatabaseUrl, max: 10 });
   pool.on('error', (err) => {
     // Sem err.message: o texto do driver pg pode citar host ou porta.
     logger.error({ err: { name: err.name, code: (err as { code?: string }).code } }, 'pg: erro em conexão ociosa');
   });
+
+  // Banco `app` só para leitura (papel genus_coletor_leitura): chave do aparelho e candidatos reais.
+  const appPool = env.appReadonlyDatabaseUrl
+    ? new pg.Pool({ connectionString: env.appReadonlyDatabaseUrl, max: 5 })
+    : undefined;
+  appPool?.on('error', (err) => {
+    logger.error({ err: { name: err.name, code: (err as { code?: string }).code } }, 'pg(app): erro em conexão ociosa');
+  });
+
+  let candidateProvider: CandidateProvider;
+  if (env.fakeCandidatesEnabled) {
+    candidateProvider = new FakeCandidateProvider({
+      masterKeyHex: env.masterKey,
+      count: env.fakeCandidatesCount,
+      tenantId: String(env.devTenantId),
+      galleryPath: env.devGalleryPath ? path.resolve(APP_ROOT, env.devGalleryPath) : undefined,
+      logger,
+    });
+  } else {
+    if (!appPool) throw new Error('APP_READONLY_DATABASE_URL ausente');
+    candidateProvider = new DbCandidateProvider({ pool: appPool, clock, logger });
+  }
 
   const engine = new HttpEngineClient({
     baseUrl: env.engineUrl,
@@ -146,6 +155,9 @@ export function createContainer(
         establishmentId: env.devEstablishmentId,
         deviceId: env.devDeviceId,
       }),
+      totemDeviceAuthenticator: appPool
+        ? new DbDeviceAuthenticator({ pool: appPool, clock, logger })
+        : undefined,
       serviceKeys: env.serviceKeys,
       maxImageBytes: env.maxImageBytes,
       exposeTimings: env.exposeTimings,
@@ -155,6 +167,7 @@ export function createContainer(
     close: async () => {
       await closablePublisher?.close();
       await pool.end();
+      await appPool?.end();
     },
   };
 }

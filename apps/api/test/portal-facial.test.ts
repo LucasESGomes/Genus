@@ -27,6 +27,12 @@ class StubEngine implements FacialEngineClient {
       images_processed: input.images.length,
     };
   }
+  async calibrateRecognition(): Promise<never> {
+    throw new Error('não usado neste teste');
+  }
+  async calibrateLiveness(): Promise<never> {
+    throw new Error('não usado neste teste');
+  }
 }
 
 const engine = new StubEngine();

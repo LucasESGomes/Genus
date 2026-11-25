@@ -1,0 +1,20 @@
+$kind: collection
+name: Genus - Totem e aparelhos (api do RH)
+description: |-
+  Rotas do totem web e do painel de aparelhos da api do RH (`apps/api`, docs/totem-contrato.md).
+
+  **Como usar**
+  1. Variáveis da coleção: `portalUrl` (padrão http://localhost:3002), `portalToken` (JWT de rh/admin de `GET /auth/token`; secret, nunca commitar) e `deviceKey` (preenchida pelo request "Criar aparelho").
+  2. Rode a pasta **Painel** em ordem (cria o aparelho, guarda a chave na variável) e depois **Totem**.
+  3. Cadastro facial e calibração enviam fotos; ficam fora desta coleção automática (exigem rosto real e a engine).
+variables:
+  portalUrl: http://localhost:3002
+  portalToken: ""
+  deviceKey: ""
+  deviceId: ""
+  establishmentId: "1"
+scripts:
+  - type: http:afterResponse
+    code: |-
+      pm.test('Corpo é JSON ou vazio (204)', () => { if (pm.response.code !== 204) pm.expect(() => pm.response.json()).to.not.throw(); });
+    language: text/javascript

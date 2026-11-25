@@ -30,6 +30,9 @@ const rawSchema = z.object({
   PORT: positiveInt('PORT').default(3001),
   LOG_LEVEL: z.enum(LOG_LEVELS, { error: 'LOG_LEVEL inválido' }).optional(),
   ARP_DATABASE_URL: requiredString('ARP_DATABASE_URL'),
+  // Banco `app`, papel somente leitura `genus_coletor_leitura` (docs/totem-contrato.md §2 e §4).
+  // Autentica a chave do aparelho (totem) e lê os candidatos reais. Obrigatória sem candidatos fictícios.
+  APP_READONLY_DATABASE_URL: z.string().optional(),
   ENGINE_URL: requiredString('ENGINE_URL'),
   ENGINE_API_KEY: requiredString('ENGINE_API_KEY'),
   MASTER_KEY: z
@@ -83,6 +86,8 @@ export interface Env {
   port: number;
   logLevel: string;
   arpDatabaseUrl: string;
+  /** Ausente = sem rota do totem e sem candidatos reais (só dev com candidatos fictícios). */
+  appReadonlyDatabaseUrl: string | undefined;
   engineUrl: string;
   engineApiKey: string;
   masterKey: string;
@@ -158,6 +163,13 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     if (problems.length > 0) throw new EnvError(problems);
   }
 
+  // Sem candidatos fictícios, os candidatos vêm do banco `app`.
+  if (!raw.FAKE_CANDIDATES_ENABLED && raw.APP_READONLY_DATABASE_URL === undefined) {
+    throw new EnvError([
+      { variable: 'APP_READONLY_DATABASE_URL', message: 'obrigatória quando FAKE_CANDIDATES_ENABLED=false' },
+    ]);
+  }
+
   // Fora de dev, o Valkey exige senha. Sem VALKEY_URL a fila fica desligada e não há o que proteger.
   if (raw.APP_ENV !== 'dev' && raw.VALKEY_URL !== undefined && raw.VALKEY_PASSWORD === undefined) {
     throw new EnvError([{ variable: 'VALKEY_PASSWORD', message: 'obrigatória em homolog e prod' }]);
@@ -168,6 +180,7 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     port: raw.PORT,
     logLevel: raw.LOG_LEVEL ?? (raw.APP_ENV === 'dev' ? 'debug' : 'info'),
     arpDatabaseUrl: raw.ARP_DATABASE_URL,
+    appReadonlyDatabaseUrl: raw.APP_READONLY_DATABASE_URL,
     engineUrl: raw.ENGINE_URL,
     engineApiKey: raw.ENGINE_API_KEY,
     masterKey: raw.MASTER_KEY,

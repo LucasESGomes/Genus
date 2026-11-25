@@ -70,6 +70,7 @@ const infraGenerated = {
   ARP_READER_PASSWORD: () => hex(16),
   RH_OWNER_PASSWORD: () => hex(16),
   RH_API_PASSWORD: () => hex(16),
+  COLETOR_LEITURA_PASSWORD: () => hex(16),
   VALKEY_PASSWORD: () => hex(16),
   VALKEY_PORT: () => '6379',
   MASTER_KEY: () => hex(32),
@@ -118,6 +119,8 @@ const derived = {
   ARP_READER_DATABASE_URL: `postgres://arp_reader:${encodeURIComponent(infra.ARP_READER_PASSWORD)}@localhost:${pgPort}/arp`,
   // O .env.dev do coletor é o compartilhado: rep-core (dev:rep-core, arp:verify-chain) lê daqui.
   ARP_CORE_DATABASE_URL: `postgres://arp_core:${encodeURIComponent(infra.ARP_CORE_PASSWORD)}@localhost:${pgPort}/arp`,
+  // Banco app, somente leitura: chave do aparelho (totem) e candidatos reais.
+  APP_READONLY_DATABASE_URL: `postgres://genus_coletor_leitura:${encodeURIComponent(infra.COLETOR_LEITURA_PASSWORD)}@localhost:${pgPort}/app`,
   ENGINE_URL: `http://localhost:${infra.ENGINE_PORT || '8001'}`,
   ENGINE_API_KEY: infra.ENGINE_API_KEY,
   MASTER_KEY: infra.MASTER_KEY,

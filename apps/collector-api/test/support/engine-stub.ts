@@ -33,6 +33,8 @@ export interface StubCalls {
   lastTenantId: string | null;
   lastCandidateCount: number | null;
   lastImageBytes: number | null;
+  /** Campos de texto do último /recognize (inclui recognition_threshold e liveness_threshold, se enviados). */
+  lastFields: Record<string, string> | null;
 }
 
 export interface EngineStub {
@@ -49,7 +51,7 @@ export interface EngineStub {
 const HEX = /^(?:[0-9a-fA-F]{2})*$/;
 
 function emptyCalls(): StubCalls {
-  return { recognize: 0, health: 0, register: 0, maxConcurrent: 0, lastTraceId: null, lastTenantId: null, lastCandidateCount: null, lastImageBytes: null };
+  return { recognize: 0, health: 0, register: 0, maxConcurrent: 0, lastTraceId: null, lastTenantId: null, lastCandidateCount: null, lastImageBytes: null, lastFields: null };
 }
 
 export interface EngineStubOptions {
@@ -174,6 +176,7 @@ export async function startEngineStub(opts: EngineStubOptions): Promise<EngineSt
     calls.lastTenantId = fields.tenant_id ?? null;
     calls.lastCandidateCount = list.length;
     calls.lastImageBytes = files[0]?.length ?? null;
+    calls.lastFields = fields;
 
     concurrent++;
     calls.maxConcurrent = Math.max(calls.maxConcurrent, concurrent);

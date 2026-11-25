@@ -28,6 +28,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # Papel arp_collector: só INSERT e SELECT em entradas.
       ARP_DATABASE_URL: postgres://arp_collector:${ARP_COLLECTOR_PASSWORD}@postgres:5432/arp
+      # Papel genus_coletor_leitura: só SELECT no banco app (chave do aparelho e candidatos do totem).
+      APP_READONLY_DATABASE_URL: postgres://genus_coletor_leitura:${COLETOR_LEITURA_PASSWORD:?Defina COLETOR_LEITURA_PASSWORD no .env da raiz (pnpm setup:dev)}@postgres:5432/app
       VALKEY_URL: redis://valkey:6379
       VALKEY_PASSWORD: ${VALKEY_PASSWORD}
       ENGINE_URL: http://face-engine:8001
@@ -39,7 +41,8 @@ services:
       QUEUE_PUBLISH_TIMEOUT_MS: ${QUEUE_PUBLISH_TIMEOUT_MS:-250}
       QUEUE_ATTEMPTS: ${QUEUE_ATTEMPTS:-5}
       # Candidatos fictícios + galeria de dev (pnpm dev:enroll-fake), enquanto não há provedor real.
-      FAKE_CANDIDATES_ENABLED: "true"
+      # false: candidatos reais (rostos cadastrados no totem, banco app). true: galeria fictícia de dev.
+      FAKE_CANDIDATES_ENABLED: ${FAKE_CANDIDATES_ENABLED:-false}
       FAKE_CANDIDATES_COUNT: ${FAKE_CANDIDATES_COUNT:-20}
       DEV_GALLERY_PATH: ../../dev-data/gallery.json
       EXPOSE_TIMINGS: ${EXPOSE_TIMINGS:-true}

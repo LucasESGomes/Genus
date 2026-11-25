@@ -1,0 +1,21 @@
+$kind: http-request
+description: "Cria o aparelho no estabelecimento `establishmentId`; a chave `gk_...` aparece só nesta resposta e é guardada em `deviceKey`."
+url: "{{portalUrl}}/portal/devices"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: '{"establishmentId": {{establishmentId}}, "name": "Totem Postman {{$timestamp}}"}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+      const d = pm.response.json().data;
+      pm.test('Chave gk_ + 40 hex mostrada uma vez', () => pm.expect(d.apiKey).to.match(/^gk_[0-9a-f]{40}$/));
+      pm.test('Resposta sem hash', () => pm.expect(pm.response.text()).to.not.match(/hash/i));
+      pm.test('Aparelho novo: offline, padrão, sem batidas', () => pm.expect(d.device).to.include({ connection: 'offline', calibrationState: 'padrao', hasPunches: false, pendingPunches: 0 }));
+      pm.collectionVariables.set('deviceKey', d.apiKey);
+      pm.collectionVariables.set('deviceId', String(d.device.id));
+    language: text/javascript
+order: 1000

@@ -1,5 +1,5 @@
-import { RhApp } from './RhApp';
+import { OverviewContent } from '@/features/overview/OverviewContent';
 
-export default function RhPage() {
-  return <RhApp />;
+export default function OverviewPage() {
+  return <OverviewContent />;
 }

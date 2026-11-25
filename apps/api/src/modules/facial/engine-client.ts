@@ -8,6 +8,7 @@
  *
  * Nunca loga o `detail` da engine nem o embedding.
  */
+import { z } from 'zod';
 import { engineRegisterResponseSchema, type EncryptedDek, type EngineRegisterResponse } from '@genus/shared';
 
 export interface EnrollImage {
@@ -32,14 +33,52 @@ export class EngineUnavailableError extends Error {
   override readonly name = 'EngineUnavailableError';
 }
 
+/** Foto da calibração; o nome do arquivo (`p1_1.jpg`) agrupa as fotos por pessoa na engine. */
+export interface CalibrationImage extends EnrollImage {
+  filename: string;
+}
+
+/** Só o que a api usa do `RecognitionCalibrateResponse` da engine (POST /calibrate/recognition). */
+export const engineRecognitionCalibrationSchema = z.object({
+  recommended_threshold: z.number(),
+  eer: z.number(),
+  auc: z.number(),
+  dprime: z.number(),
+  confidence: z.enum(['low', 'medium', 'high']),
+  warning: z.string().nullable().optional(),
+  chart_data: z.object({
+    histogram: z.array(z.object({ range_start: z.number(), range_end: z.number(), genuine_count: z.number(), impostor_count: z.number() })),
+  }),
+});
+export type EngineRecognitionCalibration = z.infer<typeof engineRecognitionCalibrationSchema>;
+
+/** Só o que a api usa do `CalibrateResponse` da engine (POST /calibrate/liveness). */
+export const engineLivenessCalibrationSchema = z.object({
+  suggested_thresholds: z.object({ liveness: z.number() }),
+  liveness_analysis: z.object({
+    real_pass_rate: z.number(),
+    attack_block_rate: z.number(),
+    youden_score: z.number(),
+    confidence: z.enum(['low', 'medium', 'high']),
+  }),
+  warning: z.string().nullable().optional(),
+});
+export type EngineLivenessCalibration = z.infer<typeof engineLivenessCalibrationSchema>;
+
 export interface FacialEngineClient {
   registerEmbedding(input: RegisterEmbeddingInput): Promise<EngineRegisterResponse>;
+  /** `legitimate`: fotos `<pessoa>_<n>.jpg` de pelo menos 2 pessoas; `impostor`: de gente de fora. */
+  calibrateRecognition(input: { legitimate: readonly CalibrationImage[]; impostor: readonly CalibrationImage[] }): Promise<EngineRecognitionCalibration>;
+  /** `real`: rostos de verdade; `attack`: foto de rosto numa tela. */
+  calibrateLiveness(input: { real: readonly CalibrationImage[]; attack: readonly CalibrationImage[] }): Promise<EngineLivenessCalibration>;
 }
 
 export interface HttpFacialEngineOptions {
   baseUrl: string;
   apiKey: string;
   timeoutMs?: number;
+  /** As calibrações processam até 40 fotos; o padrão é bem maior que o do cadastro. */
+  calibrationTimeoutMs?: number;
   fetchImpl?: typeof fetch;
 }
 
@@ -48,6 +87,47 @@ export class HttpFacialEngineClient implements FacialEngineClient {
 
   constructor(private readonly o: HttpFacialEngineOptions) {
     this.fetchImpl = o.fetchImpl ?? fetch;
+  }
+
+  /**
+   * Chamada comum às duas calibrações. Não envia a DEK: as rotas /calibrate da engine só a
+   * decifram para o cache e não a usam no cálculo, então ela não precisa trafegar na URL.
+   */
+  private async postCalibration<T>(path: string, parts: Record<string, readonly CalibrationImage[]>, schema: z.ZodType<T>): Promise<T> {
+    const form = new FormData();
+    for (const [field, images] of Object.entries(parts)) {
+      for (const img of images) form.append(field, new Blob([new Uint8Array(img.data)], { type: img.mime }), img.filename);
+    }
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.o.baseUrl.replace(/\/$/, '')}${path}`, {
+        method: 'POST',
+        headers: { 'X-API-Key': this.o.apiKey },
+        body: form,
+        signal: AbortSignal.timeout(this.o.calibrationTimeoutMs ?? 120_000),
+      });
+    } catch {
+      throw new EngineUnavailableError('Engine facial indisponível');
+    }
+    if (res.status === 400 || res.status === 422) {
+      await res.body?.cancel();
+      throw new EngineRejectedError('A engine recusou as fotos');
+    }
+    if (!res.ok) {
+      await res.body?.cancel();
+      throw new EngineUnavailableError(`Engine facial respondeu ${res.status}`);
+    }
+    const parsed = schema.safeParse(await res.json().catch(() => null));
+    if (!parsed.success) throw new EngineUnavailableError('Resposta da engine fora do contrato');
+    return parsed.data;
+  }
+
+  calibrateRecognition(input: { legitimate: readonly CalibrationImage[]; impostor: readonly CalibrationImage[] }): Promise<EngineRecognitionCalibration> {
+    return this.postCalibration('/calibrate/recognition', { legitimate_images: input.legitimate, impostor_images: input.impostor }, engineRecognitionCalibrationSchema);
+  }
+
+  calibrateLiveness(input: { real: readonly CalibrationImage[]; attack: readonly CalibrationImage[] }): Promise<EngineLivenessCalibration> {
+    return this.postCalibration('/calibrate/liveness', { real_images: input.real, attack_images: input.attack }, engineLivenessCalibrationSchema);
   }
 
   async registerEmbedding(input: RegisterEmbeddingInput): Promise<EngineRegisterResponse> {

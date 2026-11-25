@@ -19,6 +19,13 @@ import {
 } from './support/harness';
 import { startEngineStub, type EngineStub } from './support/engine-stub';
 
+/** Reenvio idempotente devolve o mesmo recibo; o primeiro nome só vem na primeira resposta (o reenvio não consulta a engine). */
+function receiptOnly(data: Record<string, unknown>) {
+  const copy = { ...data };
+  delete copy.employeeFirstName;
+  return copy;
+}
+
 let db: ArpTestDatabase;
 let owner: pg.Pool;
 let stub: EngineStub;
@@ -190,7 +197,9 @@ describe('batida reconhecida', () => {
     const body = res.json();
     expect(body.data).toMatchObject({ outcome: 'registered', jobId: '100-7', markedAt: iso(-5_000), warnings: [] });
     expect(body.meta).toBeUndefined();
-    expect(Object.keys(body.data).sort()).toEqual(['jobId', 'markedAt', 'outcome', 'receiptId', 'warnings']);
+    // Só o primeiro nome sai (tela do aparelho); nada de CPF, nome completo ou id interno.
+    expect(Object.keys(body.data).sort()).toEqual(['employeeFirstName', 'jobId', 'markedAt', 'outcome', 'receiptId', 'warnings']);
+    expect(body.data.employeeFirstName).not.toMatch(/\s/);
 
     const list = await rows();
     expect(list).toHaveLength(1);
@@ -223,7 +232,7 @@ describe('batida reconhecida', () => {
     a.log.clear();
     const second = await postPunch(a, { deviceSequence: 3, capturedAt: iso(-500) });
     expect(second.statusCode).toBe(200);
-    expect(second.json().data).toEqual(first.json().data);
+    expect(second.json().data).toEqual(receiptOnly(first.json().data));
     expect(stub.calls.recognize).toBe(1);
     expect(await rows()).toHaveLength(1);
     const logged = a.log.records().find((r) => r.msg === 'punch_recognition');
@@ -318,7 +327,7 @@ describe('hora do aparelho', () => {
 
     // Replay devolve o mesmo recibo, ainda sinalizado.
     const again = await postPunch(a, { capturedAt: iso(offset) });
-    expect(again.json().data).toEqual(res.json().data);
+    expect(again.json().data).toEqual(receiptOnly(res.json().data));
   });
 
   it.each([

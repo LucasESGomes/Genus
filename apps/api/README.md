@@ -66,3 +66,10 @@ apps/api/
 8. CPF e CNPJ únicos por conta (`UNIQUE (conta_id, cpf)`), não no sistema inteiro.
 9. Tabela nova `aparelho` (o arp grava `aparelho_id`). A autenticação do aparelho é da parte do ponto e entra depois.
 10. `analises_atestado` (migration 0010): sem `UNIQUE (atestado_id)`, uma linha por provedor/modelo/versão do prompt, com `resultado`, `recomendacao`, `hash_entrada`, `cid_cifrado`, `evidencias_cifradas`, `milissegundos_resposta` e `falha` (análise com IA, 04 G6).
+
+## Totem web e busca
+
+- `modules/devices`: aparelhos, chave `X-Device-Key` (mostrada uma vez, só o SHA-256 no banco) e calibração. `modules/totem`: contexto, cadastro facial e envio da calibração (autenticação em `plugins/device-auth.ts`). Contrato: `docs/totem-contrato.md`.
+- `q` nas listas de colaboradores, ajustes, atestados e escalas: `http/search.ts` (`ILIKE`, `%` e `_` escapados; sem `unaccent`). O serializador de `req` em `app.ts` tira a query e os headers do log.
+- Variáveis opcionais: `ENGINE_DEFAULT_RECOGNITION_THRESHOLD` (1.1) e `ENGINE_DEFAULT_LIVENESS_THRESHOLD` (0.85).
+- Limitador de chaves inválidas e de tentativas de CPF/PIN: em memória, por instância.

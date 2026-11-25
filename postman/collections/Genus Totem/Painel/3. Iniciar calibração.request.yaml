@@ -1,0 +1,11 @@
+$kind: http-request
+description: "Cria a sessão `aguardando`. Uma segunda chamada devolve 409 `CALIBRACAO_EM_ANDAMENTO`."
+url: "{{portalUrl}}/portal/devices/{{deviceId}}/calibration/start"
+method: POST
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+      pm.test('Sessão aguardando, sem resultado', () => pm.expect(pm.response.json().data).to.include({ status: 'aguardando', result: null }));
+    language: text/javascript
+order: 3000

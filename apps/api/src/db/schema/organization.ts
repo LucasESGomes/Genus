@@ -8,13 +8,14 @@ import {
   foreignKey,
   index,
   numeric,
+  real,
   primaryKey,
   smallint,
   text,
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core';
-import { citext, id, ref, rh, tenantId } from './rh';
+import { bytea, citext, id, ref, rh, tenantId } from './rh';
 
 // Conta (tenant) do SaaS: conta → empresa → estabelecimento → colaborador (04 §G1).
 // É o mesmo `conta_id` que o banco arp grava em cada batida.
@@ -84,8 +85,28 @@ export const devices = rh.table(
     name: text('nome').notNull(),
     isActive: boolean('ativo').notNull().default(true),
     createdAt: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+    /** SHA-256 da chave `gk_...` do totem. A chave em claro nunca é gravada (docs/totem-contrato.md §2). */
+    keyHash: bytea('chave_hash'),
+    /** 8 primeiros caracteres da chave, só para o RH reconhecer qual é. */
+    keyPrefix: text('chave_prefixo'),
+    keyGeneratedAt: timestamp('chave_gerada_em', { withTimezone: true }),
+    lastConnectionAt: timestamp('ultima_conexao_em', { withTimezone: true }),
+    appVersion: text('versao_app'),
+    /** NULL = padrão da engine. */
+    recognitionThreshold: real('limiar_reconhecimento'),
+    livenessThreshold: real('limiar_vivacidade'),
+    calibratedAt: timestamp('calibrado_em', { withTimezone: true }),
+    calibrationSourceId: ref('calibracao_origem_id'),
   },
   (t) => [
+    foreignKey({
+      name: 'aparelho_calibracao_origem_fkey',
+      columns: [t.tenantId, t.calibrationSourceId],
+      foreignColumns: [t.tenantId, t.id],
+    }),
+    unique('aparelho_chave_hash_key').on(t.keyHash),
+    check('aparelho_limiar_reconhecimento', sql`limiar_reconhecimento IS NULL OR (limiar_reconhecimento >= 0.5 AND limiar_reconhecimento <= 2.0)`),
+    check('aparelho_limiar_vivacidade', sql`limiar_vivacidade IS NULL OR (limiar_vivacidade >= 0.5 AND limiar_vivacidade <= 0.95)`),
     foreignKey({
       name: 'aparelho_estabelecimento_id_fkey',
       columns: [t.tenantId, t.establishmentId],

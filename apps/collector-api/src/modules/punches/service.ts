@@ -51,6 +51,9 @@ export interface PunchServiceDeps {
 const clamp01 = (value: number | null): number | null =>
   value === null || Number.isNaN(value) ? null : Math.min(1, Math.max(0, value));
 
+/** Só o primeiro nome sai na resposta (tela do aparelho); nunca CPF nem nome completo. */
+const firstName = (displayName: string) => displayName.trim().split(/\s+/)[0] ?? '';
+
 export class PunchService {
   constructor(private readonly deps: PunchServiceDeps) {}
 
@@ -101,6 +104,11 @@ export class PunchService {
       timings.candidates = roundMs(candidatesTimer());
       candidateCount = set.candidates.length;
 
+      // Ninguém com rosto cadastrado neste estabelecimento: não há o que comparar. Não bloqueia (Portaria 671).
+      if (candidateCount === 0) {
+        return finish(this.fallbackResult('not_recognized'), { receiptId: null, replayed: false });
+      }
+
       const recognized = await engine.recognize({
         tenantId: String(ctx.tenantId),
         image: input.image,
@@ -108,6 +116,8 @@ export class PunchService {
         candidates: set.candidates,
         tenantDek: set.tenantDek,
         traceId: publicId,
+        recognitionThreshold: ctx.recognitionThreshold ?? null,
+        livenessThreshold: ctx.livenessThreshold ?? null,
       });
       timings.engineRoundTrip = recognized.timing.roundTripMs;
       timings.engineProcessing = recognized.timing.processingMs;
@@ -161,7 +171,7 @@ export class PunchService {
         // Quem perdeu a corrida também tenta publicar: o vencedor pode ter caído antes de publicar.
         // O jobId é determinístico, então publicar duas vezes é no-op.
         await this.publishPunch(ctx, input.deviceSequence, winner.id, publicId);
-        return finish(this.receiptResult(winner, jobId), { receiptId: winner.publicId, replayed: true });
+        return finish(this.receiptResult(winner, jobId, firstName(person.displayName)), { receiptId: winner.publicId, replayed: true });
       }
       timings.dbInsert = roundMs(dbTimer());
       // Só agora, com o INSERT já confirmado (commit automático do statement) e fora de transação.
@@ -174,6 +184,7 @@ export class PunchService {
           outcome: 'registered',
           markedAt: inserted.markedAt.toISOString(),
           warnings,
+          employeeFirstName: firstName(person.displayName),
         },
         { receiptId: inserted.publicId, replayed: false },
       );
@@ -233,6 +244,7 @@ export class PunchService {
   private receiptResult(
     receipt: { publicId: string; markedAt: Date; isClockDivergent: boolean },
     jobId: string,
+    employeeFirstName?: string,
   ): PunchResultDto {
     return {
       receiptId: receipt.publicId,
@@ -240,6 +252,7 @@ export class PunchService {
       outcome: 'registered',
       markedAt: receipt.markedAt.toISOString(),
       warnings: receipt.isClockDivergent ? ['clock_divergence'] : [],
+      ...(employeeFirstName ? { employeeFirstName } : {}),
     };
   }
 

@@ -7,6 +7,7 @@
 import { maskCpf, type Clock } from '@genus/shared';
 import { and, asc, count, eq, gt, isNotNull, isNull, lte, or, type SQL } from 'drizzle-orm';
 import type { Database } from '../../db/client';
+import { containsAny } from '../../http/search';
 import type { Executor } from '../../db/executor';
 import {
   costCenters,
@@ -129,6 +130,7 @@ export class EmployeeService {
     if (q.establishmentId) conds.push(eq(employees.establishmentId, q.establishmentId));
     if (q.status === 'ativo') conds.push(isNull(employees.terminationDate));
     if (q.status === 'desligado') conds.push(isNotNull(employees.terminationDate));
+    if (q.q) conds.push(containsAny([employees.name, employees.registrationNumber], q.q));
     const where = and(...conds);
     const [rows, [total]] = await Promise.all([
       this.d.db

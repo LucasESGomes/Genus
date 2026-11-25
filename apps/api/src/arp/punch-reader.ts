@@ -27,6 +27,8 @@ export interface ArpPunchQuery {
 
 export interface ArpPunchReader {
   listPunches(q: ArpPunchQuery): Promise<ArpPunch[]>;
+  /** Quais destes aparelhos já têm alguma batida no arp (entradas, inclusive as ainda pendentes). */
+  devicesWithPunches(tenantId: number, deviceIds: readonly number[]): Promise<Set<number>>;
 }
 
 export class PgArpPunchReader implements ArpPunchReader {
@@ -48,5 +50,15 @@ export class PgArpPunchReader implements ArpPunchReader {
       markedAt: r.marcado_em,
       offline: r.eh_offline,
     }));
+  }
+
+  async devicesWithPunches(tenantId: number, deviceIds: readonly number[]): Promise<Set<number>> {
+    if (deviceIds.length === 0) return new Set();
+    // uq_entradas_aparelho_id_sequencia_aparelho cobre a busca por aparelho_id
+    const { rows } = await this.pool.query<{ aparelho_id: string }>(
+      'SELECT DISTINCT aparelho_id FROM entradas WHERE conta_id = $1 AND aparelho_id = ANY($2::bigint[])',
+      [tenantId, [...deviceIds]],
+    );
+    return new Set(rows.map((r) => Number(r.aparelho_id)));
   }
 }

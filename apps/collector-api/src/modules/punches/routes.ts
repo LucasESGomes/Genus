@@ -19,6 +19,12 @@ export interface PunchRoutesOptions {
   service: PunchService;
   statusService: PunchStatusService;
   exposeTimings: boolean;
+  /**
+   * `service` (padrão): `/coletor/*`, chave de serviço, todas as rotas.
+   * `totem`: `/coletor/totem/*`, chave do aparelho; só enviar a batida e acompanhar o job
+   * (a listagem por colaborador não existe aqui e o job é só do próprio aparelho).
+   */
+  mode?: 'service' | 'totem';
 }
 
 /** `validate;dur=1.2, candidates;dur=0.3, ...`; omite etapas que não ocorreram. */
@@ -38,6 +44,8 @@ export function formatServerTiming(t: Partial<PunchTimings> & { validate: number
 }
 
 export const punchRoutes: FastifyPluginAsync<PunchRoutesOptions> = async (scope, opts) => {
+  const isTotem = opts.mode === 'totem';
+  const security = isTotem ? [{ deviceKey: [] }] : [{ serviceKey: [] }];
   scope.withTypeProvider<ZodTypeProvider>().post(
     '/batidas',
     {
@@ -45,14 +53,14 @@ export const punchRoutes: FastifyPluginAsync<PunchRoutesOptions> = async (scope,
         tags: ['Batidas'],
         summary: 'Registrar batida por reconhecimento facial',
         description: [
-          'Fluxo: chave de serviço → validação → idempotência por (aparelho, `deviceSequence`) → candidatos do servidor → engine → INSERT em `arp.entradas` (`pendente`).',
+          'Fluxo: ' + (isTotem ? 'chave do aparelho (X-Device-Key)' : 'chave de serviço') + ' → validação → idempotência por (aparelho, `deviceSequence`) → candidatos do servidor → engine → INSERT em `arp.entradas` (`pendente`).',
           '',
           '- `registered`: rosto identificado; `receiptId` é o recibo (o mesmo em todo reenvio da mesma sequência).',
           '- `fallback_required` (**HTTP 200**, nada gravado): o aparelho segue pelo PIN. `reason` diz por quê.',
           '',
           'O aparelho, o estabelecimento, a conta e a lista de candidatos vêm do servidor, nunca do corpo.',
         ].join('\n'),
-        security: [{ serviceKey: [] }],
+        security,
         response: { 200: punchResponseSchema },
       },
     },
@@ -108,7 +116,7 @@ export const punchRoutes: FastifyPluginAsync<PunchRoutesOptions> = async (scope,
           '',
           '404 se o `jobId` for inválido ou não houver batida dele nesta conta.',
         ].join('\n'),
-        security: [{ serviceKey: [] }],
+        security,
         params: z.object({ jobId: z.string().max(64) }),
         response: { 200: punchStatusResponseSchema },
       },
@@ -116,11 +124,13 @@ export const punchRoutes: FastifyPluginAsync<PunchRoutesOptions> = async (scope,
     async (req) => {
       const ctx = req.deviceContext;
       if (!ctx) throw new HttpError(401, 'UNAUTHORIZED', 'Não autorizado');
-      const status = await opts.statusService.getByJobId(ctx, req.params.jobId);
+      const status = await opts.statusService.getByJobId(ctx, req.params.jobId, { onlyOwnDevice: isTotem });
       if (!status) throw new HttpError(404, 'NOT_FOUND', 'Batida não encontrada');
       return { data: status };
     },
   );
+
+  if (isTotem) return;
 
   scope.withTypeProvider<ZodTypeProvider>().get(
     '/batidas',
@@ -130,7 +140,7 @@ export const punchRoutes: FastifyPluginAsync<PunchRoutesOptions> = async (scope,
         summary: 'Batidas de um colaborador',
         description:
           'Lista as batidas de `employeeId` na conta do aparelho, da mais recente para a mais antiga, com o status de cada uma. Paginada (`page`, `pageSize` até 100). Sem o estado da fila: para isso, consulte por `jobId`.',
-        security: [{ serviceKey: [] }],
+        security,
         querystring: punchListQuerySchema,
         response: { 200: punchListResponseSchema },
       },

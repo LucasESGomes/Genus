@@ -665,8 +665,16 @@ Login reaproveitado: Better Auth da api do RH (cookie de sessão ou JWT curto), 
 | | `GET /closings/:id/mirrors/:employeeId` | rh, admin, contador, gestor |
 | Portal do colaborador (§4) | `GET /me/timesheets`, `GET /me/time-bank`, `GET /me/mirrors`, `GET /me/mirrors/:closingId`, `POST /me/mirrors/:closingId/acknowledge`, `GET`/`POST /me/vacations`, `GET`/`POST /me/certificates`, `POST /me/adjustments` | colaborador (sempre o da sessão) |
 | Biometria (RF04) | `POST /facial/enrollments` (multipart: cpf, pin, consentAccepted, consentTextVersion, 1 a 5 fotos), `POST /facial/status` (CPF no corpo, nunca na URL) | rh, admin (sessão do totem) |
+| Aparelhos / totem (docs/totem-contrato.md) | `GET`/`POST /devices`, `GET`/`PATCH`/`DELETE /devices/:id`, `POST /devices/:id/regenerate-key`, `GET /devices/:id/activity` | rh, admin (escopo de estabelecimento; fora dele 404) |
+| | `GET /devices/:id/calibration`, `GET`/`DELETE /devices/:id/calibration/session`, `POST /devices/:id/calibration/start`, `PUT`/`DELETE /devices/:id/calibration/settings`, `POST /devices/:id/calibration/copy` | rh, admin |
+| Totem (sem sessão; header `X-Device-Key`) | `GET /totem/context`, `POST /totem/facial/enrollments`, `POST /totem/calibration` | aparelho ativo |
+| Busca por texto | `q` (2 a 100 caracteres) em `GET /employees` (nome ou matrícula), `GET /adjustments` e `GET /certificates` (nome ou matrícula do colaborador), `GET /schedules` (nome da escala) | os mesmos de cada lista |
+
+**Totem web.** O aparelho cria-se no painel (`POST /devices`); a chave `gk_` + 40 hex aparece uma vez (só o SHA-256 e o prefixo ficam no banco). O totem envia `X-Device-Key`: chave ausente, malformada, desconhecida ou de aparelho inativo dão o mesmo 401 `CHAVE_APARELHO_INVALIDA`; há limite de chaves inválidas por IP (em memória, por instância). `tenantId` e estabelecimento vêm do aparelho. O cadastro facial reaproveita `FacialEnrollmentService`; o colaborador precisa ser ativo e do estabelecimento do aparelho, senão a mesma resposta genérica `CPF_OU_PIN_INVALIDO`. A calibração (`sessoes_calibracao`) guarda só números agregados: as fotos ficam na memória da requisição e a engine calcula (`/calibrate/recognition` e `/calibrate/liveness`). Excluir aparelho: 409 `APARELHO_COM_BATIDAS` se o arp tem batida dele (leitura em `entradas`); senão apaga (eventos e sessões em cascata). A busca `q` é `ILIKE` sem `unaccent` (a extensão não existe nas migrations), com `%` e `_` escapados; `q` nunca vai a log.
 
 Decisões desta etapa marcadas **[A CONFIRMAR]**:
+- calibração com mais de 180 dias vira `desatualizado`;
+- busca sem acento (`unaccent`) fica para quando a extensão for criada;
 - fuso do estabelecimento pela capital da UF;
 - dia que cruza a meia-noite aceita batidas até 4 h depois da saída prevista;
 - trabalho noturno `urbano` quando falta o parâmetro;
@@ -679,3 +687,26 @@ Decisões desta etapa marcadas **[A CONFIRMAR]**:
 - salário visível para rh e admin (o `security-lgpd.md` diz "só RH").
 
 Fora desta etapa: OCR e IA do atestado, AEJ (RF50), PDF assinado do espelho (`pdf_url` fica nulo), gravação do CID, S3, criação da DEK da empresa e lançamentos automáticos no banco de horas.
+
+## 15. Portal web (front, `apps/portal`)
+
+Implementado em 24/11/2026 (Next.js 15, React 19, Tailwind 4, shadcn/ui, TanStack Query). Arquitetura e regras do código: `docs/portal-arquitetura-front.md`; mapa de telas: `docs/portal-mapa-front.md`; endpoints que o front já usa em mock e o back ainda não tem: `docs/portal-endpoints-pendentes.md`.
+
+| Rota | Tela | Consome (real) | Mock (sem back) |
+|---|---|---|---|
+| `/login` | e-mail + senha, 2FA TOTP | `/auth/sign-in/email`, `/auth/two-factor/verify-totp`, `/auth/sign-out`, `GET /me` | — |
+| `/rh` | Visão geral | — | `GET /portal/overview`, `GET /portal/establishments` |
+| `/rh/colaboradores` | lista, cadastro (PIN uma vez), edição, desligamento, vínculos | `/employees*`, `/employees/:id/assignments*` | setores, cargos, centros de custo |
+| `/rh/colaboradores/[id]` | espelho do colaborador + afastamentos | `/employees/:id/timesheets`, `.../recalculate`, `/employees/:id/absences` | — |
+| `/rh/apuracao` | apuração do dia | — | `GET /portal/timesheets?date` |
+| `/rh/escalas` | escalas, avisos (só sinalizam), atribuição | `/schedules*`, `/employees/:id/schedules` | — |
+| `/rh/ajustes` | fila, original × proposta, decisão, lançamento | `/adjustments*`, `/employees/:id/adjustments` | — |
+| `/rh/ferias` | calendário por setor, decisão, períodos | `/employees/:id/vacation-periods`, `/employees/:id/vacations`, `/vacations/:id/*` | `GET /portal/vacations/calendar` |
+| `/rh/atestados` | fila, análise com IA (só sugere), decisão, arquivo (blob revogado) | `/certificates*`, `/certificates/:id/analyze`, `/analyses`, `/file` | — |
+| `/rh/banco-horas` | saldos e extrato | — | `GET /portal/time-bank`, `/employees/:id/time-bank` |
+| `/rh/fechamento` | competências, fechar, reabrir (forte), espelhos | `/closings*`, `/closings/:id/mirrors*` | — |
+| `/rh/totens`, `/rh/totens/[id]` | aparelhos, chave uma vez, calibração, teste de câmera local | — | `/portal/devices*` (contrato proposto) |
+| `/rh/relatorios`, `/rh/configuracoes` | prévias (gerar/salvar desabilitados) | — | `/portal/users`, `/portal/settings`, `/portal/holidays` |
+| `/me`, `/me/espelho`, `/me/ferias`, `/me/atestado` | portal do colaborador (mobile) | `/me/*` | — |
+
+`NEXT_PUBLIC_USE_MOCKS=true` liga todos os mocks (o portal roda sem back); com `false`, as telas sem back mostram "Em breve". IDs são opacos no front (`lib/api/ids.ts`): a troca para `publicId` (UUID) é de um arquivo.

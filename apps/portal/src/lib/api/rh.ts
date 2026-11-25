@@ -1,16 +1,81 @@
-/** Chamadas do painel de RH. Endpoints sem back respondem mock quando NEXT_PUBLIC_USE_MOCKS=true. */
+/**
+ * Ponto único de acesso à api do portal. Uma propriedade por módulo do back.
+ * NEXT_PUBLIC_USE_MOCKS=true: TODOS os módulos respondem com mock (o portal roda sem back).
+ * false: módulos reais chamam a api; os que o back não tem respondem `unavailable` ("Em breve").
+ */
 import { createApiClient, type ApiClient } from './client';
-import type { Envelope, Establishment, Me, Overview } from './contracts';
-import { mockEstablishments, mockMe, mockOverview, useMocks } from './mocks';
+import { absencesApi } from './endpoints/absences';
+import { adjustmentsApi } from './endpoints/adjustments';
+import { adminApi } from './endpoints/admin';
+import { authApi } from './endpoints/auth';
+import { certificatesApi } from './endpoints/certificates';
+import { closingsApi } from './endpoints/closings';
+import { devicesApi } from './endpoints/devices';
+import { employeePortalApi } from './endpoints/employee-portal';
+import { employeesApi } from './endpoints/employees';
+import { orgApi } from './endpoints/org';
+import { overviewApi } from './endpoints/overview';
+import { schedulesApi } from './endpoints/schedules';
+import { timeBankApi } from './endpoints/time-bank';
+import { timesheetsApi } from './endpoints/timesheets';
+import { vacationsApi } from './endpoints/vacations';
+import { mockAbsencesApi } from './mocks/absences';
+import { mockAdjustmentsApi } from './mocks/adjustments';
+import { mockAdminApi } from './mocks/admin';
+import { mockCertificatesApi } from './mocks/certificates';
+import { mockClosingsApi } from './mocks/closings';
+import { mockDevicesApi } from './mocks/devices';
+import { mockEmployeePortalApi } from './mocks/employee-portal';
+import { mockEmployeesApi } from './mocks/employees';
+import { mockAuthApi, mockOrgApi, mockOverviewApi } from './mocks/index';
+import { useMocks } from './mocks/runtime';
+import { mockSchedulesApi } from './mocks/schedules';
+import { mockTimeBankApi } from './mocks/time-bank';
+import { mockTimesheetsApi } from './mocks/timesheets';
+import { mockVacationsApi } from './mocks/vacations';
 
-export function createRhApi(client: ApiClient = createApiClient(), mocks = useMocks()) {
+export function createRealApi(c: ApiClient = createApiClient()) {
   return {
-    me: async (signal?: AbortSignal) => (mocks ? mockMe : (await client.get<Envelope<Me>>('/me', signal)).data),
-    establishments: async (signal?: AbortSignal) =>
-      mocks ? mockEstablishments : (await client.get<Envelope<Establishment[]>>('/portal/establishments', signal)).data,
-    overview: async (establishmentId: number, signal?: AbortSignal) =>
-      mocks ? mockOverview : (await client.get<Envelope<Overview>>(`/portal/overview?establishmentId=${establishmentId}`, signal)).data,
+    auth: authApi(c),
+    org: orgApi(c),
+    overview: overviewApi(c),
+    employees: employeesApi(c),
+    schedules: schedulesApi(c),
+    timesheets: timesheetsApi(c),
+    adjustments: adjustmentsApi(c),
+    absences: absencesApi(c),
+    certificates: certificatesApi(c),
+    vacations: vacationsApi(c),
+    closings: closingsApi(c),
+    timeBank: timeBankApi(c),
+    employeePortal: employeePortalApi(c),
+    devices: devicesApi(c),
+    admin: adminApi(c),
   };
 }
 
-export type RhApi = ReturnType<typeof createRhApi>;
+export type RhApi = ReturnType<typeof createRealApi>;
+
+export function createMockApi(): RhApi {
+  return {
+    auth: mockAuthApi,
+    org: mockOrgApi,
+    overview: mockOverviewApi,
+    employees: mockEmployeesApi,
+    schedules: mockSchedulesApi,
+    timesheets: mockTimesheetsApi,
+    adjustments: mockAdjustmentsApi,
+    absences: mockAbsencesApi,
+    certificates: mockCertificatesApi,
+    vacations: mockVacationsApi,
+    closings: mockClosingsApi,
+    timeBank: mockTimeBankApi,
+    employeePortal: mockEmployeePortalApi,
+    devices: mockDevicesApi,
+    admin: mockAdminApi,
+  };
+}
+
+export function createRhApi(client?: ApiClient, mocks = useMocks()): RhApi {
+  return mocks ? createMockApi() : createRealApi(client);
+}

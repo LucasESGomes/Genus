@@ -1,120 +1,200 @@
 'use client';
-import {
-  Buildings, CalendarBlank, CalendarCheck, CaretDown, CaretUpDown, ChartBar, Check, FirstAidKit, GearSix,
-  HourglassMedium, LockSimple, PencilSimpleLine, SidebarSimple, SquaresFour, SunHorizon, Users, type Icon,
-} from '@phosphor-icons/react';
-import { useState, type ReactNode } from 'react';
-import { ROLE_LABEL } from '@/lib/auth/permissions';
+/**
+ * Moldura do painel de RH: sidebar (estabelecimento, menu por papel, usuário, sair) + área da página.
+ * Cada página desenha o próprio cabeçalho com <PageHeader>. Visual do design (Genus RH.dc.html).
+ * Em telas até 768 px a sidebar vira gaveta (Sheet), aberta pelo botão de menu da barra superior.
+ * O ponto de pendência (accent) no menu vem de uma contagem só de leitura; erro ou "Em breve" = sem ponto.
+ */
+import { List, SidebarSimple, SignOut, X } from '@phosphor-icons/react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/shadcn/sheet';
+import { useSignOut } from '@/lib/auth/gate';
+import { can, ROLE_LABEL } from '@/lib/auth/permissions';
+import { initials, plural } from '@/lib/format';
+import { useApiQuery } from '@/lib/query/hooks';
 import { useSession } from '@/lib/session';
+import { BrandMark } from './BrandMark';
+import { EstablishmentSelect } from './EstablishmentSelect';
+import { activeNav, RH_NAV, type NavItem } from './nav';
 
-export type NavId = 'geral' | 'colab' | 'escala' | 'ajustes' | 'ferias' | 'atest' | 'banco' | 'fech' | 'rel' | 'conf';
+export const SIDEBAR_PREF = 'genus.ui.sidebar';
 
-const NAV: { id: NavId; label: string; icon: Icon }[] = [
-  { id: 'geral', label: 'Visão geral', icon: SquaresFour },
-  { id: 'colab', label: 'Colaboradores', icon: Users },
-  { id: 'escala', label: 'Escala e apuração', icon: CalendarCheck },
-  { id: 'ajustes', label: 'Ajustes', icon: PencilSimpleLine },
-  { id: 'ferias', label: 'Férias', icon: SunHorizon },
-  { id: 'atest', label: 'Atestados', icon: FirstAidKit },
-  { id: 'banco', label: 'Banco de horas', icon: HourglassMedium },
-  { id: 'fech', label: 'Fechamento', icon: LockSimple },
-  { id: 'rel', label: 'Relatórios', icon: ChartBar },
-  { id: 'conf', label: 'Configurações', icon: GearSix },
-];
+type Pending = Partial<Record<NonNullable<NavItem['attention']>, number>>;
 
-const initials = (n: string) => { const p = n.trim().split(/\s+/); return ((p[0]?.[0] ?? '') + (p.length > 1 ? p[p.length - 1]![0] : '')).toUpperCase(); };
+/** Quantos itens esperam o RH (atestados e ajustes pendentes). Só `meta.total`; falha não mostra nada. */
+function usePending(): Pending {
+  const { me } = useSession();
+  const quiet = { retry: false, staleTime: 60_000, refetchOnWindowFocus: false } as const;
+  const certificates = useApiQuery(
+    'certificates',
+    { attention: 'pendente' },
+    (api, signal) => api.certificates.list({ status: 'pendente', pageSize: 1 }, signal),
+    { ...quiet, enabled: can(me.role, 'nav.certificates') },
+  );
+  const adjustments = useApiQuery(
+    'adjustments',
+    { attention: 'pendente' },
+    (api, signal) => api.adjustments.list({ status: 'pendente', pageSize: 1 }, signal),
+    { ...quiet, enabled: can(me.role, 'nav.adjustments') },
+  );
+  return {
+    certificates: certificates.isSuccess ? certificates.data.meta.total : undefined,
+    adjustments: adjustments.isSuccess ? adjustments.data.meta.total : undefined,
+  };
+}
 
-export function Shell({ current, onNavigate, title, subtitle, period, primary, children }: {
-  current: NavId; onNavigate?: (id: NavId) => void; title: string; subtitle: string; period: string;
-  primary?: { label: string; icon: ReactNode; onClick?: () => void }; children: ReactNode;
+function NavLinks({ items, current, pending, expanded, tall, onNavigate }: {
+  items: NavItem[];
+  current: NavItem | undefined;
+  pending: Pending;
+  expanded: boolean;
+  /** Alvo de toque maior (gaveta no celular). */
+  tall?: boolean;
+  onNavigate?: () => void;
 }) {
-  const { me, establishments, establishment, setEstablishmentId } = useSession();
-  const [expanded, setExpanded] = useState(true);
-  const [estabOpen, setEstabOpen] = useState(false);
   return (
-    <div className="flex min-h-screen bg-white text-ink">
-      <aside className={`sticky top-0 z-[5] flex h-screen shrink-0 flex-col border-r border-line bg-white transition-[width] duration-[180ms] ${expanded ? 'w-60' : 'w-[72px]'}`}>
-        <div className="flex h-[68px] shrink-0 items-center gap-2.5 px-[22px]">
-          <div className="relative h-7 w-7 shrink-0 rounded-sm bg-brand" aria-hidden>
-            <div className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-accent" />
-            <div className="absolute right-1.5 bottom-[7px] left-1.5 h-[3px] rounded-[2px] bg-white" />
+    <>
+      {items.map(({ href, label, icon: I, attention }) => {
+        const active = current?.href === href;
+        const count = attention ? pending[attention] : undefined;
+        const hasDot = count !== undefined && count > 0;
+        return (
+          <Link
+            key={href}
+            href={href}
+            title={expanded ? undefined : label}
+            aria-current={active ? 'page' : undefined}
+            onClick={onNavigate}
+            className={`relative flex items-center gap-3 rounded-md px-3 no-underline ${tall ? 'h-11' : 'h-10'} ${expanded ? 'justify-start' : 'justify-center'} ${active ? 'bg-tint font-semibold text-brand' : 'font-medium text-ink-2 hover:bg-surface'}`}
+          >
+            {active && <span className="absolute top-2 bottom-2 -left-3 w-[3px] rounded-r-[3px] bg-accent" aria-hidden />}
+            <span className="relative shrink-0">
+              <I size={20} aria-hidden />
+              {hasDot && !expanded && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-accent" aria-hidden />}
+            </span>
+            {expanded ? <span className="whitespace-nowrap">{label}</span> : <span className="sr-only">{label}</span>}
+            {hasDot && expanded && <span className="ml-auto h-2.5 w-2.5 shrink-0 rounded-full bg-accent" aria-hidden />}
+            {hasDot && <span className="sr-only">{`, ${plural(count, 'pendente', 'pendentes')}`}</span>}
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
+function UserBlock({ expanded, onSignOut }: { expanded: boolean; onSignOut: () => void }) {
+  const { me } = useSession();
+  return (
+    <>
+      <div className={`flex items-center gap-2.5 py-2 ${expanded ? 'px-1' : 'justify-center'}`}>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-tint text-[13px] font-bold text-brand" aria-hidden>{initials(me.name)}</div>
+        {expanded && (
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate font-semibold">{me.name}</span>
+            <span className="text-xs text-muted">Perfil {ROLE_LABEL[me.role].toLowerCase()}</span>
           </div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onSignOut}
+        aria-label={expanded ? undefined : 'Sair'}
+        className={`flex h-10 cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3 text-muted hover:bg-surface ${expanded ? 'justify-start' : 'justify-center'}`}
+      >
+        <SignOut size={20} aria-hidden />
+        {expanded && <span>Sair</span>}
+      </button>
+    </>
+  );
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const { me } = useSession();
+  const pathname = usePathname();
+  const signOut = useSignOut();
+  const pending = usePending();
+  const [expanded, setExpanded] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(SIDEBAR_PREF) === 'collapsed') setExpanded(false);
+    } catch {
+      /* preferência de UI */
+    }
+  }, []);
+  // Navegou: a gaveta do celular fecha.
+  useEffect(() => setDrawerOpen(false), [pathname]);
+
+  const toggle = () =>
+    setExpanded((e) => {
+      try {
+        window.localStorage.setItem(SIDEBAR_PREF, e ? 'collapsed' : 'expanded');
+      } catch {
+        /* preferência de UI */
+      }
+      return !e;
+    });
+
+  const items = RH_NAV.filter((i) => can(me.role, i.action));
+  const current = activeNav(pathname, items);
+  const handleSignOut = () => void signOut();
+
+  return (
+    <div className="flex min-h-screen flex-col bg-white text-ink md:flex-row">
+      {/* Celular: barra fina com o botão do menu */}
+      <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-line bg-white px-2 md:hidden">
+        <button type="button" onClick={() => setDrawerOpen(true)} aria-label="Abrir menu" aria-haspopup="dialog" aria-expanded={drawerOpen}
+          className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-ink hover:bg-surface">
+          <List size={24} aria-hidden />
+        </button>
+        <BrandMark />
+        <span className="text-xl font-bold tracking-[-0.03em]">Genus</span>
+      </header>
+
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent side="left" showCloseButton={false} className="w-[288px] max-w-[85vw] gap-0 p-0 md:hidden">
+          <div className="flex h-14 shrink-0 items-center gap-2.5 pr-2 pl-5">
+            <BrandMark />
+            <SheetTitle className="m-0 flex-1 text-xl font-bold tracking-[-0.03em] text-ink">Genus</SheetTitle>
+            <SheetDescription className="sr-only">Menu de navegação do painel</SheetDescription>
+            <button type="button" onClick={() => setDrawerOpen(false)} aria-label="Fechar menu"
+              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-muted hover:bg-surface">
+              <X size={20} aria-hidden />
+            </button>
+          </div>
+          <div className="shrink-0 px-3 pb-3"><EstablishmentSelect /></div>
+          <nav aria-label="Menu" className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-1">
+            <NavLinks items={items} current={current} pending={pending} expanded tall onNavigate={() => setDrawerOpen(false)} />
+          </nav>
+          <div className="flex shrink-0 flex-col gap-1 border-t border-line p-3">
+            <UserBlock expanded onSignOut={handleSignOut} />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <aside className={`sticky top-0 z-[5] hidden h-screen shrink-0 flex-col border-r border-line bg-white transition-[width] duration-[180ms] md:flex ${expanded ? 'w-60' : 'w-[72px]'}`}>
+        <div className="flex h-[68px] shrink-0 items-center gap-2.5 px-[22px]">
+          <BrandMark />
           {expanded && <span className="text-xl font-bold tracking-[-0.03em]">Genus</span>}
         </div>
-
-        <div className="relative shrink-0 px-3 pb-3">
-          <button type="button" aria-label="Trocar estabelecimento" aria-expanded={estabOpen} onClick={() => setEstabOpen((o) => !o)}
-            className={`flex min-h-12 w-full cursor-pointer items-center gap-2.5 rounded-md border border-line bg-surface text-left hover:border-line-hover ${expanded ? 'px-3 py-2' : 'justify-center py-2'}`}>
-            <Buildings size={20} className="shrink-0 text-brand" aria-hidden />
-            {expanded && (<>
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate font-semibold">{establishment.name}</span>
-                <span className="text-xs text-muted">{establishment.subtitle}</span>
-              </span>
-              <CaretUpDown size={16} className="text-muted" aria-hidden />
-            </>)}
-          </button>
-          {estabOpen && (
-            <div role="listbox" aria-label="Estabelecimentos" className="absolute top-14 left-3 z-20 w-[216px] rounded-lg border border-line bg-white p-1.5 shadow-pop">
-              <div className="px-2.5 py-1.5 text-xs text-muted">Estabelecimentos</div>
-              {establishments.map((e) => (
-                <button key={e.id} type="button" role="option" aria-selected={e.id === establishment.id}
-                  onClick={() => { setEstablishmentId(e.id); setEstabOpen(false); }}
-                  className={`flex w-full cursor-pointer items-center gap-2.5 rounded-sm border-0 px-2.5 py-2 text-left hover:bg-surface ${e.id === establishment.id ? 'bg-surface' : 'bg-transparent'}`}>
-                  <span className="flex flex-1 flex-col"><span className="font-semibold">{e.name}</span><span className="text-xs text-muted">{e.subtitle}</span></span>
-                  {e.id === establishment.id && <Check size={16} className="text-brand" aria-hidden />}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
+        <div className="shrink-0 px-3 pb-3"><EstablishmentSelect compact={!expanded} /></div>
         <nav aria-label="Menu principal" className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-1">
-          {NAV.map(({ id, label, icon: I }) => {
-            const active = id === current;
-            return (
-              <button key={id} type="button" title={label} aria-current={active ? 'page' : undefined} onClick={() => onNavigate?.(id)}
-                className={`relative flex h-10 cursor-pointer items-center gap-3 rounded-md border-0 px-3 text-left ${expanded ? 'justify-start' : 'justify-center'} ${active ? 'bg-tint font-semibold text-brand' : 'bg-transparent font-medium text-ink-2 hover:bg-surface'}`}>
-                {active && <span className="absolute top-2 bottom-2 -left-3 w-[3px] rounded-r-[3px] bg-brand" aria-hidden />}
-                <I size={20} className="shrink-0" aria-hidden />
-                {expanded ? <span className="whitespace-nowrap">{label}</span> : <span className="sr-only">{label}</span>}
-              </button>
-            );
-          })}
+          <NavLinks items={items} current={current} pending={pending} expanded={expanded} />
         </nav>
-
         <div className="flex shrink-0 flex-col gap-1 border-t border-line p-3">
-          <button type="button" onClick={() => setExpanded((e) => !e)} title={expanded ? 'Recolher menu' : 'Expandir menu'}
+          <button type="button" onClick={toggle} aria-label={expanded ? 'Recolher menu' : 'Expandir menu'}
             className={`flex h-10 cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3 text-muted hover:bg-surface ${expanded ? 'justify-start' : 'justify-center'}`}>
             <SidebarSimple size={20} aria-hidden />
-            {expanded ? <span>Recolher menu</span> : <span className="sr-only">Expandir menu</span>}
+            {expanded && <span>Recolher menu</span>}
           </button>
-          <div className={`flex items-center gap-2.5 py-2 ${expanded ? 'px-1' : 'px-1.5'}`}>
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-tint text-[13px] font-bold text-brand" aria-hidden>{initials(me.name)}</div>
-            {expanded && <div className="flex min-w-0 flex-col"><span className="truncate font-semibold">{me.name}</span><span className="text-xs text-muted">Perfil {ROLE_LABEL[me.role].toLowerCase()}</span></div>}
-          </div>
+          <UserBlock expanded={expanded} onSignOut={handleSignOut} />
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex flex-wrap items-end justify-between gap-4 px-8 pt-7 pb-5">
-          <div className="flex min-w-0 flex-col gap-1">
-            <h1 className="m-0 text-2xl font-bold tracking-[-0.02em]">{title}</h1>
-            <div className="text-muted tabular-nums">{subtitle}</div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <button type="button" className="flex h-10 cursor-pointer items-center gap-2 rounded-md border border-line bg-white px-3.5 font-medium tabular-nums hover:border-line-hover hover:bg-surface">
-              <CalendarBlank size={18} className="text-muted" aria-hidden /><span>{period}</span><CaretDown size={14} className="text-muted" aria-hidden />
-            </button>
-            {primary && (
-              <button type="button" onClick={primary.onClick} className="flex h-10 cursor-pointer items-center gap-2 rounded-full border-0 bg-brand px-5 font-semibold text-white hover:bg-brand-hover active:bg-brand-active">
-                {primary.icon}<span>{primary.label}</span>
-              </button>
-            )}
-          </div>
-        </header>
-        <div className="flex flex-col gap-4 px-8 pb-28">{children}</div>
-      </main>
+      <main className="flex min-w-0 flex-1 flex-col">{children}</main>
     </div>
   );
 }

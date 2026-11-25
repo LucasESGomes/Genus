@@ -69,6 +69,8 @@ export const punchRegisteredDtoSchema = z.object({
   outcome: z.literal('registered'),
   markedAt: z.iso.datetime(),
   warnings: z.array(punchWarningSchema),
+  /** Só o primeiro nome, para a tela de confirmação do aparelho. Ausente em reenvio idempotente. */
+  employeeFirstName: z.string().optional(),
 });
 export const punchFallbackDtoSchema = z.object({
   outcome: z.literal('fallback_required'),

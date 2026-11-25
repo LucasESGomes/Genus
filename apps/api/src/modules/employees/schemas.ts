@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { civilDate, listMeta, pagination, positiveId, reasonText } from '../../http/schemas';
+import { searchText } from '../../http/search';
 
 const name = z.string().trim().min(2).max(200);
 const registrationNumber = z.string().trim().min(1).max(40);
@@ -15,6 +16,8 @@ export const CONTRACT_TYPES = ['indeterminado', 'determinado', 'safra', 'intermi
 export const listEmployeesQuery = pagination.extend({
   establishmentId: positiveId.optional(),
   status: z.enum(['ativo', 'desligado']).optional(),
+  /** Nome ou matrícula (contém, sem diferenciar maiúsculas). */
+  q: searchText.optional(),
 });
 
 export const createEmployeeBody = z.object({

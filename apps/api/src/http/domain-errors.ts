@@ -35,6 +35,8 @@ export const CONSTRAINT_ERRORS: Readonly<Record<string, MappedError>> = {
   ajuste_decisor_diferente: conflict('DECISOR_IGUAL_SOLICITANTE', 'Quem fez o pedido não pode decidir sobre ele'),
   fg_decisor_diferente: conflict('DECISOR_IGUAL_SOLICITANTE', 'Quem fez o pedido não pode decidir sobre ele'),
   fech_unico: conflict('FECHAMENTO_DUPLICADO', 'Essa competência já existe para o estabelecimento'),
+  aparelho_nome_unico: conflict('APARELHO_NOME_DUPLICADO', 'Já existe um aparelho com esse nome no estabelecimento'),
+  uq_sessao_calibracao_aberta: conflict('CALIBRACAO_EM_ANDAMENTO', 'Já existe uma calibração em andamento neste aparelho'),
   pa_direito_bate_faltas: conflict('PARAMETRO_INVALIDO', 'Os dias de direito não batem com as faltas do período'),
 };
 

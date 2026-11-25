@@ -8,11 +8,14 @@ services:
       dockerfile: apps/portal/Dockerfile
       args:
         NEXT_PUBLIC_USE_MOCKS: ${NEXT_PUBLIC_USE_MOCKS:-true}
+        API_URL: http://api:3002
+        COLLECTOR_URL: http://collector-api:3001
     image: genus-portal
     container_name: genus-portal
     restart: unless-stopped
     environment:
       API_URL: http://api:3002
+      COLLECTOR_URL: http://collector-api:3001
     ports: ["3000:3000"]
     mem_limit: 256m
     security_opt: ["no-new-privileges:true"]

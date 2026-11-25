@@ -2,3 +2,6 @@
 .env
 .env.local
 *.tsbuildinfo
+test/screens/
+test-results/
+playwright-report/

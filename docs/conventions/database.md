@@ -205,6 +205,8 @@ export const employees = pgTable('colaboradores', {
 | `milissegundos_<x>` | `<x>Ms` | `milissegundos_resposta` → `responseMs`. Só para métrica técnica (tempo de resposta); duração de jornada continua em `minutos_` |
 | `hash_<x>` | `<x>Hash` | `hash_entrada` → `inputHash` |
 
+Termos do totem (`aparelhos`, `sessoes_calibracao`): `chave_hash` → `keyHash`, `chave_prefixo` → `keyPrefix`, `chave_gerada_em` → `keyGeneratedAt`, `ultima_conexao_em` → `lastConnectionAt`, `versao_app` → `appVersion`, `limiar_reconhecimento` → `recognitionThreshold`, `limiar_vivacidade` → `livenessThreshold`, `calibrado_em` → `calibratedAt`, `calibracao_origem_id` → `calibrationSourceId`.
+
 Termos da análise de atestado (`analises_atestado`, G6): `provedor` → `provider`, `modelo` → `model`, `versao_prompt` → `promptVersion`, `resultado` → `result`, `recomendacao` → `recommendation`, `evidencias_cifradas` → `evidenceEnc`, `falha` → `failure`.
 
 ### 12.2 Glossário de tabelas
@@ -237,7 +239,8 @@ Termos da análise de atestado (`analises_atestado`, G6): `provedor` → `provid
 | `chaves_empresa` | `companyKeys` | `usuarios_estabelecimentos` | `userEstablishments` |
 | `sessoes` | `sessions` | `credenciais_login` | `loginCredentials` |
 | `dois_fatores` | `twoFactors` | `verificacoes` | `verifications` |
-| `chaves_jwt` | `jwtKeys` | | |
+| `chaves_jwt` | `jwtKeys` | `aparelhos` | `devices` |
+| `sessoes_calibracao` | `calibrationSessions` | `eventos_aparelho` | `deviceEvents` |
 
 **Banco `arp` (nomes dos docs `02` e `03` → identificadores).** O `arp` já estava em português; só ganhou plural e o padrão de colunas:
 

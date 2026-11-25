@@ -1,6 +1,7 @@
 /** Contratos HTTP de ajuste de marcação (G5, RF23 a RF26). */
 import { z } from 'zod';
 import { civilDate, isoInstant, listMeta, pagination, positiveId, reasonText } from '../../http/schemas';
+import { searchText } from '../../http/search';
 
 export const ADJUSTMENT_TYPES = ['inclusao_batida', 'justificativa', 'abono'] as const;
 export const ADJUSTMENT_STATUSES = ['pendente', 'aprovado', 'recusado'] as const;
@@ -19,6 +20,8 @@ export const createAdjustmentBody = z
 export const listAdjustmentsQuery = pagination.extend({
   status: z.enum(ADJUSTMENT_STATUSES).optional(),
   employeeId: positiveId.optional(),
+  /** Nome ou matrícula do colaborador. */
+  q: searchText.optional(),
 });
 
 export const approveBody = z.object({ note: reasonText.optional() });

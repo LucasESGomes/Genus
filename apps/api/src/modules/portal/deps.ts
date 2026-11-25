@@ -19,6 +19,8 @@ export interface PortalDeps {
   storage: FileStorage;
   /** Engine facial; null = cadastro facial indisponível (503). */
   engine: FacialEngineClient | null;
+  /** Limiares padrão da engine, para o valor efetivo de um totem não calibrado (docs/totem-contrato.md §3.1). */
+  engineDefaults: { recognitionThreshold: number; livenessThreshold: number };
   /** `current` gera hash novo; `all` confere (rotação do pepper). */
   pin: { current: PinPepper; all: readonly PinPepper[] };
   /** Tamanho máximo do arquivo de atestado. */

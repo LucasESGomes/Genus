@@ -11,6 +11,7 @@ import { punchRoutes } from './modules/punches/routes';
 import type { PunchService } from './modules/punches/service';
 import type { PunchStatusService } from './modules/punches/status-service';
 import { registerApiDocs } from './plugins/api-docs';
+import { registerDeviceKeyAuth } from './plugins/device-key-auth';
 import { registerErrorHandling } from './plugins/error-handler';
 import { registerServiceKeyAuth } from './plugins/service-key-auth';
 
@@ -23,6 +24,11 @@ export interface AppDeps {
   punchService: PunchService;
   punchStatusService: PunchStatusService;
   deviceAuthenticator: DeviceAuthenticator;
+  /**
+   * Autentica `/coletor/totem/*` pela chave do aparelho (`X-Device-Key`, banco `app`).
+   * Ausente = o escopo do totem não é registrado (404).
+   */
+  totemDeviceAuthenticator?: DeviceAuthenticator;
   serviceKeys: string[];
   maxImageBytes: number;
   exposeTimings: boolean;
@@ -72,6 +78,24 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     },
     { prefix: '/coletor' },
   );
+
+  // Totem web: sem chave de serviço (o navegador não guarda segredo de serviço); a credencial é
+  // a chave do aparelho. Escopo irmão de /coletor, sem herdar o hook da chave de serviço.
+  const totemAuthenticator = deps.totemDeviceAuthenticator;
+  if (totemAuthenticator) {
+    await app.register(
+      async (scope) => {
+        registerDeviceKeyAuth(scope, { deviceAuthenticator: totemAuthenticator, logger: deps.logger });
+        await scope.register(punchRoutes, {
+          service: deps.punchService,
+          statusService: deps.punchStatusService,
+          exposeTimings: deps.exposeTimings,
+          mode: 'totem',
+        });
+      },
+      { prefix: '/coletor/totem' },
+    );
+  }
 
   return app;
 }

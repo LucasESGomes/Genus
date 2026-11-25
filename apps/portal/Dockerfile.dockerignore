@@ -1,0 +1,13 @@
+# Contexto do build é a raiz do repositório; este arquivo vale só para apps/portal/Dockerfile (BuildKit).
+# Sem isso o COPY traria o node_modules local (links do pnpm do Windows) por cima do instalado na imagem.
+**/node_modules
+**/.next
+**/.env
+**/.env.*
+!**/.env.example
+apps/portal/test/screens
+apps/portal/test-results
+apps/portal/playwright-report
+dev-data
+bench
+out

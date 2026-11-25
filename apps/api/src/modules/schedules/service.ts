@@ -10,6 +10,7 @@ import type { Clock } from '@genus/shared';
 import { and, asc, eq } from 'drizzle-orm';
 import type { z } from 'zod';
 import type { Database } from '../../db/client';
+import { containsAny } from '../../http/search';
 import type { Executor } from '../../db/executor';
 import { employeeSchedules, establishments, scheduleDays, schedules } from '../../db/schema';
 import { establishmentInScope, notFound, tenantOf } from '../../http/access';
@@ -123,7 +124,13 @@ export class ScheduleService {
     const rows = await this.d.db
       .select()
       .from(schedules)
-      .where(and(eq(schedules.tenantId, tenantId), q.establishmentId ? eq(schedules.establishmentId, q.establishmentId) : undefined))
+      .where(
+        and(
+          eq(schedules.tenantId, tenantId),
+          q.establishmentId ? eq(schedules.establishmentId, q.establishmentId) : undefined,
+          q.q ? containsAny([schedules.name], q.q) : undefined,
+        ),
+      )
       .orderBy(asc(schedules.name));
     return rows.filter((r) => establishmentInScope(ctx, r.establishmentId));
   }

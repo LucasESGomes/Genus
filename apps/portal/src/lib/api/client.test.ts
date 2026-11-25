@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createApiClient } from './client';
-import { ApiError, GENERIC_SERVER_MESSAGE } from './errors';
+import { ApiError, GENERIC_SERVER_MESSAGE, NETWORK_MESSAGE } from './errors';
 
 const reply = (status: number, body: unknown) => async () => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -32,8 +32,8 @@ describe('cliente de api', () => {
     expect(e.kind).toBe('server');
     expect(e.message).toBe(GENERIC_SERVER_MESSAGE);
   });
-  it('falha de rede vira erro genérico', async () => {
+  it('falha de rede vira erro de conexão', async () => {
     const c = createApiClient(async () => { throw new TypeError('fetch failed'); });
-    await expect(c.get('/me')).rejects.toMatchObject({ kind: 'network', message: GENERIC_SERVER_MESSAGE });
+    await expect(c.get('/me')).rejects.toMatchObject({ kind: 'network', message: NETWORK_MESSAGE });
   });
 });

@@ -22,7 +22,8 @@ export type AuditAction =
 
 export interface AuditEntry {
   tenantId: number;
-  userId: number;
+  /** null = ação do aparelho (totem), sem usuário. */
+  userId: number | null;
   entity: string;
   entityId: number;
   action: AuditAction;

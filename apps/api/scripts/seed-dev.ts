@@ -1,0 +1,90 @@
+/**
+ * Semente de DESENVOLVIMENTO (idempotente): conta, empresa, estabelecimento, chave da empresa (DEK)
+ * e um usuário RH, para o portal e o totem web funcionarem num banco vazio. Nunca rodar em produção.
+ *
+ *   MASTER_KEY=<64 hex, a mesma da engine> pnpm --filter @genus/api rh:seed-dev
+ *
+ * Dados fictícios (CNPJ/CAEPF de teste). A senha do RH (NEW_USER_PASSWORD ou gerada) e os ids vão para
+ * `dev-data/seed-dev.json` (pasta fora do Git), não para o terminal.
+ * A DEK é cifrada com a MASTER_KEY da engine: é ela que decifra a DEK no cadastro facial e no reconhecimento.
+ */
+import { randomBytes } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { createLogger, encryptDek, generateDek } from '@genus/shared';
+import pg from 'pg';
+import { loadEnv } from '../src/config/env';
+import { createDatabase } from '../src/db/client';
+import { toStoredCompanyKey } from '../src/modules/facial/stored-crypto';
+import { UserService } from '../src/modules/auth/user-service';
+
+const env = loadEnv();
+if (env.appEnv === 'prod') throw new Error('seed-dev não roda em produção');
+const masterKey = process.env.MASTER_KEY;
+if (!masterKey || !/^[0-9a-fA-F]{64}$/.test(masterKey)) throw new Error('Defina MASTER_KEY (64 hex, a mesma da engine)');
+const ownerUrl = process.env.RH_MIGRATION_DATABASE_URL;
+if (!ownerUrl) throw new Error('Defina RH_MIGRATION_DATABASE_URL (apps/api/.env.dev)');
+
+const RH_EMAIL = 'rh@genus.dev';
+const OUT = fileURLToPath(new URL('../../../dev-data/seed-dev.json', import.meta.url));
+
+const pool = new pg.Pool({ connectionString: ownerUrl, max: 1 });
+const one = async <T>(text: string, values: unknown[] = []) => (await pool.query(text, values)).rows[0] as T | undefined;
+
+try {
+  await pool.query('BEGIN');
+  const tenant =
+    (await one<{ id: string }>("SELECT id FROM rh.contas WHERE nome = 'Genus Demonstração'")) ??
+    (await one<{ id: string }>("INSERT INTO rh.contas (nome) VALUES ('Genus Demonstração') RETURNING id"));
+  const tenantId = Number(tenant!.id);
+
+  const company =
+    (await one<{ id: string }>('SELECT id FROM rh.empresas WHERE conta_id = $1 AND cnpj = $2', [tenantId, '11222333000181'])) ??
+    (await one<{ id: string }>(
+      "INSERT INTO rh.empresas (conta_id, razao_social, cnpj) VALUES ($1, 'Agropecuária Santa Helena Ltda (fictícia)', '11222333000181') RETURNING id",
+      [tenantId],
+    ));
+  const companyId = Number(company!.id);
+
+  const establishment =
+    (await one<{ id: string }>('SELECT id FROM rh.estabelecimentos WHERE empresa_id = $1 AND inscricao = $2', [companyId, '112223330001'])) ??
+    (await one<{ id: string }>(
+      "INSERT INTO rh.estabelecimentos (conta_id, empresa_id, nome, tipo_inscricao, inscricao, uf, municipio_ibge) VALUES ($1, $2, 'Fazenda Santa Helena', 'CAEPF', '112223330001', 'GO', '5218805') RETURNING id",
+      [tenantId, companyId],
+    ));
+  const establishmentId = Number(establishment!.id);
+
+  const hasKey = await one('SELECT 1 FROM rh.chaves_empresa WHERE conta_id = $1 AND empresa_id = $2 AND eh_ativa', [tenantId, companyId]);
+  if (!hasKey) {
+    const k = toStoredCompanyKey(encryptDek(generateDek(), masterKey), 1);
+    await pool.query(
+      'INSERT INTO rh.chaves_empresa (conta_id, empresa_id, versao_chave, dek_iv, dek_tag, dek_ct, versao_kek) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [tenantId, companyId, k.keyVersion, k.dekIv, k.dekTag, k.dekCt, k.masterKeyVersion],
+    );
+  }
+  await pool.query('COMMIT');
+
+  // Usuário RH pelo serviço real (hash de senha do Better Auth).
+  const existing = await one('SELECT 1 FROM rh.usuarios WHERE email = $1', [RH_EMAIL]);
+  let password: string | null = null;
+  if (!existing) {
+    password = process.env.NEW_USER_PASSWORD ?? randomBytes(12).toString('base64url');
+    const database = createDatabase(env.databaseUrl, createLogger({ level: 'warn', service: 'seed-dev' }), 1);
+    try {
+      await new UserService({ db: database.db }).createUser({ email: RH_EMAIL, name: 'Lúcia Martins', role: 'rh', tenantId, employeeId: null, password });
+    } finally {
+      await database.close();
+    }
+  }
+
+  mkdirSync(fileURLToPath(new URL('../../../dev-data/', import.meta.url)), { recursive: true });
+  const record = { geradoEm: new Date().toISOString(), tenantId, companyId, establishmentId, rh: { email: RH_EMAIL, senha: password ?? '(já existia: senha anterior)' } };
+  if (password) writeFileSync(OUT, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
+  process.stdout.write(`Semente ok: conta=${tenantId} empresa=${companyId} estabelecimento=${establishmentId}. ${password ? 'Credenciais em dev-data/seed-dev.json' : 'Usuário RH já existia.'}\n`);
+} catch (err) {
+  await pool.query('ROLLBACK').catch(() => undefined);
+  process.stderr.write(`Falha: ${(err as Error).message}\n`);
+  process.exitCode = 1;
+} finally {
+  await pool.end();
+}

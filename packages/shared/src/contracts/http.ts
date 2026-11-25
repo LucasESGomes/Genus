@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 export const ERROR_CODES = [
   'UNAUTHORIZED',
+  'CHAVE_APARELHO_INVALIDA',
   'VALIDATION_ERROR',
   'INVALID_IMAGE',
   'IMAGE_TOO_LARGE',

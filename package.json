@@ -28,7 +28,8 @@
     "db:migrate:rh": "pnpm --filter @genus/api db:migrate",
     "db:generate:rh": "pnpm --filter @genus/api db:generate",
     "rh:check-arp": "pnpm --filter @genus/api check-arp",
-    "rh:create-user": "pnpm --filter @genus/api rh:create-user"
+    "rh:create-user": "pnpm --filter @genus/api rh:create-user",
+    "rh:seed-dev": "pnpm --filter @genus/api rh:seed-dev"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

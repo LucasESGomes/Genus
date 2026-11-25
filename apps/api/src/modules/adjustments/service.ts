@@ -14,6 +14,7 @@ import { and, count, desc, eq, type SQL } from 'drizzle-orm';
 import type { z } from 'zod';
 import type { ArpPunchReader } from '../../arp/punch-reader';
 import type { Database } from '../../db/client';
+import { containsAny } from '../../http/search';
 import { employees, timeAdjustments } from '../../db/schema';
 import { employeeScopeConditions, notFound, tenantOf } from '../../http/access';
 import { HttpError } from '../../plugins/error-handler';
@@ -91,6 +92,7 @@ export class AdjustmentService {
     const conds: SQL[] = [...employeeScopeConditions(ctx), eq(timeAdjustments.tenantId, tenantOf(ctx))];
     if (q.status) conds.push(eq(timeAdjustments.status, q.status));
     if (q.employeeId) conds.push(eq(timeAdjustments.employeeId, q.employeeId));
+    if (q.q) conds.push(containsAny([employees.name, employees.registrationNumber], q.q));
     const where = and(...conds);
     const join = and(eq(employees.tenantId, timeAdjustments.tenantId), eq(employees.id, timeAdjustments.employeeId));
     const [rows, [total]] = await Promise.all([

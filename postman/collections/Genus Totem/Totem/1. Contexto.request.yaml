@@ -1,0 +1,15 @@
+$kind: http-request
+description: "Autenticado por `X-Device-Key`; grava a última conexão e a versão do app."
+url: "{{portalUrl}}/portal/totem/context"
+method: GET
+headers:
+  X-Device-Key: "{{deviceKey}}"
+  X-Totem-Version: postman-1
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const d = pm.response.json().data;
+      pm.test('Contexto completo', () => { pm.expect(d.device.id).to.be.a('number'); pm.expect(d.establishment.name).to.be.a('string'); pm.expect(d).to.have.property('calibration'); pm.expect(new Date(d.serverTime).toString()).to.not.eql('Invalid Date'); });
+    language: text/javascript
+order: 1000

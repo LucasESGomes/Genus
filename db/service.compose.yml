@@ -75,6 +75,7 @@ services:
       ARP_READER_PASSWORD: ${ARP_READER_PASSWORD:?Defina ARP_READER_PASSWORD no .env da raiz}
       RH_OWNER_PASSWORD: ${RH_OWNER_PASSWORD:?Defina RH_OWNER_PASSWORD no .env da raiz}
       RH_API_PASSWORD: ${RH_API_PASSWORD:?Defina RH_API_PASSWORD no .env da raiz}
+      COLETOR_LEITURA_PASSWORD: ${COLETOR_LEITURA_PASSWORD:?Defina COLETOR_LEITURA_PASSWORD no .env da raiz (pnpm setup:dev)}
     volumes:
       - ./postgres/bootstrap.sh:/bootstrap.sh:ro
     depends_on:

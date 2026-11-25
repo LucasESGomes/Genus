@@ -16,7 +16,9 @@ import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Database } from '../../db/client';
 import { biometricConsents, companyKeys, facialEmbeddings } from '../../db/schema';
-import { establishmentInScope, tenantOf } from '../../http/access';
+import { AttemptLimiter } from '../../http/attempt-limiter';
+import { tenantOf } from '../../http/access';
+import { deviceEvents } from '../../db/schema';
 import { HttpError } from '../../plugins/error-handler';
 import type { RequestContext } from '../../plugins/request-context';
 import { recordAudit } from '../audit/audit';
@@ -45,35 +47,25 @@ const IMAGE_TYPES = [
 ] as const;
 const MAX_IMAGES = 5;
 
-/** Limite simples de tentativas erradas de CPF/PIN por IP e conta (memória do processo). */
-export class AttemptLimiter {
-  private readonly failures = new Map<string, number[]>();
-
-  constructor(
-    private readonly clock: Clock,
-    private readonly max = 5,
-    private readonly windowMs = 15 * 60_000,
-  ) {}
-
-  private recent(key: string): number[] {
-    const now = this.clock.now().getTime();
-    const list = (this.failures.get(key) ?? []).filter((t) => now - t < this.windowMs);
-    this.failures.set(key, list);
-    return list;
-  }
-
-  assertAllowed(key: string): void {
-    if (this.recent(key).length >= this.max) throw new HttpError(429, 'MUITAS_TENTATIVAS', 'Muitas tentativas. Aguarde alguns minutos');
-  }
-
-  fail(key: string): void {
-    this.recent(key).push(this.clock.now().getTime());
-  }
-
-  reset(key: string): void {
-    this.failures.delete(key);
-  }
+/**
+ * Quem está cadastrando: a sessão de rh/admin no totem antigo (`/facial/*`) ou o aparelho
+ * identificado por `X-Device-Key` (`/totem/facial/*`). O serviço só precisa disto.
+ */
+export interface EnrollmentActor {
+  tenantId: number;
+  /** Usuário do painel; null quando quem opera é o aparelho. */
+  userId: number | null;
+  deviceId: number | null;
+  /** Estabelecimentos permitidos; null = a conta inteira. */
+  establishmentScope: number[] | null;
 }
+
+export const actorFromContext = (ctx: RequestContext): EnrollmentActor => ({
+  tenantId: tenantOf(ctx),
+  userId: ctx.userId,
+  deviceId: null,
+  establishmentScope: ctx.establishmentScope,
+});
 
 export interface FacialEnrollmentDeps {
   db: Database;
@@ -91,15 +83,20 @@ export class FacialEnrollmentService {
     this.limiter = new AttemptLimiter(d.clock);
   }
 
-  /** CPF do colaborador ativo, na conta e no escopo da sessão do totem; senão null. */
-  private async employeeByCpf(ctx: RequestContext, rawCpf: string) {
-    const emp = await findEmployeeByCpf(this.d.db, tenantOf(ctx), normalizeCpf(rawCpf));
-    if (!emp || emp.terminationDate !== null || !establishmentInScope(ctx, emp.establishmentId)) return null;
+  /** CPF do colaborador ativo, na conta e no escopo de quem cadastra; senão null. */
+  private async employeeByCpf(actor: EnrollmentActor, rawCpf: string) {
+    const emp = await findEmployeeByCpf(this.d.db, actor.tenantId, normalizeCpf(rawCpf));
+    if (!emp || emp.terminationDate !== null) return null;
+    if (actor.establishmentScope !== null && !actor.establishmentScope.includes(emp.establishmentId)) return null;
     return emp;
   }
 
-  async status(ctx: RequestContext, cpf: string) {
-    const emp = await this.employeeByCpf(ctx, cpf);
+  status(ctx: RequestContext, cpf: string) {
+    return this.statusAs(actorFromContext(ctx), cpf);
+  }
+
+  async statusAs(actor: EnrollmentActor, cpf: string) {
+    const emp = await this.employeeByCpf(actor, cpf);
     if (!emp) return { enrolled: false, enrolledAt: null };
     const [row] = await this.d.db
       .select({ createdAt: facialEmbeddings.createdAt })
@@ -108,13 +105,17 @@ export class FacialEnrollmentService {
     return { enrolled: Boolean(row), enrolledAt: row?.createdAt.toISOString() ?? null };
   }
 
-  async enroll(ctx: RequestContext, req: FastifyRequest) {
-    const tenantId = tenantOf(ctx);
+  enroll(ctx: RequestContext, req: FastifyRequest) {
+    return this.enrollAs(actorFromContext(ctx), req);
+  }
+
+  async enrollAs(actor: EnrollmentActor, req: FastifyRequest) {
+    const tenantId = actor.tenantId;
     const limitKey = `${tenantId}:${req.ip}`;
     this.limiter.assertAllowed(limitKey);
     const { fields, images } = await parseEnrollment(req);
 
-    const emp = await this.employeeByCpf(ctx, fields.cpf);
+    const emp = await this.employeeByCpf(actor, fields.cpf);
     // CPF inexistente, desligado ou fora do escopo e PIN errado dão a mesma resposta
     const ok = emp ? await verifyPin(fields.pin, emp.pinHash, this.d.pin.all).catch(() => false) : false;
     if (!emp || !ok) {
@@ -124,7 +125,7 @@ export class FacialEnrollmentService {
     this.limiter.reset(limitKey);
 
     if (!this.d.engine) throw new HttpError(503, 'MOTOR_FACIAL_INDISPONIVEL', 'O reconhecimento facial está indisponível. Tente mais tarde');
-    const consentId = await this.ensureConsent(ctx, emp, fields, req.ip);
+    const consentId = await this.ensureConsent(actor, emp, fields, req.ip);
     const [key] = await this.d.db
       .select()
       .from(companyKeys)
@@ -174,18 +175,22 @@ export class FacialEnrollmentService {
         .returning({ id: facialEmbeddings.id });
       await recordAudit(tx, this.d.clock, {
         tenantId: emp.tenantId,
-        userId: ctx.userId,
+        userId: actor.userId,
         entity: 'embeddings_faciais',
         entityId: row!.id,
         action: existing ? 'alteracao' : 'criacao',
-        after: { event: 'facial.enrolled', employeeId: emp.id, origin: 'quiosque', images: values.imageCount },
+        after: { event: 'facial.enrolled', employeeId: emp.id, origin: 'quiosque', images: values.imageCount, ...(actor.deviceId !== null ? { deviceId: actor.deviceId } : {}) },
       });
+      // sem dado pessoal na descrição (o colaborador não é citado)
+      if (actor.deviceId !== null) {
+        await tx.insert(deviceEvents).values({ tenantId: emp.tenantId, deviceId: actor.deviceId, type: 'cadastro_facial', description: 'Cadastro facial concluído no totem', createdAt: now });
+      }
     });
     return { employeeId: emp.id, enrolledAt: now.toISOString(), imagesProcessed: reply.images_processed, modelVersion: reply.model_version };
   }
 
   /** Consentimento ativo; sem ele, exige o aceite e grava (versão do texto, IP, quem coletou). */
-  private async ensureConsent(ctx: RequestContext, emp: EmployeeRecord, fields: z.infer<typeof enrollmentFields>, ip: string): Promise<number> {
+  private async ensureConsent(actor: EnrollmentActor, emp: EmployeeRecord, fields: z.infer<typeof enrollmentFields>, ip: string): Promise<number> {
     const [active] = await this.d.db
       .select({ id: biometricConsents.id })
       .from(biometricConsents)
@@ -201,12 +206,13 @@ export class FacialEnrollmentService {
           textVersion: fields.consentTextVersion,
           consentedAt: this.d.clock.now(),
           ipAddress: ip,
-          collectedById: ctx.userId,
+          deviceId: actor.deviceId,
+          collectedById: actor.userId,
         })
         .returning({ id: biometricConsents.id });
       await recordAudit(tx, this.d.clock, {
         tenantId: emp.tenantId,
-        userId: ctx.userId,
+        userId: actor.userId,
         entity: 'consentimentos_biometricos',
         entityId: row!.id,
         action: 'criacao',

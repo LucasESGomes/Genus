@@ -41,6 +41,10 @@ export interface DeviceContext {
   establishmentId: number;
   /** `aparelho_id` */
   deviceId: number;
+  /** `aparelhos.limiar_reconhecimento`. Ausente ou `null` = padrão da engine. */
+  recognitionThreshold?: number | null;
+  /** `aparelhos.limiar_vivacidade`. Ausente ou `null` = padrão da engine. */
+  livenessThreshold?: number | null;
 }
 
 /**
@@ -92,6 +96,10 @@ export interface RecognizeRequest {
   tenantDek: EncryptedDek;
   /** `id_publico` pretendido da entrada, para amarrar os logs API ↔ engine. */
   traceId: string;
+  /** Limiar de reconhecimento do aparelho. Ausente ou `null` = padrão da engine (o campo nem é enviado). */
+  recognitionThreshold?: number | null;
+  /** Limiar de vivacidade do aparelho. Ausente ou `null` = padrão da engine. */
+  livenessThreshold?: number | null;
 }
 
 export interface EngineTiming {

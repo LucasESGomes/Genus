@@ -42,9 +42,15 @@ export class PunchStatusService {
   constructor(private readonly deps: PunchStatusServiceDeps) {}
 
   /** `null` se o jobId for inválido ou não existir batida dele nesta conta. */
-  async getByJobId(ctx: DeviceContext, jobId: string): Promise<PunchStatusDetailDto | null> {
+  async getByJobId(
+    ctx: DeviceContext,
+    jobId: string,
+    opts: { onlyOwnDevice?: boolean } = {},
+  ): Promise<PunchStatusDetailDto | null> {
     const key = parsePunchJobId(jobId);
     if (!key) return null;
+    // Totem: a chave do aparelho só enxerga as batidas dele (mesma resposta de "não existe").
+    if (opts.onlyOwnDevice && key.deviceId !== ctx.deviceId) return null;
     const entry = await this.deps.repository.findStatusByDeviceSequence(ctx.tenantId, key.deviceId, key.deviceSequence);
     if (!entry) return null;
     return { ...toDto(entry), queue: await this.queueState(jobId) };

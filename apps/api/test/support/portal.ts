@@ -111,7 +111,7 @@ export class PortalHarness {
     });
     const clock = o.clock ?? new SystemClock();
     const auth = createAuth(this.handle.db, { secret: SECRET, baseURL: BASE_URL, trustedOrigins: [], secureCookies: false, rateLimit: false }, logger);
-    let arp: ArpPunchReader = { listPunches: async () => [] };
+    let arp: ArpPunchReader = { listPunches: async () => [], devicesWithPunches: async () => new Set<number>() };
     if (this.arpDb) {
       this.arpPool ??= new pg.Pool({ connectionString: this.arpDb.readerUrl, max: 4 });
       arp = new PgArpPunchReader(this.arpPool);
@@ -129,6 +129,7 @@ export class PortalHarness {
         arp,
         storage: this.storage,
         engine: o.engine ?? null,
+        engineDefaults: { recognitionThreshold: 1.1, livenessThreshold: 0.85 },
         pin: { current: TEST_PEPPER, all: [TEST_PEPPER] },
         maxAttachmentBytes: 1024 * 1024,
         certificateAi: {
