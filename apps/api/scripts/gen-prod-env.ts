@@ -8,6 +8,9 @@
  * antes o ambiente atual no arquivo: gerar de novo as senhas, a MASTER_KEY ou o PIN_PEPPER torna o
  * banco e a biometria ilegíveis. Instalação nova, sem arquivo: passe --new.
  *
+ * Produção que já existe e só ganha o super_admin: `--super-admin --email voce@exemplo.com` grava as três
+ * SUPER_ADMIN_* em `.env.prod.super-admin`, para ACRESCENTAR ao ambiente atual sem tocar no resto.
+ *
  * Nenhum valor é impresso: só os nomes das variáveis acrescentadas.
  */
 import { randomBytes } from 'node:crypto';
@@ -17,17 +20,19 @@ import { parseArgs } from 'node:util';
 import { hashPassword } from 'better-auth/crypto';
 
 const { values } = parseArgs({
-  options: { url: { type: 'string' }, email: { type: 'string' }, name: { type: 'string' }, new: { type: 'boolean' } },
+  options: { url: { type: 'string' }, email: { type: 'string' }, name: { type: 'string' }, new: { type: 'boolean' }, 'super-admin': { type: 'boolean' } },
 });
 
+const onlySuperAdmin = values['super-admin'] === true;
 const root = resolve(import.meta.dirname, '../../..');
-const target = resolve(root, '.env.prod');
+const fileName = onlySuperAdmin ? '.env.prod.super-admin' : '.env.prod';
+const target = resolve(root, fileName);
 const fail = (message: string): never => {
   process.stderr.write(`Erro: ${message}\n`);
   process.exit(1);
 };
 
-if (!existsSync(target) && !values.new) {
+if (!onlySuperAdmin && !existsSync(target) && !values.new) {
   fail('não há .env.prod. Já existe produção? Cole o ambiente atual do Easypanel em .env.prod. Instalação nova: rode com --new.');
 }
 
@@ -41,7 +46,9 @@ const defined = new Set(
 );
 
 const compose = readFileSync(resolve(root, 'docker-compose.easypanel.yml'), 'utf8');
-const required = [...new Set([...compose.matchAll(/\$\{([A-Z_0-9]+):\?/g)].map((m) => m[1]!))];
+const required = [...new Set([...compose.matchAll(/\$\{([A-Z_0-9]+):\?/g)].map((m) => m[1]!))].filter(
+  (key) => !onlySuperAdmin || key.startsWith('SUPER_ADMIN_'),
+);
 
 const hex = (bytes: number) => randomBytes(bytes).toString('hex');
 const added: string[] = [];
@@ -78,4 +85,4 @@ if (added.length > 0) {
     .trimEnd();
   writeFileSync(target, `${kept ? `${kept}\n` : ''}${lines.join('\n')}\n`, { mode: 0o600 });
 }
-process.stdout.write(added.length ? `Acrescentadas em .env.prod: ${added.join(', ')}\n` : 'Nada a acrescentar: .env.prod já tem todas as obrigatórias.\n');
+process.stdout.write(added.length ? `Acrescentadas em ${fileName}: ${added.join(', ')}\n` : `Nada a acrescentar: ${fileName} já tem todas as obrigatórias.\n`);
