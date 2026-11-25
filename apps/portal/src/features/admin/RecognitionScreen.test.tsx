@@ -28,7 +28,7 @@ describe('Reconhecimento', () => {
     expect(screen.getAllByText('0,0–0,1').length).toBeGreaterThan(0);
     expect(screen.getByText('Batidas e falhas por hora')).toBeInTheDocument();
     expect(screen.getByText(/Só agregados/)).toBeInTheDocument();
-    expect(screen.getByText('#5')).toBeInTheDocument(); // aparelho sem nome
+    expect(screen.getByText('#5', { selector: '.font-semibold' })).toBeInTheDocument(); // aparelho sem nome (a coluna do estabelecimento também mostra #5)
     expect(container.textContent).not.toMatch(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/);
     expect(await axe(container)).toHaveNoViolations();
   });

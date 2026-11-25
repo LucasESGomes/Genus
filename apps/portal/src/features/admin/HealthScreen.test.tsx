@@ -23,7 +23,7 @@ describe('Saúde dos sistemas', () => {
     expect(within(motor).getByText('Latência acima do esperado (480 ms).')).toBeInTheDocument();
     expect(within(motor).getByText('Latência: 480 ms')).toBeInTheDocument();
     expect(within(motor).getByText('Galerias em cache')).toBeInTheDocument();
-    expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(8);
+    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(8);
     expect(screen.getByText(/versão 0\.14\.0/)).toBeInTheDocument();
     expect(screen.getByText(/no ar há 10 d 1 h 30 min/)).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
