@@ -1,0 +1,23 @@
+$kind: http-request
+name: 2. Aceitar convite
+description: "POST /portal/public/invites/accept com `{ token, cpf, password }`. Responde 201 `{ email }` e cria o usuário. CPF errado: 400 `CPF_NAO_CONFERE` (na 5ª falha o convite é revogado). Limite de falhas por IP: 429."
+url: "{{portalUrl}}/portal/public/invites/accept"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "token": "{{inviteToken}}", "cpf": "{{inviteCpf}}", "password": "{{invitePassword}}" }
+scripts:
+  - type: beforeRequest
+    code: |-
+      // Senha descartável, gerada a cada execução.
+      pm.collectionVariables.set('invitePassword', 'pm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+      pm.test('E-mail do convite', () => pm.expect(pm.response.json().data.email).to.eql(pm.collectionVariables.get('inviteEmail')));
+    language: text/javascript
+order: 2000

@@ -1,0 +1,29 @@
+$kind: http-request
+name: 2. Criar estabelecimento
+description: "POST /companies/:companyId/establishments. Responde 201. Erros: `NOT_FOUND` (404), `CNPJ_INVALIDO` (400), `INSCRICAO_DUPLICADA` (409), `EMPRESA_INATIVA` (409)."
+url: "{{portalUrl}}/portal/super-admin/tenants/{{tenantId}}/companies/{{companyId}}/establishments"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Unidade Postman",
+      "registrationType": "CNPJ",
+      "registration": "{{companyCnpj}}",
+      "uf": "SP",
+      "municipalityIbge": "3550308"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+      const d = pm.response.json().data;
+      pm.test('Estabelecimento ativo, da empresa criada', () => {
+        pm.expect(d.isActive).to.eql(true);
+        pm.expect(String(d.companyId)).to.eql(pm.collectionVariables.get('companyId'));
+      });
+      pm.collectionVariables.set('establishmentId', String(d.id));
+    language: text/javascript
+order: 2000

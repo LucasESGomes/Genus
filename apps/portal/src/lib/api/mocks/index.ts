@@ -82,9 +82,9 @@ export const mockAuthApi: AuthApi = {
 };
 
 export const mockEstablishments: Establishment[] = [
-  { id: '1', name: 'Fazenda Santa Helena', subtitle: 'CAEPF · Rio Verde/GO' },
-  { id: '2', name: 'Usina Boa Vista', subtitle: 'CNPJ · Quirinópolis/GO' },
-  { id: '3', name: 'Granja São José', subtitle: 'CNPJ · Chapecó/SC' },
+  { id: '1', name: 'Fazenda Santa Helena', subtitle: 'Agropecuária Santa Helena Ltda', isActive: true },
+  { id: '2', name: 'Usina Boa Vista', subtitle: 'Usina Boa Vista S.A.', isActive: true },
+  { id: '3', name: 'Granja São José', subtitle: 'Granja São José Avicultura Ltda', isActive: true },
 ];
 
 export const DEPARTMENTS = ['Colheita', 'Ordenha', 'Agroindústria', 'Manutenção', 'Administrativo', 'Armazém'];

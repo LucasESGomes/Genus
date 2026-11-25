@@ -13,6 +13,7 @@ import { PortalAccess } from './http/access';
 import { CertificateAiRegistry } from './modules/certificate-analysis/ai/registry';
 import { HealthDataCipher } from './modules/certificate-analysis/health-crypto';
 import { HttpFacialEngineClient } from './modules/facial/engine-client';
+import { deriveInviteCpfKey } from './modules/invites/crypto';
 import { LocalDiskStorage } from './storage/file-storage';
 import { PgArpOpsReader } from './arp/ops-reader';
 import { PgRecognitionStatsReader } from './arp/recognition-reader';
@@ -51,6 +52,7 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
     logger.error({ err: { name: err.name, code: (err as { code?: string }).code } }, 'pg arp: erro em conexão ociosa');
   });
   const pinPepper = { version: env.pinPepper.version, key: Buffer.from(env.pinPepper.keyHex, 'hex') };
+  const inviteCpfHashKey = deriveInviteCpfKey(env.authSecret);
 
   // Análise de atestado (G6): avisa na partida se a IA é a simulada ou se falta a chave do dado de saúde.
   const certificateAi = new CertificateAiRegistry(env.certificateAi);
@@ -87,6 +89,7 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
         engineDefaults: env.engineDefaults,
         pin: { current: pinPepper, all: [pinPepper] },
         maxAttachmentBytes: env.maxAttachmentBytes,
+        inviteCpfHashKey,
         certificateAi: {
           registry: certificateAi,
           healthCipher: HealthDataCipher.fromHex(env.certificateDataKeyHex),
@@ -101,6 +104,7 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
           queues,
           probes: { engineUrl: env.engine?.url ?? null, collectorUrl: env.collectorApiUrl },
           masterKeyHex: env.masterKeyHex,
+          inviteCpfHashKey,
           version: API_VERSION,
           startedAt: clock.now(),
         },

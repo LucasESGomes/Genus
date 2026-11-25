@@ -79,6 +79,15 @@ services:
       CERTIFICATE_AI_TIMEOUT_MS: ${CERTIFICATE_AI_TIMEOUT_MS:-20000}
       # Chave AES-256 (64 hex) do dado de saúde da análise (CID, texto, evidências). Sem ela, nada disso é gravado.
       CERTIFICATE_DATA_KEY: ${CERTIFICATE_DATA_KEY:-}
+      # Painel do super_admin. Tudo opcional em dev (vazio conta como ausente).
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-}
+      SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME:-}
+      SUPER_ADMIN_PASSWORD_HASH: ${SUPER_ADMIN_PASSWORD_HASH:-}
+      MASTER_KEY: ${MASTER_KEY:-}
+      # Sem o Valkey ou o coletor no ar, só os checks de saúde ficam degradados.
+      VALKEY_URL: redis://valkey:6379
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD:-}
+      COLLECTOR_API_URL: http://collector-api:3001
     ports:
       - "127.0.0.1:${API_PORT:-3002}:3002"
     depends_on:

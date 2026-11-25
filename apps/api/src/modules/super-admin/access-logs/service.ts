@@ -11,6 +11,7 @@ import type { Database } from '../../../db/client';
 import { HttpError } from '../../../plugins/error-handler';
 import type { RequestContext } from '../../../plugins/request-context';
 import { recordAudit } from '../../audit/audit';
+import { auditTenantId } from '../audit-tenant';
 import type { flaggedIpDto, listLoginAttemptsQuery, listSessionsQuery, loginAttemptDto, sessionDto, StatsWindow } from '../contract';
 import type { SuperAdminDeps } from '../deps';
 import { resolvePeriod } from '../period';
@@ -38,9 +39,9 @@ export class AccessLogService {
     return this.d.db;
   }
 
-  private audit(ctx: RequestContext, tenantId: number | undefined, after: Record<string, unknown>): Promise<void> {
+  private async audit(ctx: RequestContext, tenantId: number | undefined, after: Record<string, unknown>): Promise<void> {
     return recordAudit(this.db, this.d.clock, {
-      tenantId: tenantId ?? null,
+      tenantId: await auditTenantId(this.db, tenantId),
       userId: ctx.userId,
       entity: 'access_log',
       entityId: tenantId ?? 0,

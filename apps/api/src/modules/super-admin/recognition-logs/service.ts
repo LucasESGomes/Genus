@@ -12,6 +12,7 @@ import type { z } from 'zod';
 import { devices } from '../../../db/schema';
 import type { RequestContext } from '../../../plugins/request-context';
 import { recordAudit } from '../../audit/audit';
+import { auditTenantId } from '../audit-tenant';
 import type { recognitionDevicesResponse, recognitionQuery, recognitionSeriesQuery, recognitionSeriesResponse, recognitionSummaryDto, StatsWindow } from '../contract';
 import type { ArpScope, SuperAdminDeps } from '../deps';
 
@@ -54,9 +55,9 @@ export class RecognitionService {
     return { tenantId: q.tenantId ?? null, establishmentId: q.establishmentId, deviceId: q.deviceId, from: new Date(to.getTime() - WINDOW_MS[q.window]), to };
   }
 
-  private audit(ctx: RequestContext, view: string, q: Query, extra: Record<string, unknown> = {}): Promise<void> {
+  private async audit(ctx: RequestContext, view: string, q: Query, extra: Record<string, unknown> = {}): Promise<void> {
     return recordAudit(this.d.db, this.clock, {
-      tenantId: q.tenantId ?? null,
+      tenantId: await auditTenantId(this.d.db, q.tenantId),
       userId: ctx.userId,
       entity: 'recognition_stats',
       entityId: q.tenantId ?? 0,

@@ -46,6 +46,14 @@ export const PORTAL_ERROR_CODES = [
   'TENANT_NOT_SUSPENDED',
   'EMAIL_IN_USE',
   'CNPJ_INVALIDO',
+  /** Empresas e estabelecimentos do painel do super_admin. */
+  'CNPJ_DUPLICADO',
+  'INSCRICAO_DUPLICADA',
+  'REGISTRO_EM_USO',
+  'EMPRESA_INATIVA',
+  /** Convite de admin/rh por link, com confirmação de CPF. */
+  'CPF_NAO_CONFERE',
+  'CONVITE_INVALIDO',
 ] as const;
 
 export const ERROR_CODES = [

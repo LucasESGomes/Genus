@@ -55,11 +55,7 @@ export function AuthGate({ area, children }: { area: GateArea; children: ReactNo
   });
   const establishments = useQuery<Establishment[], ApiError>({
     queryKey: [...SESSION_KEY, 'establishments', me.data?.tenantId, me.data?.id],
-    // Sem o endpoint (Em breve): a sessão monta a lista pelo escopo do usuário.
-    queryFn: ({ signal }) => api.org.establishments(signal).catch((e: unknown) => {
-      if (e instanceof ApiError && e.kind === 'unavailable') return [];
-      throw e;
-    }),
+    queryFn: ({ signal }) => api.org.establishments(signal),
     // super_admin não tem conta: não há estabelecimentos para listar (a api responderia 403).
     enabled: Boolean(me.data) && !signingOut && area !== 'admin',
     staleTime: 10 * 60_000,

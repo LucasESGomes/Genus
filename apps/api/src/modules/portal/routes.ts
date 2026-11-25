@@ -8,7 +8,9 @@ import { closingRoutes } from '../closing/routes';
 import { deviceRoutes } from '../devices/routes';
 import { employeePortalRoutes } from '../employee-portal/routes';
 import { employeeRoutes } from '../employees/routes';
+import { establishmentRoutes } from '../establishments/routes';
 import { facialRoutes } from '../facial/routes';
+import { inviteRoutes } from '../invites/routes';
 import { scheduleRoutes } from '../schedules/routes';
 import { superAdminRoutes } from '../super-admin/routes';
 import { totemRoutes } from '../totem/routes';
@@ -30,6 +32,10 @@ export const portalRoutes: FastifyPluginAsyncZod<PortalDeps> = async (app, deps)
   await app.register(facialRoutes, deps);
   await app.register(deviceRoutes, deps);
   await app.register(totemRoutes, deps);
-  // Escopo próprio: a guarda super_admin (onRequest) vale só aqui dentro.
-  if (deps.superAdmin) await app.register(superAdminRoutes, { ...deps.superAdmin, prefix: '/super-admin' });
+  await app.register(establishmentRoutes, deps);
+  await app.register(inviteRoutes, deps);
+  // Escopo próprio: a guarda super_admin (onRequest) vale só aqui dentro. O prefixo fica no escopo de
+  // fora: os submódulos recebem as mesmas opções, e um `prefix` nelas seria aplicado duas vezes.
+  const superAdmin = deps.superAdmin;
+  if (superAdmin) await app.register(async (scope) => scope.register(superAdminRoutes, superAdmin), { prefix: '/super-admin' });
 };

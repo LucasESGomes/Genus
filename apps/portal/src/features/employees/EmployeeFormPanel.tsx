@@ -1,5 +1,5 @@
 'use client';
-/** Cadastro e edição de colaborador (rh) num painel lateral. CPF e estabelecimento não mudam depois do cadastro. */
+/** Cadastro e edição de colaborador (rh e admin) num painel lateral. CPF e estabelecimento não mudam depois do cadastro. */
 import { useState } from 'react';
 import { Controller } from 'react-hook-form';
 import { Button } from '@/components/ui/Button';
@@ -60,9 +60,10 @@ export function EmployeeFormPanel({ open, onOpenChange, employee, onCreated }: {
 
 function CreateForm({ onPending, onDone, onCreated }: { onPending: (v: boolean) => void; onDone: () => void; onCreated: (c: { name: string; initialPin: string }) => void }) {
   const { establishment, establishments } = useSession();
-  const concrete = establishments.filter((e) => e.id !== '');
+  // Cadastro novo só em estabelecimento ativo.
+  const active = establishments.filter((e) => e.id !== '' && e.isActive);
   const form = useZodForm(createEmployeeSchema, {
-    establishmentId: establishment.id || concrete[0]?.id || '',
+    establishmentId: (active.find((e) => e.id === establishment.id) ?? active[0])?.id ?? '',
     cpf: '', name: '', registrationNumber: '', birthDate: '', admissionDate: '', managerId: NONE,
   });
   const choices = useEmployeeChoices();
@@ -102,7 +103,12 @@ function CreateForm({ onPending, onDone, onCreated }: { onPending: (v: boolean) 
         control={form.control}
         name="establishmentId"
         render={({ field }) => (
-          <SelectField label="Estabelecimento" required value={field.value} onValueChange={field.onChange} options={concrete.map((e) => ({ value: e.id, label: e.name }))} error={errors.establishmentId?.message} />
+          <SelectField
+            label="Estabelecimento" required value={field.value} onValueChange={field.onChange}
+            options={active.map((e) => ({ value: e.id, label: e.name }))}
+            hint={active.length === 0 ? COPY.noActiveEstablishment : undefined}
+            error={errors.establishmentId?.message}
+          />
         )}
       />
       <Controller

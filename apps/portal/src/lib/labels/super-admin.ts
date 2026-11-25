@@ -152,6 +152,10 @@ export const SUPER_ADMIN_ERRORS: Record<
   | 'TENANT_NOT_SUSPENDED'
   | 'EMAIL_IN_USE'
   | 'CNPJ_INVALIDO'
+  | 'CNPJ_DUPLICADO'
+  | 'INSCRICAO_DUPLICADA'
+  | 'REGISTRO_EM_USO'
+  | 'EMPRESA_INATIVA'
   | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'VALIDATION_ERROR',
@@ -164,6 +168,10 @@ export const SUPER_ADMIN_ERRORS: Record<
   TENANT_NOT_SUSPENDED: 'Esta empresa não está suspensa.',
   EMAIL_IN_USE: 'Este e-mail já está em uso na plataforma.',
   CNPJ_INVALIDO: 'CNPJ inválido. Confira os dígitos.',
+  CNPJ_DUPLICADO: 'Já existe uma empresa com este CNPJ.',
+  INSCRICAO_DUPLICADA: 'Já existe um estabelecimento com esta inscrição.',
+  REGISTRO_EM_USO: 'Já há colaboradores neste registro: o CNPJ e a inscrição não podem mais mudar.',
+  EMPRESA_INATIVA: 'A empresa está inativa. Reative-a antes de incluir um estabelecimento.',
   FORBIDDEN: 'Você não tem permissão para esta ação.',
   NOT_FOUND: 'Não encontramos o registro pedido.',
   VALIDATION_ERROR: 'Revise os campos e tente de novo.',

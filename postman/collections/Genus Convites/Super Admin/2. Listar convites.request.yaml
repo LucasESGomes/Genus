@@ -1,0 +1,12 @@
+$kind: http-request
+name: 2. Listar convites
+description: "GET /portal/super-admin/tenants/:tenantId/invites. Sem token nem CPF."
+url: "{{portalUrl}}/portal/super-admin/tenants/{{tenantId}}/invites"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      pm.test('Nenhum convite traz token', () => pm.response.json().data.forEach((i) => pm.expect(i).to.not.have.property('token')));
+    language: text/javascript
+order: 2000

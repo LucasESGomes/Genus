@@ -18,6 +18,7 @@ import { createAuth } from '../../src/modules/auth/auth';
 import { UserService } from '../../src/modules/auth/user-service';
 import type { FacialEngineClient } from '../../src/modules/facial/engine-client';
 import type { PinPepper } from '../../src/modules/employees/pin';
+import { deriveInviteCpfKey } from '../../src/modules/invites/crypto';
 import { MemoryStorage } from '../../src/storage/file-storage';
 import { CertificateAiRegistry, MOCK_ONLY_CONFIG } from '../../src/modules/certificate-analysis/ai/registry';
 import { HealthDataCipher } from '../../src/modules/certificate-analysis/health-crypto';
@@ -154,6 +155,7 @@ export class PortalHarness {
         engineDefaults: { recognitionThreshold: 1.1, livenessThreshold: 0.85 },
         pin: { current: TEST_PEPPER, all: [TEST_PEPPER] },
         maxAttachmentBytes: 1024 * 1024,
+        inviteCpfHashKey: deriveInviteCpfKey(SECRET),
         certificateAi: {
           registry: o.certificateAi ?? new CertificateAiRegistry(MOCK_ONLY_CONFIG),
           healthCipher: o.healthCipher === undefined ? HealthDataCipher.fromHex(TEST_HEALTH_KEY) : o.healthCipher,
@@ -168,6 +170,7 @@ export class PortalHarness {
           queues: null,
           probes: { engineUrl: null, collectorUrl: null },
           masterKeyHex: TEST_MASTER_KEY,
+          inviteCpfHashKey: deriveInviteCpfKey(SECRET),
           version: '0.0.0-test',
           startedAt: new Date('2026-01-01T00:00:00Z'),
           healthTimeoutMs: 500,

@@ -211,6 +211,8 @@ Termos da análise de atestado (`analises_atestado`, G6): `provedor` → `provid
 
 Termos do super_admin (`contas` e `tentativas_login`): `motivo_suspensao` → `suspensionReason`, `suspensa_em` → `suspendedAt`, `suspensa_por_id` → `suspendedById`, `atualizado_em` → `updatedAt`, `tentativas_login` → `loginAttempts`, `etapa` → `step`, `email_hash` → `emailHash` (nunca sai na API), `eh_sucesso` → `isSuccess`. Em `tentativas_login`, `motivo` → `failureReason` (não é o motivo de quem pede).
 
+Termos do convite (`convites_usuario`): `nome` → `name`, `papel` → `role`, `cpf_hash` → `cpfHash`, `token_hash` → `tokenHash` (os dois nunca saem na API), `tentativas` → `attempts`, `expira_em` → `expiresAt`, `aceito_em` → `acceptedAt`, `usuario_id` → `userId`, `criado_por_id` → `createdById`. `status` grava `pendente`, `aceito` ou `revogado`; `expirado` é derivado de `expira_em`.
+
 ### 12.2 Glossário de tabelas
 
 | Banco (pt-BR) | Entidade no código | Banco (pt-BR) | Entidade no código |
@@ -299,7 +301,7 @@ Termos do super_admin (`contas` e `tentativas_login`): `motivo_suspensao` → `s
 | `feriados` | `holidays` | `espelhos` | `timeMirrors` |
 | `estabelecimentos_feriados` | `establishmentHolidays` | `auditorias` | `auditLogs` |
 | `parametros_legais` | `legalParameters` | | |
-| `tentativas_login` | `loginAttempts` | | |
+| `tentativas_login` | `loginAttempts` | `convites_usuario` | `userInvites` |
 
 **Ainda fora da convenção neste schema** (a pluralização das tabelas não mexeu nisto): colunas `ativo`, `folga`, `vigencia_inicio`/`vigencia_fim`, `criado_por`/`decidido_por` e `competencia` (o padrão pede `eh_ativo`, `data_inicio`/`data_fim`, `criado_por_id`/`decidido_por_id`), e nomes de constraint e índice no estilo do Postgres (`empresa_cnpj_unico`, `idx_ajuste_pendente`) em vez de `pk_`/`fk_`/`uq_`/`ck_`. Os nomes de constraint ainda levam o nome antigo, no singular, da tabela. Alinhar tudo é uma migration à parte, antes de existir dado.
 

@@ -11,7 +11,7 @@ import { PortalHarness, type Org } from './support/portal';
 const h = new PortalHarness({ gestorEnabled: true });
 
 type Method = 'GET' | 'POST' | 'PATCH';
-/** `:t` = conta de teste, `:s` = sessão, `:u` = usuário, `:a` = linha de auditoria. */
+/** `:t` = conta de teste, `:s` = sessão, `:u` = usuário, `:a` = linha de auditoria, `:c` = empresa, `:e` = estabelecimento, `:i` = convite. */
 const ROUTES: [Method, string, unknown?][] = [
   ['GET', '/portal/super-admin/tenants'],
   ['POST', '/portal/super-admin/tenants', {}],
@@ -19,6 +19,14 @@ const ROUTES: [Method, string, unknown?][] = [
   ['PATCH', '/portal/super-admin/tenants/:t', { name: 'Conta Renomeada' }],
   ['POST', '/portal/super-admin/tenants/:t/suspend', { reason: 'teste de guarda' }],
   ['POST', '/portal/super-admin/tenants/:t/reactivate', { reason: 'teste de guarda' }],
+  ['GET', '/portal/super-admin/tenants/:t/companies'],
+  ['POST', '/portal/super-admin/tenants/:t/companies', {}],
+  ['PATCH', '/portal/super-admin/tenants/:t/companies/:c', { legalName: 'Empresa Renomeada' }],
+  ['POST', '/portal/super-admin/tenants/:t/companies/:c/establishments', {}],
+  ['PATCH', '/portal/super-admin/tenants/:t/establishments/:e', { name: 'Unidade Renomeada' }],
+  ['GET', '/portal/super-admin/tenants/:t/invites'],
+  ['POST', '/portal/super-admin/tenants/:t/invites', {}],
+  ['POST', '/portal/super-admin/tenants/:t/invites/:i/revoke'],
   ['GET', '/portal/super-admin/audit-logs'],
   ['GET', '/portal/super-admin/audit-logs/:a'],
   ['GET', '/portal/super-admin/access/sessions'],
@@ -38,10 +46,10 @@ const ROUTES: [Method, string, unknown?][] = [
 const CLIENT_ROLES: Role[] = ['admin', 'rh', 'gestor', 'contador', 'colaborador'];
 
 let org: Org;
-let ids: { t: number; s: number; u: number; a: number };
+let ids: { t: number; s: number; u: number; a: number; c: number; e: number; i: number };
 const cookies = new Map<string, string>();
 
-const url = (path: string) => path.replace(':t', String(ids.t)).replace(':s', String(ids.s)).replace(':u', String(ids.u)).replace(':a', String(ids.a));
+const url = (path: string) => path.replace(/:([a-z])/g, (_, key: keyof typeof ids) => String(ids[key]));
 
 beforeAll(async () => {
   await h.start();
@@ -62,7 +70,12 @@ beforeAll(async () => {
     "INSERT INTO rh.auditorias (conta_id, usuario_id, entidade, entidade_id, acao) VALUES ($1, $2, 'tenant', $1, 'alteracao') RETURNING id",
     [org.tenantId, root.userId],
   );
-  ids = { t: org.tenantId, s: sessionId, u: victim.userId, a: auditId };
+  const inviteId = await h.id(
+    `INSERT INTO rh.convites_usuario (conta_id, email, nome, papel, cpf_hash, token_hash, expira_em, criado_por_id)
+     VALUES ($1, 'convidado@portal.teste.dev', 'Pessoa Convidada', 'rh', $3, $4, now() + interval '1 day', $2) RETURNING id`,
+    [org.tenantId, root.userId, Buffer.alloc(32), Buffer.alloc(32, 1)],
+  );
+  ids = { t: org.tenantId, s: sessionId, u: victim.userId, a: auditId, c: org.companyId, e: org.establishmentId, i: inviteId };
 }, 180_000);
 
 afterAll(async () => {

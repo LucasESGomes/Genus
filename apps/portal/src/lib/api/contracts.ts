@@ -872,11 +872,12 @@ export type Trend = (typeof TRENDS)[number];
 export const TONES = ['good', 'warn', 'neutral'] as const;
 export type Tone = (typeof TONES)[number];
 
-/** [MOCK] GET /portal/establishments: não existe no back. */
+/** GET /portal/establishments: só a conta e o escopo da sessão. `subtitle` é a razão social. */
 export interface Establishment {
   id: EntityId;
   name: string;
   subtitle: string;
+  isActive: boolean;
 }
 
 /** [MOCK] GET /portal/overview?establishmentId=: não existe no back. Valores já calculados pela api. */

@@ -3,8 +3,8 @@
  *
  * Perfis por rota (04 §1.4, §7.1):
  *   leitura: rh, admin, contador (CPF mascarado, sem salário), gestor (só a equipe, se ligado);
- *   escrita: só rh;
- *   vínculos (têm salário): rh e admin.
+ *   cadastrar, alterar e desligar: rh e admin;
+ *   vínculos (têm salário): leitura rh e admin, escrita só rh.
  */
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { idParams } from '../../http/schemas';
@@ -31,6 +31,7 @@ export const employeeRoutes: FastifyPluginAsyncZod<PortalDeps> = async (app, dep
   const service = new EmployeeService(deps);
   const { access } = deps;
   const readers = app.authorize(...access.roles('rh', 'admin', 'contador', 'gestor'));
+  const writers = app.authorize('rh', 'admin');
   const rh = app.authorize('rh');
 
   app.get(
@@ -47,19 +48,19 @@ export const employeeRoutes: FastifyPluginAsyncZod<PortalDeps> = async (app, dep
 
   app.post(
     '/employees',
-    { preHandler: [rh], schema: { tags, summary: 'Cadastra colaborador (gera o PIN inicial)', body: createEmployeeBody, response: { 201: createdEmployeeResponse } } },
+    { preHandler: [writers], schema: { tags, summary: 'Cadastra colaborador (gera o PIN inicial)', body: createEmployeeBody, response: { 201: createdEmployeeResponse } } },
     async (req, reply) => reply.code(201).send({ data: await service.create(req.ctx!, req.body) }),
   );
 
   app.patch(
     '/employees/:id',
-    { preHandler: [rh], schema: { tags, params: idParams, body: updateEmployeeBody, response: { 200: employeeResponse } } },
+    { preHandler: [writers], schema: { tags, params: idParams, body: updateEmployeeBody, response: { 200: employeeResponse } } },
     async (req) => ({ data: await service.update(req.ctx!, req.params.id, req.body) }),
   );
 
   app.post(
     '/employees/:id/terminate',
-    { preHandler: [rh], schema: { tags, summary: 'Desliga o colaborador (data e motivo)', params: idParams, body: terminateEmployeeBody, response: { 200: employeeResponse } } },
+    { preHandler: [writers], schema: { tags, summary: 'Desliga o colaborador (data e motivo)', params: idParams, body: terminateEmployeeBody, response: { 200: employeeResponse } } },
     async (req) => ({ data: await service.terminate(req.ctx!, req.params.id, req.body) }),
   );
 

@@ -47,8 +47,8 @@ Quase tudo é **um módulo novo no `api-portal` (Fastify) + tabelas novas no ban
 
 | Papel | Pode | Não pode | Escopo |
 |---|---|---|---|
-| `admin` (cliente) | Configurar empresa, estabelecimentos, usuários, permissões e parâmetros legais (§10). Ver os dados da empresa inteira, inclusive salário-base **[A CONFIRMAR]** com o contador | Ver CID e arquivo de atestado; aprovar atestado | Toda a empresa |
-| `rh` | Ver todos os colaboradores; validar atestados (G6, G7); verificar e decidir ajustes (G5) e férias (G9), inclusive os da equipe (faz a parte do gestor); fechar e reabrir o mês (G10); exportar (G12). Ver CID e salário | Alterar batida original | Conta inteira ou estabelecimentos atribuídos |
+| `admin` (cliente) | Configurar empresa, estabelecimentos, usuários, permissões e parâmetros legais (§10). Convidar `admin` e `rh`. Cadastrar, alterar e desligar colaboradores (vínculos, com salário, são escritos só pelo `rh`). Ver os dados da empresa inteira, inclusive salário-base **[A CONFIRMAR]** com o contador | Ver CID e arquivo de atestado; aprovar atestado | Toda a empresa |
+| `rh` | Cadastrar, alterar e desligar colaboradores e manter os vínculos; ver todos os colaboradores; validar atestados (G6, G7); verificar e decidir ajustes (G5) e férias (G9), inclusive os da equipe (faz a parte do gestor); fechar e reabrir o mês (G10); exportar (G12). Ver CID e salário | Alterar batida original | Conta inteira ou estabelecimentos atribuídos |
 | `gestor` (**opcional**) | Desativado por padrão. Quando habilitado: ver os subordinados diretos e aprovar ajustes e férias da equipe | Ver CID, arquivo de atestado e salário; fechar o mês | Subordinados diretos (`gestor_id`) dentro do estabelecimento |
 | `contador` | Baixar a exportação da folha (RF59) para calcular bônus | Alterar dados; ver CID e salário | Estabelecimentos atribuídos |
 | `colaborador` | Ver o próprio ponto, espelho, banco e férias; enviar atestado; pedir ajuste e férias; dar ciência no espelho | Ver dados de outros | Só os próprios dados (`/me/*`) |
@@ -60,7 +60,13 @@ Quase tudo é **um módulo novo no `api-portal` (Fastify) + tabelas novas no ban
 
 **Escopo por estabelecimento (RNF02):** cada usuário só vê os estabelecimentos atribuídos a ele, em `usuarios_estabelecimentos` (`usuario_id`, `estabelecimento_id`, `UNIQUE (conta_id, usuario_id, estabelecimento_id)`). **Sem nenhuma linha, vale a conta inteira**, o que atende o RH de empresa pequena sem cadastro extra. O escopo de equipe do gestor (`gestor_id`) se soma a esse filtro. O `request-context` resolve os dois em `req.ctx` (`establishmentScope`, `teamScope`).
 
-**Login (implementado em 22/11/2026, `apps/api/src/modules/auth/`):** Better Auth com e-mail + senha, sessão em cookie para o portal e JWT curto (15 min) para cliente sem cookie. 2FA por TOTP, obrigatório para o `super_admin` (sem ele, a sessão só serve para ativar o 2FA) e opcional para os demais **[A CONFIRMAR]** se o RH também deve ser obrigado. Sem cadastro público: usuário é criado pelo RH ou `admin` (e, em dev, por `pnpm --filter @genus/api rh:create-user`). Rotas: `POST /auth/sign-in/email`, `POST /auth/two-factor/enable` e `/verify-totp`, `POST /auth/sign-out`, `GET /auth/token`, `GET /auth/jwks` e `GET /me`. Pendentes: convite por e-mail e recuperação de senha (precisam de envio de e-mail), login do colaborador (§9, item 3), acesso excepcional do `super_admin` e auditoria de login. As tentativas de login já são gravadas em `rh.tentativas_login` (seção *Super Admin*); falta só a auditoria de login como evento de `auditoria`. `teamScope` ainda não entra no `req.ctx` (depende do §9, item 4).
+**Login (implementado em 22/11/2026, `apps/api/src/modules/auth/`):** Better Auth com e-mail + senha, sessão em cookie para o portal e JWT curto (15 min) para cliente sem cookie. 2FA por TOTP, obrigatório para o `super_admin` (sem ele, a sessão só serve para ativar o 2FA) e opcional para os demais **[A CONFIRMAR]** se o RH também deve ser obrigado. Sem cadastro público: usuário `admin` ou `rh` nasce de um **convite** (abaixo) ou junto com a conta, no painel do super_admin (e, em dev, por `pnpm --filter @genus/api rh:create-user`). Rotas: `POST /auth/sign-in/email`, `POST /auth/two-factor/enable` e `/verify-totp`, `POST /auth/sign-out`, `GET /auth/token`, `GET /auth/jwks` e `GET /me`. Pendentes: envio do convite por e-mail e recuperação de senha (precisam de envio de e-mail), login do colaborador (§9, item 3), acesso excepcional do `super_admin` e auditoria de login. As tentativas de login já são gravadas em `rh.tentativas_login` (seção *Super Admin*); falta só a auditoria de login como evento de `auditoria`. `teamScope` ainda não entra no `req.ctx` (depende do §9, item 4).
+
+**Convites (implementado em 25/11/2026, `apps/api/src/modules/invites/`):** o `admin` (na própria conta) ou o `super_admin` (na conta da rota) informa nome, e-mail, papel (**só `admin` ou `rh`**) e CPF. A resposta traz o token do link uma única vez; o portal monta `<origem>/convite#<token>` e quem convidou o entrega (não há envio de e-mail). No aceite, a pessoa confirma o CPF e define a senha.
+- Tabela `convites_usuario` (migrations 0016 e 0017): só o SHA-256 do token e o HMAC do CPF (chave derivada do `BETTER_AUTH_SECRET`; trocar o segredo invalida os convites pendentes). Um pendente por (conta, e-mail): o novo revoga o anterior. O banco recusa outro papel, a troca de conta, e-mail, papel ou hashes e qualquer mudança em convite aceito ou revogado.
+- Validade de 72 h e uso único. CPF errado: `CPF_NAO_CONFERE`; na 5ª falha o convite é revogado. Token inexistente, expirado, usado, revogado ou de conta suspensa: `CONVITE_INVALIDO`, sem diferenciar. As rotas públicas limitam falhas por IP (429; 10 em 15 min, em memória, por instância **[A CONFIRMAR]**: atrás do proxy do portal o IP visto pode ser o do proxy).
+- `admin` restrito a estabelecimentos (`usuarios_estabelecimentos`) não gerencia convites (403): o convidado enxergaria a conta inteira.
+- O CPF informado é de quem foi convidado e serve só para confirmar a identidade no aceite; não liga o usuário a um colaborador.
 
 **Fiscal:** não há perfil de fiscal neste módulo. O auditor fiscal acessa AFD e AEJ pelo portal fiscal existente (`rep-core` `/fiscal`, `03` §7.3).
 
@@ -560,11 +566,11 @@ Complementam `03` §8. Nomes em inglês (`database.md` §12). Todos idempotentes
 
 ### 7.1 Matriz (resumo)
 
-`rh` e `gestor` valem dentro dos estabelecimentos atribuídos (§1.4). `admin` configura e lê; não opera o dia a dia. A coluna `gestor` só vale com o papel habilitado. O `super_admin` não entra nos módulos de RH (§1.4).
+`rh` e `gestor` valem dentro dos estabelecimentos atribuídos (§1.4). `admin` configura e lê; do dia a dia, só cadastra, altera e desliga colaboradores. A coluna `gestor` só vale com o papel habilitado. O `super_admin` não entra nos módulos de RH (§1.4).
 
 | Módulo | `admin` | `rh` | `gestor` (opcional, equipe) | `colaborador` | `contador` |
 |---|---|---|---|---|---|
-| G1 Cadastros | Empresa, estabelecimentos, usuários e permissões; ler colaboradores, com salário **[A CONFIRMAR]** | CRUD de colaboradores, setores, cargos | Ler equipe, **sem salário** | – | – |
+| G1 Cadastros | Empresa, estabelecimentos, usuários (convites de `admin` e `rh`) e permissões; cadastrar, alterar e desligar colaboradores; ler vínculos, com salário **[A CONFIRMAR]** | CRUD de colaboradores, vínculos, setores, cargos | Ler equipe, **sem salário** | – | – |
 | G2 Escalas | Regras de jornada da conta | CRUD | Ver calendário; criar troca pontual | Ver a própria | – |
 | G3 Feriados | Regra de feriado trabalhado | CRUD | Ler | – | – |
 | G4 Apuração | Parâmetros (`configuracoes_empresa`) | Tudo, recalcular | Ler equipe | Própria | – |
@@ -581,7 +587,7 @@ Quem acumula papéis (ex.: `admin` que também é `rh`) tem a soma dos alcances.
 
 ### 7.2 Eventos de auditoria novos (catálogo em `lib/audit-events.ts`; chaves em inglês)
 
-`employee.created|changed|terminated` · `user.scope_changed` · `user.password_reset` · `user.unlocked` · `feature.toggled` · **`support_access.granted|expired` (severidade `critico`, visível ao `admin` da conta)** · `company_settings.changed` · `schedule.assigned` · `schedule_override.created` · `workweek_rule.changed` · `holiday.created|changed` · `adjustment.requested|approved|rejected|canceled|revised` · `time_waiver.granted` · `certificate.submitted|analyzed|approved|rejected` · **`certificate.viewed`**, **`certificate.file_downloaded`** (leitura de dado de saúde) · `absence.created|ended` · `time_bank.entry_created|policy_changed` · `compensatory_leave.requested|approved` · `closing.closed` · **`closing.reopened` (severidade `critico`)** · `mirror.acknowledged|contested` · `aej.generated` · `payroll_export.generated` · `timesheet.recalculated` · `timesheet.late_punch_detected`.
+`employee.created|changed|terminated` · `user.invited` · `user.invite_revoked` · `user.invite_failed` · `user.invite_accepted` (hoje gravados como entidade `user_invite` com `criacao`/`alteracao`) · `user.scope_changed` · `user.password_reset` · `user.unlocked` · `feature.toggled` · **`support_access.granted|expired` (severidade `critico`, visível ao `admin` da conta)** · `company_settings.changed` · `schedule.assigned` · `schedule_override.created` · `workweek_rule.changed` · `holiday.created|changed` · `adjustment.requested|approved|rejected|canceled|revised` · `time_waiver.granted` · `certificate.submitted|analyzed|approved|rejected` · **`certificate.viewed`**, **`certificate.file_downloaded`** (leitura de dado de saúde) · `absence.created|ended` · `time_bank.entry_created|policy_changed` · `compensatory_leave.requested|approved` · `closing.closed` · **`closing.reopened` (severidade `critico`)** · `mirror.acknowledged|contested` · `aej.generated` · `payroll_export.generated` · `timesheet.recalculated` · `timesheet.late_punch_detected`.
 
 ---
 
@@ -710,9 +716,12 @@ Login reaproveitado: Better Auth da api do RH (cookie de sessão ou JWT curto), 
 | Área | Método e caminho | Perfis |
 |---|---|---|
 | Colaborador (G1) | `GET /employees`, `GET /employees/:id` | rh, admin, contador, gestor |
-| | `POST /employees`, `PATCH /employees/:id`, `POST /employees/:id/terminate` | rh |
+| | `POST /employees`, `PATCH /employees/:id`, `POST /employees/:id/terminate` | rh, admin |
 | | `GET /employees/:id/assignments` | rh, admin |
 | | `POST /employees/:id/assignments`, `PATCH /employees/:id/assignments/:assignmentId` | rh |
+| Convites | `GET`/`POST /invites`, `POST /invites/:inviteId/revoke` | admin (da conta inteira) |
+| | as mesmas sob `/super-admin/tenants/:tenantId/invites` | super_admin |
+| | `POST /public/invites/preview`, `POST /public/invites/accept` | público (o token vai no corpo) |
 | Escala (G2) | `GET /schedules`, `GET /schedules/:id`, `GET /employees/:id/schedules` | rh, admin |
 | | `POST /schedules`, `PATCH /schedules/:id`, `POST /employees/:id/schedules` | rh |
 | Apuração (G4) | `POST /employees/:id/timesheets/recalculate` | rh |

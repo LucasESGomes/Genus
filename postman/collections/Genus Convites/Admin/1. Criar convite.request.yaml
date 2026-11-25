@@ -1,0 +1,35 @@
+$kind: http-request
+name: 1. Criar convite
+description: "POST /portal/invites com `{ name, email, role, cpf }`. Responde 201 com `{ invite, token }`; o token sai só aqui. Erros: `CPF_INVALIDO` (400), `EMAIL_IN_USE` (409). Quem pode: admin."
+url: "{{portalUrl}}/portal/invites"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "name": "Pessoa Convidada", "email": "{{inviteEmail}}", "role": "rh", "cpf": "{{inviteCpf}}" }
+scripts:
+  - type: beforeRequest
+    code: |-
+      // CPF fictício com dígitos verificadores válidos e e-mail único desta execução.
+      const base = String(Math.floor(100000000 + Math.random() * 899999999));
+      const dv = (s) => {
+        const soma = s.split('').reduce((t, d, i) => t + Number(d) * (s.length + 1 - i), 0);
+        const resto = (soma * 10) % 11;
+        return resto === 10 ? 0 : resto;
+      };
+      const comPrimeiro = base + dv(base);
+      pm.collectionVariables.set('inviteCpf', comPrimeiro + dv(comPrimeiro));
+      pm.collectionVariables.set('inviteEmail', 'convite.' + Date.now() + '@example.com');
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+      const d = pm.response.json().data;
+      pm.test('Convite pendente', () => pm.expect(d.invite).to.include({ status: 'pendente', role: 'rh', acceptedAt: null }));
+      pm.test('Token vem uma vez', () => pm.expect(d.token).to.match(/^[A-Za-z0-9_-]{43}$/));
+      pm.collectionVariables.set('inviteId', String(d.invite.id));
+      pm.collectionVariables.set('inviteToken', d.token);
+    language: text/javascript
+order: 1000

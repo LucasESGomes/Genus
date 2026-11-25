@@ -113,8 +113,15 @@ describe('Empresa: detalhe', () => {
     expect(await screen.findByRole('heading', { name: 'Granja São José' })).toBeInTheDocument();
     expect(screen.getByText('Chave da empresa ausente')).toBeInTheDocument();
     expect(screen.getByText('renata@exemplo.test')).toBeInTheDocument();
-    expect(screen.getByText('77.888.999/0001-81')).toBeInTheDocument();
+    expect(await screen.findByText('77.888.999/0001-81')).toBeInTheDocument();
     expect(await screen.findByText('Uso')).toBeInTheDocument();
+  });
+  it('desativar um estabelecimento pede confirmação e depois oferece Reativar', async () => {
+    const { container } = render(<TenantDetailScreen rawId="2" />, {}, '/admin/empresas/2');
+    await userEvent.click(await screen.findByRole('button', { name: 'Desativar o estabelecimento Matriz' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Desativar estabelecimento' }));
+    expect(await screen.findByRole('button', { name: 'Reativar o estabelecimento Matriz' })).toBeInTheDocument();
+    expect(await axe(container)).toHaveNoViolations();
   });
   it('conta suspensa mostra o motivo e oferece Reativar', async () => {
     render(<TenantDetailScreen rawId="4" />, {}, '/admin/empresas/4');

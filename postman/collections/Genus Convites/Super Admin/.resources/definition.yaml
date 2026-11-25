@@ -1,0 +1,8 @@
+$kind: collection
+description: As mesmas rotas, na conta de `tenantId`. Quem pode, super_admin com 2FA.
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{superAdminToken}}"
+order: 3000

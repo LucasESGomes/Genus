@@ -1,0 +1,18 @@
+$kind: http-request
+name: 5. CNPJ duplicado (409)
+description: "POST /companies repetindo o CNPJ do request 1: 409 `CNPJ_DUPLICADO`, nada é criado."
+url: "{{portalUrl}}/portal/super-admin/tenants/{{tenantId}}/companies"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "legalName": "Empresa Repetida Ltda", "cnpj": "{{companyCnpj}}" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 409', () => pm.response.to.have.status(409));
+      pm.test('Código CNPJ_DUPLICADO', () => pm.expect(pm.response.json().code).to.eql('CNPJ_DUPLICADO'));
+    language: text/javascript
+order: 5000

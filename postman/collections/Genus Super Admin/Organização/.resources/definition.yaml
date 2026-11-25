@@ -1,0 +1,5 @@
+$kind: collection
+description: |-
+  Empresas e estabelecimentos de uma conta (`/portal/super-admin/tenants/:tenantId/...`). Usa o `tenantId` criado em `Tenants`. Não há exclusão: desativar é `isActive: false` e não afeta batidas.
+  O último request é a lista do cliente (`GET /portal/establishments`) e usa o `clientToken`.
+order: 1500

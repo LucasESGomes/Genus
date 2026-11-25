@@ -98,6 +98,8 @@ export interface SuperAdminDeps {
   probes: { engineUrl: string | null; collectorUrl: string | null };
   /** KEK (64 hex) para gerar a DEK da empresa nova. null = POST /tenants responde 503 MASTER_KEY_AUSENTE. */
   masterKeyHex: string | null;
+  /** Chave do HMAC do CPF dos convites; a mesma do portal. */
+  inviteCpfHashKey: Buffer;
   /** Versão do pacote e instante de partida (health). */
   version: string;
   startedAt: Date;

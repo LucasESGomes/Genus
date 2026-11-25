@@ -1,0 +1,12 @@
+$kind: http-request
+name: 3. Revogar convite
+description: "POST /portal/super-admin/tenants/:tenantId/invites/:inviteId/revoke (a do admin é /portal/invites/:inviteId/revoke). Convite aceito: 409 `CONFLICT`; de outra conta: 404 `NOT_FOUND`."
+url: "{{portalUrl}}/portal/super-admin/tenants/{{tenantId}}/invites/{{inviteId}}/revoke"
+method: POST
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      pm.test('Convite revogado', () => pm.expect(pm.response.json().data.status).to.eql('revogado'));
+    language: text/javascript
+order: 3000

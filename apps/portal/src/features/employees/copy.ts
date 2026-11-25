@@ -10,6 +10,7 @@ export const COPY = {
   emptySearchText: 'Confira a grafia ou busque pela matrícula. Limpe o campo para ver todos.',
   cpfReadOnlyHint: 'O CPF liga o colaborador às marcações e não muda.',
   establishmentReadOnlyHint: 'O estabelecimento não muda depois do cadastro.',
+  noActiveEstablishment: 'Não há estabelecimento ativo no seu acesso. Peça a ativação antes de cadastrar.',
   pin: {
     title: 'PIN inicial',
     text: 'Anote este PIN e entregue ao colaborador. Ele aparece só agora: depois que você fechar esta janela, não há como ver de novo.',

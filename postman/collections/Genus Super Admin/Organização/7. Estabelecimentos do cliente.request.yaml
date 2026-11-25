@@ -1,0 +1,20 @@
+$kind: http-request
+name: 7. Estabelecimentos do cliente
+description: "GET /portal/establishments com o `clientToken`: só a conta e o escopo da sessão; o colaborador recebe só o próprio. `subtitle` é a razão social."
+url: "{{portalUrl}}/portal/establishments"
+method: GET
+headers:
+  Authorization: "Bearer {{clientToken}}"
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      pm.test('Itens com id, name, subtitle e isActive', () => {
+        const itens = pm.response.json().data;
+        pm.expect(itens).to.be.an('array');
+        itens.forEach((e) => pm.expect(e).to.have.all.keys('id', 'name', 'subtitle', 'isActive'));
+      });
+    language: text/javascript
+order: 7000
