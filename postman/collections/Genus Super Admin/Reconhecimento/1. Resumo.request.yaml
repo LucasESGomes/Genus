@@ -1,0 +1,17 @@
+$kind: http-request
+name: 1. Resumo
+description: "GET /portal/super-admin/recognition/summary. Filtros: `window` (24h | 7d | 30d), `tenantId`, `establishmentId`, `deviceId`. `notRecognized`, `livenessFailed`, `latencyP50Ms` e `latencyP95Ms` são sempre `null` (o arp não tem esses dados). Quem pode: super_admin. Leitura auditada como `recognition_stats`."
+url: "{{portalUrl}}/portal/super-admin/recognition/summary?window=24h&tenantId={{tenantId}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const d = pm.response.json().data;
+      pm.test('Campos do contrato, sem linha de batida', () => pm.expect(Object.keys(d).sort()).to.eql(['byStatus', 'divergentClock', 'from', 'latencyP50Ms', 'latencyP95Ms', 'livenessFailed', 'livenessHistogram', 'livenessScore', 'notRecognized', 'punches', 'recognitionScore', 'to', 'window'].sort()));
+      pm.test('Campos indisponíveis são null', () => pm.expect([d.notRecognized, d.livenessFailed, d.latencyP50Ms, d.latencyP95Ms]).to.eql([null, null, null, null]));
+      pm.test('Histograma com 10 faixas', () => pm.expect(d.livenessHistogram).to.have.lengthOf(10));
+      pm.test('byStatus com as três situações', () => pm.expect(d.byStatus).to.include.keys('pendente', 'processado', 'falhou'));
+      pm.test('Janela e contagem', () => pm.expect(d).to.include({ window: '24h' }) && pm.expect(d.punches).to.be.a('number'));
+    language: text/javascript
+order: 1000

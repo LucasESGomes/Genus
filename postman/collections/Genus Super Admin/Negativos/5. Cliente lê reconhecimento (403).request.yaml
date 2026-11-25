@@ -1,0 +1,16 @@
+$kind: http-request
+name: 5. Cliente lê reconhecimento (403)
+description: "Token de `rh` ou `admin` em GET /recognition/summary: 403. Os agregados de reconhecimento são só da plataforma."
+url: "{{portalUrl}}/portal/super-admin/recognition/summary?window=24h"
+method: GET
+headers:
+  Authorization: "Bearer {{clientToken}}"
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 403', () => pm.response.to.have.status(403));
+      pm.test('Código FORBIDDEN', () => pm.expect(pm.response.json().code).to.eql('FORBIDDEN'));
+    language: text/javascript
+order: 5000

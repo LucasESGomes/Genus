@@ -1,0 +1,15 @@
+$kind: http-request
+name: 2. Listar contas
+description: "GET /portal/super-admin/tenants. Filtros: `q` (nome ou CNPJ), `status` (`ativa` | `suspensa`), `page`, `pageSize`. Responde `{ data, meta: { page, pageSize, total } }`."
+url: "{{portalUrl}}/portal/super-admin/tenants?q={{tenantName}}&status=ativa&pageSize=20"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const b = pm.response.json();
+      pm.test('Meta de paginação', () => pm.expect(b.meta).to.include.keys('page', 'pageSize', 'total'));
+      pm.test('Status é ativa ou suspensa', () => b.data.forEach((c) => pm.expect(c.status).to.be.oneOf(['ativa', 'suspensa'])));
+      pm.test('Conta criada aparece na busca', () => pm.expect(b.data.map((c) => String(c.id))).to.include(pm.collectionVariables.get('tenantId')));
+    language: text/javascript
+order: 2000

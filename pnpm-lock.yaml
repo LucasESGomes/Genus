@@ -50,6 +50,9 @@ importers:
       '@fastify/swagger-ui':
         specifier: 6.1.5
         version: 6.1.5
+      '@genus/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       '@genus/shared':
         specifier: workspace:*
         version: link:../../packages/shared

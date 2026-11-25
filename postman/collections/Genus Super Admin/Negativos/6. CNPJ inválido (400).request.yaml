@@ -1,0 +1,47 @@
+$kind: http-request
+name: 6. CNPJ inválido (400)
+description: "POST /tenants com CNPJ de dígito verificador errado: 400 `CNPJ_INVALIDO`, nada é criado. Gera o próprio CNPJ e o inválido (não depende da criação anterior)."
+url: "{{portalUrl}}/portal/super-admin/tenants"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "{{tenantName}}",
+      "company": { "legalName": "{{tenantName}} Ltda", "cnpj": "{{cnpjInvalido}}" },
+      "establishment": {
+        "name": "Matriz {{tenantName}}",
+        "registrationType": "CNPJ",
+        "registration": "{{tenantCnpj}}",
+        "uf": "SP",
+        "municipalityIbge": "3550308"
+      },
+      "admin": { "name": "Administrador Postman", "email": "{{adminEmail}}" }
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      // Mesmo gerador de CNPJ de `1. Criar conta`: CNPJ válido e a versão com o último dígito trocado.
+      const pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      const pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      const dv = (base, pesos) => {
+        const soma = base.split('').reduce((s, d, i) => s + Number(d) * pesos[i], 0);
+        const resto = soma % 11;
+        return resto < 2 ? 0 : 11 - resto;
+      };
+      let base = '1';
+      while (base.length < 12) base += Math.floor(Math.random() * 10);
+      const cnpj = base + dv(base, pesos1) + dv(base + dv(base, pesos1), pesos2);
+      pm.collectionVariables.set('tenantCnpj', cnpj);
+      pm.collectionVariables.set('cnpjInvalido', cnpj.slice(0, 13) + ((Number(cnpj[13]) + 1) % 10));
+      pm.collectionVariables.set('tenantName', 'Postman' + Date.now());
+      pm.collectionVariables.set('adminEmail', 'admin.' + Date.now() + '@example.com');
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Status 400', () => pm.response.to.have.status(400));
+      pm.test('Código CNPJ_INVALIDO', () => pm.expect(pm.response.json().code).to.eql('CNPJ_INVALIDO'));
+    language: text/javascript
+order: 6000

@@ -22,6 +22,7 @@ import { MemoryStorage } from '../../src/storage/file-storage';
 import { CertificateAiRegistry, MOCK_ONLY_CONFIG } from '../../src/modules/certificate-analysis/ai/registry';
 import { HealthDataCipher } from '../../src/modules/certificate-analysis/health-crypto';
 import type { Role } from '../../src/plugins/request-context';
+import type { ArpOpsReader, RecognitionStatsReader, SuperAdminDeps } from '../../src/modules/super-admin/deps';
 import { FAKE_PIN_HASH, FAKE_PIN_SET_AT } from './fake-pin';
 import { startRhTestDatabase, type RhTestDatabase } from './rh-database';
 import { timesheetParams, vacationParams, workweekParams } from './rh-legal-fixtures';
@@ -53,7 +54,28 @@ export interface HarnessOptions {
   certificateAi?: CertificateAiRegistry;
   /** Cifra do dado de saúde; null = sem chave. Padrão: chave fictícia de teste. */
   healthCipher?: HealthDataCipher | null;
+  /** Troca dependências do painel do super_admin (padrão: stubs vazios, sem Valkey, sem probes, com MASTER_KEY de teste). */
+  superAdmin?: Partial<SuperAdminDeps>;
 }
+
+/** KEK fictícia (64 hex), só para teste. */
+export const TEST_MASTER_KEY = '22'.repeat(32);
+
+const emptyRecognition: RecognitionStatsReader = {
+  summary: async () => ({
+    punches: 0, pendente: 0, processado: 0, falhou: 0, divergentClock: 0,
+    recognitionAvg: null, recognitionP50: null, recognitionP05: null,
+    livenessAvg: null, livenessP50: null, livenessP05: null, livenessHistogram: Array<number>(10).fill(0),
+  }),
+  series: async () => [],
+  devices: async () => [],
+};
+const emptyArpOps: ArpOpsReader = {
+  ping: async () => undefined,
+  punchesPerDay: async () => [],
+  pendingEntries: async () => ({ count: 0, oldestAgeSeconds: null }),
+  pendingOutbox: async () => ({ count: 0, oldestAgeSeconds: null }),
+};
 
 let seq = 0;
 const next = () => (seq += 1);
@@ -136,8 +158,41 @@ export class PortalHarness {
           registry: o.certificateAi ?? new CertificateAiRegistry(MOCK_ONLY_CONFIG),
           healthCipher: o.healthCipher === undefined ? HealthDataCipher.fromHex(TEST_HEALTH_KEY) : o.healthCipher,
         },
+        superAdmin: {
+          db: this.handle.db,
+          appPool: this.handle.pool,
+          clock,
+          logger,
+          recognition: emptyRecognition,
+          arpOps: emptyArpOps,
+          queues: null,
+          probes: { engineUrl: null, collectorUrl: null },
+          masterKeyHex: TEST_MASTER_KEY,
+          version: '0.0.0-test',
+          startedAt: new Date('2026-01-01T00:00:00Z'),
+          healthTimeoutMs: 500,
+          ...o.superAdmin,
+        },
       },
     });
+  }
+
+  /** Pool do papel arp_reader (harness com `arp: true`), para os readers reais do painel do super_admin. */
+  arpReaderPool(): pg.Pool {
+    if (!this.arpDb) throw new Error('harness sem arp');
+    this.arpPool ??= new pg.Pool({ connectionString: this.arpDb.readerUrl, max: 4 });
+    return this.arpPool;
+  }
+
+  /**
+   * super_admin logado e com 2FA ativo. Loga com a senha (mfa ainda desligado, então sem desafio TOTP)
+   * e depois liga `mfa_ativo`: o request-context relê o usuário a cada requisição. `withMfa: false`
+   * deixa o usuário sem 2FA (para o teste do 403).
+   */
+  async loginAsSuperAdmin(opts: { withMfa?: boolean; app?: FastifyInstance } = {}): Promise<{ userId: number; cookie: string }> {
+    const s = await this.loginAs(null, 'super_admin', { app: opts.app });
+    if (opts.withMfa ?? true) await this.client.query('UPDATE rh.usuarios SET mfa_ativo = true WHERE id = $1', [s.userId]);
+    return s;
   }
 
   async stop(): Promise<void> {

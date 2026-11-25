@@ -14,6 +14,13 @@ import { CertificateAiRegistry } from './modules/certificate-analysis/ai/registr
 import { HealthDataCipher } from './modules/certificate-analysis/health-crypto';
 import { HttpFacialEngineClient } from './modules/facial/engine-client';
 import { LocalDiskStorage } from './storage/file-storage';
+import { PgArpOpsReader } from './arp/ops-reader';
+import { PgRecognitionStatsReader } from './arp/recognition-reader';
+import { deriveEmailHashKey } from './modules/super-admin/access-logs/email-hash';
+import { ValkeyQueueInspector } from './modules/super-admin/system-health/queue-inspector';
+
+/** Versão exibida na saúde dos sistemas (sem segredo). APP_VERSION vem do deploy; padrão = pacote. */
+const API_VERSION = process.env.APP_VERSION ?? '0.0.0';
 
 export interface Container {
   appDeps: AppDeps;
@@ -51,6 +58,14 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
   if (ai.warnings.length > 0) logger.warn({ provider: ai.provider.provider, model: ai.provider.model }, 'análise de atestado: IA simulada (mock), sem provedor real configurado');
   if (env.certificateDataKeyHex === null) logger.warn('análise de atestado: sem CERTIFICATE_DATA_KEY, CID, texto e evidências não serão gravados');
 
+  // Painel do super_admin: leituras do arp (mesmo pool somente leitura), Valkey (só leitura de contagens) e probes HTTP.
+  const queues = env.valkeyUrl ? new ValkeyQueueInspector({ url: env.valkeyUrl, clock, logger }) : null;
+  if (env.appEnv === 'prod') {
+    if (!env.masterKeyHex) logger.warn('super_admin: sem MASTER_KEY, o painel não cria empresas (503 MASTER_KEY_AUSENTE)');
+    if (!env.valkeyUrl) logger.warn('super_admin: sem VALKEY_URL, a saúde de fila, rep-core e jobs fica parcial');
+    if (!env.collectorApiUrl) logger.warn('super_admin: sem COLLECTOR_API_URL, a saúde da api do coletor não é consultada');
+  }
+
   return {
     logger,
     clock,
@@ -61,7 +76,7 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
       db: database.db,
       corsOrigins: env.corsOrigins,
       apiDocs: env.appEnv === 'dev',
-      auth: { auth, baseURL: env.authBaseUrl, clock },
+      auth: { auth, baseURL: env.authBaseUrl, clock, emailHashKey: deriveEmailHashKey(env.authSecret) },
       portal: {
         db: database.db,
         clock,
@@ -76,9 +91,23 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
           registry: certificateAi,
           healthCipher: HealthDataCipher.fromHex(env.certificateDataKeyHex),
         },
+        superAdmin: {
+          db: database.db,
+          appPool: database.pool,
+          clock,
+          logger,
+          recognition: new PgRecognitionStatsReader(arpPool),
+          arpOps: new PgArpOpsReader(arpPool),
+          queues,
+          probes: { engineUrl: env.engine?.url ?? null, collectorUrl: env.collectorApiUrl },
+          masterKeyHex: env.masterKeyHex,
+          version: API_VERSION,
+          startedAt: clock.now(),
+        },
       },
     },
     close: async () => {
+      await queues?.close();
       await arpPool.end();
       await database.close();
     },

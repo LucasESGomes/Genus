@@ -1,0 +1,12 @@
+$kind: http-request
+name: 8. Intervalo acima de 90 dias (400)
+description: "GET /audit-logs com `from` e `to` separados por mais de 90 dias: 400 `VALIDATION_ERROR`."
+url: "{{portalUrl}}/portal/super-admin/audit-logs?from=2026-01-01T00:00:00.000Z&to=2026-06-01T00:00:00.000Z"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 400', () => pm.response.to.have.status(400));
+      pm.test('Código VALIDATION_ERROR', () => pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'));
+    language: text/javascript
+order: 8000

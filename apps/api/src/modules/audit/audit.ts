@@ -21,7 +21,8 @@ export type AuditAction =
   | 'reabertura';
 
 export interface AuditEntry {
-  tenantId: number;
+  /** null = ação da plataforma (super_admin), fora de qualquer conta. */
+  tenantId: number | null;
   /** null = ação do aparelho (totem), sem usuário. */
   userId: number | null;
   entity: string;

@@ -3,7 +3,7 @@
  * arquivo em mocks/<modulo>.ts. Dados fictícios, copiados do design.
  *
  * Sessão de mock: o login aceita qualquer senha e escolhe o papel pelo início do e-mail
- * (`rh@`, `admin@`, `gestor@`, `contador@`, `colaborador@`). E-mail com `2fa` pede o código 123456.
+ * (`rh@`, `admin@`, `gestor@`, `contador@`, `colaborador@`, `superadmin@`: sem conta, 2FA já ativo). E-mail com `2fa` pede o código 123456.
  * O papel fica em sessionStorage só no modo mock (não é dado sensível); some ao fechar a aba.
  */
 import type { AuthApi } from '../endpoints/auth';
@@ -22,7 +22,8 @@ const BASE_ME: Me = {
   role: 'rh', mfaEnabled: false, establishmentScope: null, authenticatedVia: 'cookie',
 };
 
-const MOCK_USERS: Record<Exclude<Role, 'super_admin'>, Partial<Me>> = {
+const MOCK_USERS: Record<Role, Partial<Me>> = {
+  super_admin: { id: '900', tenantId: null, name: 'Operação Genus', email: 'superadmin@exemplo.test', role: 'super_admin', mfaEnabled: true },
   rh: {},
   admin: { id: '2', name: 'Paulo Andrade', email: 'admin@exemplo.test', role: 'admin' },
   gestor: { id: '3', name: 'Renata Lopes', email: 'gestor@exemplo.test', role: 'gestor', establishmentScope: ['1'] },
@@ -33,16 +34,16 @@ const MOCK_USERS: Record<Exclude<Role, 'super_admin'>, Partial<Me>> = {
 /** `me` padrão dos testes e do primeiro carregamento (RH, conta inteira). */
 export const mockMe: Me = BASE_ME;
 
-export const mockMeFor = (role: Exclude<Role, 'super_admin'>): Me => ({ ...BASE_ME, ...MOCK_USERS[role] });
+export const mockMeFor = (role: Role): Me => ({ ...BASE_ME, ...MOCK_USERS[role] });
 
 const storage = () => (typeof window === 'undefined' ? null : window.sessionStorage);
 
-export function readSession(): { role: Exclude<Role, 'super_admin'>; pending2fa: boolean } | null {
+export function readSession(): { role: Role; pending2fa: boolean } | null {
   const raw = storage()?.getItem(MOCK_SESSION_KEY);
   if (!raw) return null;
   try {
     const v = JSON.parse(raw) as { role?: string; pending2fa?: boolean };
-    return v.role && v.role in MOCK_USERS ? { role: v.role as Exclude<Role, 'super_admin'>, pending2fa: Boolean(v.pending2fa) } : null;
+    return v.role && v.role in MOCK_USERS ? { role: v.role as Role, pending2fa: Boolean(v.pending2fa) } : null;
   } catch {
     return null;
   }
@@ -60,7 +61,7 @@ export const mockAuthApi: AuthApi = {
   },
   signIn: async (email) => {
     await delay(400);
-    const prefix = email.split('@')[0]?.replace(/2fa/g, '') as Exclude<Role, 'super_admin'>;
+    const prefix = email.split('@')[0]?.replace(/2fa/g, '').replace(/^superadmin$/, 'super_admin') as Role;
     // Mensagem genérica: não revela se o e-mail existe.
     if (!(prefix in MOCK_USERS)) throw mockFail(401, 'INVALID_EMAIL_OR_PASSWORD', 'E-mail ou senha incorretos');
     const needs2fa = email.includes('2fa');

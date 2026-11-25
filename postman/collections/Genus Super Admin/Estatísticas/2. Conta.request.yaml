@@ -1,0 +1,15 @@
+$kind: http-request
+name: 2. Conta
+description: "GET /portal/super-admin/stats/tenants/:tenantId?window=. Mesmos números da visão geral, para uma conta. Leitura entre contas: auditada como `tenant_stats`."
+url: "{{portalUrl}}/portal/super-admin/stats/tenants/{{tenantId}}?window=30d"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const d = pm.response.json().data;
+      pm.test('Mesma conta pedida', () => pm.expect(String(d.tenantId)).to.eql(pm.collectionVariables.get('tenantId')));
+      pm.test('Campos do contrato', () => pm.expect(Object.keys(d).sort()).to.eql(['devices', 'employees', 'moduleUsage', 'pendingClosings', 'processedRate', 'punches', 'punchesPerDay', 'tenantId', 'users', 'window'].sort()));
+      pm.test('processedRate é null ou fração 0 a 1', () => pm.expect(d.processedRate === null || (d.processedRate >= 0 && d.processedRate <= 1)).to.eql(true));
+    language: text/javascript
+order: 2000

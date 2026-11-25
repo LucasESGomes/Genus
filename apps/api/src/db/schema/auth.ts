@@ -34,7 +34,7 @@ export const sessions = rh.table(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index('idx_sessao_usuario').on(t.userId)],
+  (t) => [index('idx_sessao_usuario').on(t.userId), index('idx_sessao_conta').on(t.tenantId, t.expiresAt.desc())],
 );
 
 // `account` do Better Auth. Só o provedor `credential` (e-mail + senha) por enquanto.

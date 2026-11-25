@@ -1,0 +1,17 @@
+$kind: http-request
+name: 3. Crescimento
+description: "GET /portal/super-admin/stats/growth?months=1..36 (padrão 12). Série mensal: contas e colaboradores novos e totais acumulados. Mês no formato AAAA-MM."
+url: "{{portalUrl}}/portal/super-admin/stats/growth?months=12"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const d = pm.response.json().data;
+      pm.test('No máximo 12 meses', () => pm.expect(d.length).to.be.at.most(12));
+      d.forEach((m) => pm.test('Mês AAAA-MM com contadores', () => {
+        pm.expect(m.month).to.match(/^\d{4}-\d{2}$/);
+        pm.expect(m).to.include.keys('newTenants', 'totalTenants', 'newEmployees', 'totalEmployees');
+      }));
+    language: text/javascript
+order: 3000

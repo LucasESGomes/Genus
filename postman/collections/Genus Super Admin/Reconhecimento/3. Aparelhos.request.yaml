@@ -1,0 +1,14 @@
+$kind: http-request
+name: 3. Aparelhos
+description: "GET /portal/super-admin/recognition/devices. Agregado por aparelho (sem colaborador). `lastPunchAt` é só o instante da última batida agregada, nunca a batida."
+url: "{{portalUrl}}/portal/super-admin/recognition/devices?window=30d"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const b = pm.response.json();
+      pm.test('data é lista', () => pm.expect(b.data).to.be.an('array'));
+      b.data.forEach((a) => pm.test('Aparelho com campos do contrato', () => pm.expect(Object.keys(a).sort()).to.eql(['avgLivenessScore', 'avgRecognitionScore', 'deviceId', 'deviceName', 'divergentClock', 'establishmentId', 'failed', 'lastPunchAt', 'punches', 'tenantId'].sort())));
+    language: text/javascript
+order: 3000

@@ -1,0 +1,16 @@
+$kind: http-request
+name: 3. Cliente lista contas (403)
+description: "Token de `rh` ou `admin` em GET /tenants: 403. Cliente nunca vê a lista de contas da plataforma."
+url: "{{portalUrl}}/portal/super-admin/tenants"
+method: GET
+headers:
+  Authorization: "Bearer {{clientToken}}"
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 403', () => pm.response.to.have.status(403));
+      pm.test('Código FORBIDDEN', () => pm.expect(pm.response.json().code).to.eql('FORBIDDEN'));
+    language: text/javascript
+order: 3000

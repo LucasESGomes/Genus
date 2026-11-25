@@ -67,6 +67,37 @@ apps/api/
 9. Tabela nova `aparelho` (o arp grava `aparelho_id`). A autenticação do aparelho é da parte do ponto e entra depois.
 10. `analises_atestado` (migration 0010): sem `UNIQUE (atestado_id)`, uma linha por provedor/modelo/versão do prompt, com `resultado`, `recomendacao`, `hash_entrada`, `cid_cifrado`, `evidencias_cifradas`, `milissegundos_resposta` e `falha` (análise com IA, 04 G6).
 
+## Variáveis de ambiente da plataforma (super_admin e checks)
+
+| Variável | Para quê |
+|---|---|
+| `SUPER_ADMIN_EMAIL` | E-mail do super_admin criado pelo bootstrap (papel `super_admin` em `usuarios`, sem conta). |
+| `SUPER_ADMIN_NAME` | Nome exibido do super_admin. |
+| `SUPER_ADMIN_PASSWORD_HASH` | Hash scrypt da senha (`salt:key`, formato do Better Auth). **Preferido em produção.** Gere com `pnpm --filter @genus/api rh:hash-password`. |
+| `SUPER_ADMIN_PASSWORD` | Senha em texto claro. **Só dev**: `pnpm setup:dev` grava e mostra uma vez. Nunca logada. |
+| `MASTER_KEY` | KEK de 64 hex (32 bytes). Cifra a DEK de cada empresa. Sem ela, `POST /portal/super-admin/tenants` responde 503 `MASTER_KEY_AUSENTE`. |
+| `VALKEY_URL` | Endereço do Valkey, usado pelo check `valkey` de `GET /system-health`. |
+| `COLLECTOR_API_URL` | Endereço da api do coletor, usado pelo check `collector_api` de `GET /system-health`. |
+
+Todas são opcionais no código. Em produção, a api avisa em log (`warn`) as que faltam. Nenhuma delas é logada com o valor.
+
+## Painel do super_admin
+
+Módulo `src/modules/super-admin/`, sob `/portal/super-admin`. A guarda `authorize('super_admin')` fica no escopo, antes da validação. Contrato da api e do portal: `docs/prompts/super-admin-contrato.md` (fonte da verdade: `contract.ts`). Regras, tabelas e LGPD: `docs/architecture/04-funcionalidades-rh.md`, seção Super Admin.
+
+Subpastas: `tenants` (contas), `audit` (trilha), `access-logs` (sessões, tentativas de login e IPs), `recognition-logs` (agregados de reconhecimento), `stats` (visão geral, conta e crescimento) e `system-health`.
+
+Postman: coleção `Genus Super Admin` em `postman/collections/`. É manual (não entra no `pnpm postman:test`): o JWT vem de `GET /auth/token` depois do login com 2FA.
+
+### Como entrar como super_admin localmente
+
+1. `pnpm setup:dev` (na primeira vez). Ele grava `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_NAME` e `SUPER_ADMIN_PASSWORD` em `apps/api/.env.dev` e **mostra a senha uma vez**. Guarde-a. Se perder, troque `SUPER_ADMIN_PASSWORD` no `.env.dev` e reinicie a api.
+2. Suba a api: `pnpm dev:api` (ou `cd apps/api && docker compose up -d`). Ela cria o super_admin a partir de `SUPER_ADMIN_*`.
+3. Abra o portal em `/login` e entre com `SUPER_ADMIN_EMAIL` e a senha.
+4. O primeiro login leva para `/admin/ativar-2fa`. Digite a chave que a tela mostra num app autenticador e confirme com o código de 6 dígitos.
+5. Com o 2FA ativo, o painel abre em `/admin`. Sem ele, a sessão só serve para ativá-lo: as outras rotas devolvem 403 `MFA_REQUIRED`.
+
+Para produção, `pnpm --filter @genus/api rh:hash-password` gera o valor de `SUPER_ADMIN_PASSWORD_HASH`. Esse valor vai para o ambiente de produção, nunca para o Git.
 ## Totem web e busca
 
 - `modules/devices`: aparelhos, chave `X-Device-Key` (mostrada uma vez, só o SHA-256 no banco) e calibração. `modules/totem`: contexto, cadastro facial e envio da calibração (autenticação em `plugins/device-auth.ts`). Contrato: `docs/totem-contrato.md`.

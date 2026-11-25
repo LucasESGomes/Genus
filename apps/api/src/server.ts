@@ -6,6 +6,7 @@
 import { buildApp } from './app';
 import { EnvError, loadEnv, type Env } from './config/env';
 import { createContainer } from './container';
+import { bootstrapSuperAdmin } from './modules/super-admin/bootstrap';
 
 function fail(message: string): never {
   process.stderr.write(`${message}\n`);
@@ -23,6 +24,7 @@ async function main(): Promise<void> {
 
   const container = createContainer(env);
   const app = await buildApp(container.appDeps);
+  await bootstrapSuperAdmin({ db: container.appDeps.db, clock: container.clock, logger: container.logger, config: env.superAdmin, appEnv: env.appEnv });
   const shutdown = async (signal: string): Promise<void> => {
     container.logger.info({ signal }, 'encerrando');
     await app.close();

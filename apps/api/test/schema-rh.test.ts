@@ -136,11 +136,11 @@ afterAll(async () => {
 });
 
 describe('migrations', () => {
-  it('criam as 42 tabelas, a view e as extensões', async () => {
+  it('criam as 43 tabelas, a view e as extensões', async () => {
     const tables = await one<{ n: number }>(
       "SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema = 'rh' AND table_type = 'BASE TABLE'",
     );
-    expect(tables.n).toBe(42);
+    expect(tables.n).toBe(43);
     const view = await one<{ n: number }>(
       "SELECT count(*)::int AS n FROM information_schema.views WHERE table_schema = 'rh' AND table_name = 'vw_saldos_banco_horas'",
     );

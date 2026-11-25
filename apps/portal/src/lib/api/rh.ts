@@ -16,6 +16,7 @@ import { employeesApi } from './endpoints/employees';
 import { orgApi } from './endpoints/org';
 import { overviewApi } from './endpoints/overview';
 import { schedulesApi } from './endpoints/schedules';
+import { superAdminApi } from './endpoints/super-admin';
 import { timeBankApi } from './endpoints/time-bank';
 import { timesheetsApi } from './endpoints/timesheets';
 import { vacationsApi } from './endpoints/vacations';
@@ -30,6 +31,7 @@ import { mockEmployeesApi } from './mocks/employees';
 import { mockAuthApi, mockOrgApi, mockOverviewApi } from './mocks/index';
 import { useMocks } from './mocks/runtime';
 import { mockSchedulesApi } from './mocks/schedules';
+import { mockSuperAdminApi } from './mocks/super-admin';
 import { mockTimeBankApi } from './mocks/time-bank';
 import { mockTimesheetsApi } from './mocks/timesheets';
 import { mockVacationsApi } from './mocks/vacations';
@@ -51,6 +53,7 @@ export function createRealApi(c: ApiClient = createApiClient()) {
     employeePortal: employeePortalApi(c),
     devices: devicesApi(c),
     admin: adminApi(c),
+    superAdmin: superAdminApi(c),
   };
 }
 
@@ -73,6 +76,7 @@ export function createMockApi(): RhApi {
     employeePortal: mockEmployeePortalApi,
     devices: mockDevicesApi,
     admin: mockAdminApi,
+    superAdmin: mockSuperAdminApi,
   };
 }
 

@@ -10,6 +10,8 @@ const RULES = {
   // Portais
   'rh.panel': ['admin', 'rh', 'gestor', 'contador'],
   'employee.portal': ['colaborador'],
+  /** Painel da operação Genus (/admin). Só o super_admin; ele não entra nos módulos de RH. */
+  'superAdmin.panel': ['super_admin'],
 
   // Menu do painel (o que aparece na sidebar)
   'nav.overview': ['admin', 'rh', 'gestor'],
@@ -87,8 +89,9 @@ export const SENSITIVE_PLACEHOLDER = 'Dado sensível restrito';
 
 export { ROLE_LABEL } from '../labels';
 
-/** Primeira tela de cada perfil depois do login. `super_admin` não entra nos módulos de RH. */
+/** Primeira tela de cada perfil depois do login. `super_admin` não entra nos módulos de RH: vai para /admin. */
 export function homeFor(role: Role): string {
+  if (role === 'super_admin') return '/admin';
   if (role === 'colaborador') return '/me';
   if (role === 'contador') return '/rh/fechamento';
   if (can(role, 'rh.panel')) return '/rh';

@@ -20,3 +20,18 @@ values:
     enabled: true
     type: default
     description: Só no runner local (pnpm postman:test, stub da engine). Deixe vazio com a engine real.
+  - key: portalUrl
+    value: 'http://localhost:3002'
+    enabled: true
+    type: default
+    description: 'api do RH (apps/api), para a coleção Super Admin. Dev: pnpm dev:api (porta 3002).'
+  - key: superAdminToken
+    value: ''
+    enabled: true
+    type: secret
+    description: 'JWT do super_admin (GET /auth/token, depois de entrar no portal com 2FA). Preencha só o valor atual no Postman; nunca versionar.'
+  - key: clientToken
+    value: ''
+    enabled: true
+    type: secret
+    description: 'JWT de um usuário rh ou admin de qualquer conta, só para os testes 403 da coleção Super Admin. Nunca versionar.'

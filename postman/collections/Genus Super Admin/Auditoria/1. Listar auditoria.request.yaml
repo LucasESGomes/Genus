@@ -1,0 +1,18 @@
+$kind: http-request
+name: 1. Listar auditoria
+description: "GET /portal/super-admin/audit-logs. Filtros: `tenantId`, `userId`, `entity`, `action` (criacao, alteracao, exclusao, leitura_sensivel, ...), `from`/`to` (ISO com fuso, intervalo [from, to), máximo 90 dias), `cursor`, `limit`. Cursor = último `id` visto. Responde `{ data, meta: { nextCursor, limit } }`."
+url: "{{portalUrl}}/portal/super-admin/audit-logs?tenantId={{tenantId}}&limit=20"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const b = pm.response.json();
+      pm.test('Meta com nextCursor e limit', () => pm.expect(b.meta).to.include.keys('nextCursor', 'limit'));
+      pm.test('nextCursor é número ou null', () => pm.expect(b.meta.nextCursor === null || typeof b.meta.nextCursor === 'number').to.eql(true));
+      pm.test('Filtro por conta vale para todos os eventos', () => b.data.forEach((e) => pm.expect(String(e.tenantId)).to.eql(pm.collectionVariables.get('tenantId'))));
+      pm.test('Criação da conta aparece na trilha', () => pm.expect(b.data.some((e) => e.entity === 'tenant' && e.action === 'criacao')).to.eql(true));
+      pm.test('Campos do contrato, sem before/after na listagem', () => b.data.forEach((e) => pm.expect(Object.keys(e)).to.not.include('before')));
+      if (b.data.length) pm.collectionVariables.set('auditLogId', String(b.data[0].id));
+    language: text/javascript
+order: 1000

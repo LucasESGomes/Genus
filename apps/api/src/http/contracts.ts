@@ -37,6 +37,15 @@ export const PORTAL_ERROR_CODES = [
   'CALIBRACAO_EM_ANDAMENTO',
   'CALIBRACAO_NAO_AGUARDANDO',
   'CALIBRACAO_SEM_ORIGEM',
+  // Super admin (modules/super-admin, docs/prompts/super-admin-contrato.md)
+  'ACCOUNT_SUSPENDED',
+  /** super_admin sem 2FA: a sessão só serve para ativá-lo (o portal leva à tela de ativação). */
+  'MFA_REQUIRED',
+  'MASTER_KEY_AUSENTE',
+  'TENANT_ALREADY_SUSPENDED',
+  'TENANT_NOT_SUSPENDED',
+  'EMAIL_IN_USE',
+  'CNPJ_INVALIDO',
 ] as const;
 
 export const ERROR_CODES = [
