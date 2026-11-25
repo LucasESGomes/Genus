@@ -18,7 +18,8 @@ import { APIError } from 'better-auth/api';
 import { jwt, twoFactor } from 'better-auth/plugins';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../../db/client';
-import { jwtKeys, loginCredentials, sessions, twoFactors, users, verifications } from '../../db/schema';
+import { jwtKeys, loginCredentials, sessions, tenants, twoFactors, users, verifications } from '../../db/schema';
+import { ACCOUNT_SUSPENDED_MESSAGE } from '../../plugins/request-context';
 
 /** Header que o handler de /auth/* preenche com o IP visto pelo Fastify (nunca o do cliente). */
 export const CLIENT_IP_HEADER = 'x-genus-client-ip';
@@ -102,15 +103,19 @@ export function createAuth(db: Database, config: AuthConfig, logger: Logger) {
     databaseHooks: {
       session: {
         create: {
-          // Usuário desativado não abre sessão (o trigger da 0008 derruba as abertas).
+          // Usuário desativado ou de conta suspensa não abre sessão (os triggers da 0008 e da 0015 derrubam as abertas).
           before: async (session) => {
             const [row] = await db
-              .select({ isActive: users.isActive })
+              .select({ isActive: users.isActive, tenantId: users.tenantId, tenantIsActive: tenants.isActive })
               .from(users)
+              .leftJoin(tenants, eq(tenants.id, users.tenantId))
               .where(eq(users.id, Number(session.userId)))
               .limit(1);
             if (!row?.isActive) {
               throw new APIError('UNAUTHORIZED', { message: 'Usuário inativo', code: 'USER_INACTIVE' });
+            }
+            if (row.tenantId !== null && row.tenantIsActive === false) {
+              throw new APIError('UNAUTHORIZED', { message: ACCOUNT_SUSPENDED_MESSAGE, code: 'ACCOUNT_SUSPENDED' });
             }
           },
         },

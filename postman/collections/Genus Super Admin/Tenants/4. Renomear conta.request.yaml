@@ -1,0 +1,19 @@
+$kind: http-request
+name: 4. Renomear conta
+description: "PATCH /portal/super-admin/tenants/:tenantId com `{ name }`. Auditado como `tenant` + `alteracao`. Não altera empresas nem dados do cliente."
+url: "{{portalUrl}}/portal/super-admin/tenants/{{tenantId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "name": "{{tenantName}} Atualizado" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const d = pm.response.json().data;
+      pm.test('Nome atualizado', () => pm.expect(d.name).to.eql(pm.collectionVariables.get('tenantName') + ' Atualizado'));
+    language: text/javascript
+order: 4000

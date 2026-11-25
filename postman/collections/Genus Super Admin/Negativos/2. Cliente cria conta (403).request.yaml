@@ -1,0 +1,20 @@
+$kind: http-request
+name: 2. Cliente cria conta (403)
+description: "Token de `rh` ou `admin` (variável `clientToken`) em POST /tenants: 403, sem criar nada. O corpo é `{}` de propósito: a guarda de papel roda antes da validação."
+url: "{{portalUrl}}/portal/super-admin/tenants"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: "Bearer {{clientToken}}"
+auth:
+  type: noauth
+body:
+  type: json
+  content: "{}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 403', () => pm.response.to.have.status(403));
+      pm.test('Código FORBIDDEN', () => pm.expect(pm.response.json().code).to.eql('FORBIDDEN'));
+    language: text/javascript
+order: 2000

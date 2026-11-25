@@ -5,6 +5,9 @@
  * - Sem sessão (401) → /login?next=<rota atual> (só o caminho, nunca dado da tela).
  * - Área `rh`: papéis de `rh.panel`. Colaborador vai para /me; os demais veem 403.
  * - Área `me`: só `colaborador`; os demais veem 403.
+ * - Área `admin`: só `super_admin` (painel da operação). Ele não tem conta: sem lista de estabelecimentos.
+ *   super_admin sem 2FA recebe 403 `MFA_REQUIRED` em /auth/whoami e vai para /admin/ativar-2fa.
+ *   O super_admin que abre /rh volta para /admin; quem não é super_admin e abre /admin volta para a própria home.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -25,10 +28,18 @@ const SignOutContext = createContext<(() => void) | null>(null);
 /** Só caminhos internos do portal entram no `next` (evita redirecionamento aberto). */
 export function safeNext(next: string | null | undefined): string | null {
   if (!next || !next.startsWith('/') || next.startsWith('//') || next.includes('\\')) return null;
-  return /^\/(rh|me)(\/|$|\?)/.test(next) ? next : null;
+  return /^\/(rh|me|admin)(\/|$|\?)/.test(next) ? next : null;
 }
 
-export function AuthGate({ area, children }: { area: 'rh' | 'me'; children: ReactNode }) {
+export type GateArea = 'rh' | 'me' | 'admin';
+
+const AREA_RULE = { rh: 'rh.panel', me: 'employee.portal', admin: 'superAdmin.panel' } as const;
+const AREA_SCREEN = { rh: 'o painel de RH', me: 'o portal do colaborador', admin: 'o painel da operação Genus' } as const;
+
+/** Rota de ativação do 2FA do super_admin: a única do /admin que abre sem 2FA ativo (fica fora do AuthGate). */
+export const MFA_SETUP_PATH = '/admin/ativar-2fa';
+
+export function AuthGate({ area, children }: { area: GateArea; children: ReactNode }) {
   const api = useApi();
   const router = useRouter();
   const pathname = usePathname();
@@ -49,7 +60,8 @@ export function AuthGate({ area, children }: { area: 'rh' | 'me'; children: Reac
       if (e instanceof ApiError && e.kind === 'unavailable') return [];
       throw e;
     }),
-    enabled: Boolean(me.data) && !signingOut,
+    // super_admin não tem conta: não há estabelecimentos para listar (a api responderia 403).
+    enabled: Boolean(me.data) && !signingOut && area !== 'admin',
     staleTime: 10 * 60_000,
   });
 
@@ -58,32 +70,40 @@ export function AuthGate({ area, children }: { area: 'rh' | 'me'; children: Reac
     if (unauthenticated) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
   }, [unauthenticated, pathname, router]);
 
+  // super_admin sem 2FA: /auth/whoami responde 403 MFA_REQUIRED; a única saída é ativar o 2FA.
+  const mfaRequired = me.error?.code === 'MFA_REQUIRED';
+  useEffect(() => {
+    if (mfaRequired) router.replace(MFA_SETUP_PATH);
+  }, [mfaRequired, router]);
+
   const role = me.data?.role;
-  const wrongArea = role !== undefined && (area === 'rh' ? role === 'colaborador' : false);
+  const wrongArea =
+    role !== undefined &&
+    (area === 'rh' ? role === 'colaborador' || role === 'super_admin' : area === 'admin' ? role !== 'super_admin' : false);
   useEffect(() => {
     if (wrongArea && role) router.replace(homeFor(role));
   }, [wrongArea, role, router]);
 
   if (signingOut) return <div className="p-8"><LoadingState label="Saindo…" /></div>;
-  if (me.isPending || unauthenticated || wrongArea) return <div className="p-8"><LoadingState label="Carregando sessão…" /></div>;
+  if (me.isPending || unauthenticated || wrongArea || mfaRequired) return <div className="p-8"><LoadingState label="Carregando sessão…" /></div>;
   if (me.isError) return <div className="p-8"><ErrorState what="a sua sessão" code={me.error.code} onRetry={() => void me.refetch()} /></div>;
 
-  const allowed = area === 'rh' ? can(me.data.role, 'rh.panel') : can(me.data.role, 'employee.portal');
+  const allowed = can(me.data.role, AREA_RULE[area]);
   if (!allowed) {
     return (
       <div className="p-8">
-        <ForbiddenState screen={area === 'rh' ? 'o painel de RH' : 'o portal do colaborador'} establishment="esta conta" />
+        <ForbiddenState screen={AREA_SCREEN[area]} establishment="esta conta" />
       </div>
     );
   }
-  if (establishments.isPending) return <div className="p-8"><LoadingState label="Carregando estabelecimentos…" /></div>;
-  if (establishments.isError) {
+  if (area !== 'admin' && establishments.isPending) return <div className="p-8"><LoadingState label="Carregando estabelecimentos…" /></div>;
+  if (area !== 'admin' && establishments.isError) {
     return <div className="p-8"><ErrorState what="os estabelecimentos" code={establishments.error.code} onRetry={() => void establishments.refetch()} /></div>;
   }
 
   return (
     <SignOutContext.Provider value={beginSignOut}>
-      <SessionProvider me={me.data} establishments={establishments.data} api={api} initialEstablishmentId={search.get('establishmentId')}>
+      <SessionProvider me={me.data} establishments={establishments.data ?? []} api={api} initialEstablishmentId={search.get('establishmentId')}>
         {children}
       </SessionProvider>
     </SignOutContext.Provider>

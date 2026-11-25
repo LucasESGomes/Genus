@@ -1,0 +1,18 @@
+$kind: http-request
+name: 4. Revogar sessão
+description: "POST /portal/super-admin/access/sessions/:sessionId/revoke com `{ reason }`. Precisa de uma sessão ativa: `sessionId` vem de `1. Sessões` (ou preencha à mão). Sem sessão real, o URL fica inválido e o caso de 404 está em Negativos. Grava `session` + `exclusao`."
+url: "{{portalUrl}}/portal/super-admin/access/sessions/{{sessionId}}/revoke"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "reason": "Teste Postman: revogação de sessão" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      pm.test('revoked é número', () => pm.expect(pm.response.json().data.revoked).to.be.a('number'));
+    language: text/javascript
+order: 4000

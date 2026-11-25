@@ -1,0 +1,18 @@
+$kind: http-request
+name: 7. Reativar conta ativa (409)
+description: "Reativar conta que não está suspensa: 409 `TENANT_NOT_SUSPENDED`. Roda depois de `Tenants/7. Reativar conta`, então a conta está ativa."
+url: "{{portalUrl}}/portal/super-admin/tenants/{{tenantId}}/reactivate"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "reason": "Teste Postman: reativar conta ativa" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 409', () => pm.response.to.have.status(409));
+      pm.test('Código TENANT_NOT_SUSPENDED', () => pm.expect(pm.response.json().code).to.eql('TENANT_NOT_SUSPENDED'));
+    language: text/javascript
+order: 7000

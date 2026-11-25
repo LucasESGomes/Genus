@@ -1,0 +1,4 @@
+$kind: collection
+description: |-
+  Agregados de reconhecimento a partir de `arp.entradas`, sem nenhuma batida individual (04 §1.4). Campos de tentativas falhas e de latência ficam `null` até o coletor gravar as tentativas (pendência da equipe do ponto).
+order: 4000

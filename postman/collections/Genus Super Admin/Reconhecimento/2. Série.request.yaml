@@ -1,0 +1,20 @@
+$kind: http-request
+name: 2. Série
+description: "GET /portal/super-admin/recognition/series. Mesmos filtros do resumo, com `bucket` (hour | day). Só agregados por intervalo de tempo."
+url: "{{portalUrl}}/portal/super-admin/recognition/series?window=7d&bucket=day"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const b = pm.response.json();
+      pm.test('data é lista', () => pm.expect(b.data).to.be.an('array'));
+      b.data.forEach((p) => {
+        pm.test('Ponto da série com campos do contrato', () => {
+          pm.expect(Object.keys(p).sort()).to.eql(['avgLivenessScore', 'avgRecognitionScore', 'bucketStart', 'failed', 'punches'].sort());
+          pm.expect(p.bucketStart).to.be.a('string');
+          pm.expect(p.punches).to.be.a('number');
+        });
+      });
+    language: text/javascript
+order: 2000

@@ -1,0 +1,55 @@
+$kind: http-request
+name: 1. Criar conta
+description: "POST /portal/super-admin/tenants. Cria conta, empresa, estabelecimento e o primeiro admin do cliente. Responde 201 com `temporaryPassword`, a única vez em que ela aparece (não é guardada nem logada). Erros: `CNPJ_INVALIDO` (400), `EMAIL_IN_USE` (409), `MASTER_KEY_AUSENTE` (503). Quem pode: super_admin com 2FA."
+url: "{{portalUrl}}/portal/super-admin/tenants"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "{{tenantName}}",
+      "company": { "legalName": "{{tenantName}} Ltda", "cnpj": "{{tenantCnpj}}" },
+      "establishment": {
+        "name": "Matriz {{tenantName}}",
+        "registrationType": "CNPJ",
+        "registration": "{{tenantCnpj}}",
+        "uf": "SP",
+        "municipalityIbge": "3550308"
+      },
+      "admin": { "name": "Administrador Postman", "email": "{{adminEmail}}" }
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      // Dados fictícios desta execução: CNPJ com dígitos verificadores válidos, nome e e-mail únicos.
+      const pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      const pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      const dv = (base, pesos) => {
+        const soma = base.split('').reduce((s, d, i) => s + Number(d) * pesos[i], 0);
+        const resto = soma % 11;
+        return resto < 2 ? 0 : 11 - resto;
+      };
+      let base = '1';
+      while (base.length < 12) base += Math.floor(Math.random() * 10);
+      const cnpj = base + dv(base, pesos1) + dv(base + dv(base, pesos1), pesos2);
+      // CNPJ inválido: o mesmo número com o último dígito trocado (o DV deixa de bater).
+      pm.collectionVariables.set('tenantCnpj', cnpj);
+      pm.collectionVariables.set('cnpjInvalido', cnpj.slice(0, 13) + ((Number(cnpj[13]) + 1) % 10));
+      pm.collectionVariables.set('tenantName', 'Postman' + Date.now());
+      pm.collectionVariables.set('adminEmail', 'admin.' + Date.now() + '@example.com');
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+      const d = pm.response.json().data;
+      pm.test('Conta nasce ativa, sem suspensão', () => pm.expect(d.tenant).to.include({ status: 'ativa', suspendedAt: null, suspensionReason: null }));
+      pm.test('Contagens são números', () => pm.expect(d.tenant.counts).to.include.keys('employees', 'devices', 'users', 'establishments'));
+      pm.test('Conta com chave de dados criada', () => pm.expect(d.tenant.hasCompanyKey).to.eql(true));
+      pm.test('temporaryPassword vem uma vez', () => pm.expect(d.temporaryPassword).to.be.a('string').and.not.empty);
+      pm.test('Admin criado com o e-mail enviado', () => pm.expect(d.admin.email).to.eql(pm.collectionVariables.get('adminEmail')));
+      pm.collectionVariables.set('tenantId', String(d.tenant.id));
+      pm.collectionVariables.set('adminUserId', String(d.admin.id));
+    language: text/javascript
+order: 1000

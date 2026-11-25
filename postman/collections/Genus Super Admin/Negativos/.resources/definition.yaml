@@ -1,0 +1,5 @@
+$kind: collection
+description: |-
+  Casos de erro, um por regra: sem sessão (401), cliente com papel `rh` ou `admin` (403, a guarda vem antes da validação, por isso o corpo de criação é `{}`), CNPJ inválido (400), reativar conta ativa (409), intervalo acima de 90 dias (400), janela inválida (400) e sessão inexistente (404).
+  Não coberto aqui: `MFA_REQUIRED` (403), que exige um super_admin sem 2FA.
+order: 7000

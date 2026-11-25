@@ -8,7 +8,7 @@ O motor facial vem da **Visage** (produto irmão, em `../visage`). A Visage **n�
 
 - **Pronto, segundo o quadro de funcionalidades:** reconhecimento facial e coleta offline.
 - **MVP do painel de RH: entrega em 25/11/2026** (módulos roxos). **Fase 2** = módulos azuis. Lista completa e plano de cada módulo: `docs/architecture/04-funcionalidades-rh.md`.
-- **Neste repositório hoje:** `services/face-engine`, `bench/`, `docs/` e a api do coletor em `apps/collector-api` (primeira entrega: reconhece o rosto entre candidatos fictícios e grava a batida em `arp.entradas` como `pendente`; sem fila, rep-core, NSR nem hash ainda). A API do portal existe só como base em `apps/api` (schema `rh` com Drizzle, migrations, health, Docker; sem módulos ainda). Os portais web e o app do coletor **ainda não existem aqui**. A estrutura-alvo está abaixo.
+- **Neste repositório hoje:** `services/face-engine`, `bench/`, `docs/` e a api do coletor em `apps/collector-api` (primeira entrega: reconhece o rosto entre candidatos fictícios e grava a batida em `arp.entradas` como `pendente`; sem fila, rep-core, NSR nem hash ainda). A API do portal existe só como base em `apps/api` (schema `rh` com Drizzle, migrations, health, Docker; já tem o módulo super-admin em `/portal/super-admin`). O portal web começa em `apps/portal` (tem `/admin`, do super_admin); o app do coletor **ainda não existe aqui**. A estrutura-alvo está abaixo.
 
 ## Mapa do repositório
 
@@ -16,7 +16,7 @@ O motor facial vem da **Visage** (produto irmão, em `../visage`). A Visage **n�
 services/face-engine/   Motor facial (Python). Cópia de REP-P/engine @ d80c5dd, que veio de visage/face_engine
 bench/                  Benchmark de capacidade da engine (scripts; dados, chaves e resultados ficam fora do git)
 apps/collector-api/     API do coletor (Fastify). Existe: POST /coletor/batidas (devolve receiptId e jobId), GET /coletor/batidas/jobs/:jobId e GET /coletor/batidas?employeeId= (ver docs/SPEC-primeira-entrega.md)
-apps/api/               API do portal de RH (Fastify + Drizzle). Banco `app`, schema `rh` (tabelas no plural), na mesma instância Postgres do arp. Migrations em apps/api/drizzle. Ver apps/api/README.md
+apps/api/               API do portal de RH (Fastify + Drizzle). Banco `app`, schema `rh` (tabelas no plural), na mesma instância Postgres do arp. Migrations em apps/api/drizzle. Ver apps/api/README.md. Tem o módulo super-admin (`/portal/super-admin`, contrato em `docs/prompts/super-admin-contrato.md`); o portal web tem `/admin`.
 apps/rep-core/          Motor de NSR e worker da fila `punches` (consome, grava `registros`, `evidencias`, `outbox`). Verificação da cadeia: `pnpm arp:verify-chain`. Existe
 apps/jobs/              Resgate: republica `entradas` e `outbox` pendentes há mais de 30 s. Existe
 packages/shared/        Contratos Zod, Clock, logger e cripto, compartilhados entre os apps. Existe

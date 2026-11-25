@@ -1,0 +1,18 @@
+$kind: http-request
+name: 6. Suspender de novo (409)
+description: "Negativo: suspender conta já suspensa devolve 409 `TENANT_ALREADY_SUSPENDED`. Roda logo depois de `5. Suspender conta`."
+url: "{{portalUrl}}/portal/super-admin/tenants/{{tenantId}}/suspend"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "reason": "Teste Postman: suspender de novo" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 409', () => pm.response.to.have.status(409));
+      pm.test('Código TENANT_ALREADY_SUSPENDED', () => pm.expect(pm.response.json().code).to.eql('TENANT_ALREADY_SUSPENDED'));
+    language: text/javascript
+order: 6000

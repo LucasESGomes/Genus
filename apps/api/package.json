@@ -15,6 +15,7 @@
     "check-arp": "tsx --env-file-if-exists=.env.dev scripts/check-arp.ts",
     "rh:create-user": "tsx --env-file-if-exists=.env.dev scripts/create-user.ts",
     "rh:compare-ai": "tsx --env-file-if-exists=.env.dev scripts/compare-certificate-models.ts",
+    "rh:hash-password": "tsx scripts/hash-password.ts",
     "rh:seed-dev": "tsx --env-file-if-exists=.env.dev scripts/seed-dev.ts"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "@fastify/multipart": "10.1.9",
     "@fastify/swagger": "9.9.5",
     "@fastify/swagger-ui": "6.1.5",
+    "@genus/queue": "workspace:*",
     "@genus/shared": "workspace:*",
     "better-auth": "1.7.27",
     "drizzle-orm": "0.45.4",

@@ -42,6 +42,6 @@ describe('regras de exibição', () => {
     expect(homeFor('colaborador')).toBe('/me');
     expect(homeFor('contador')).toBe('/rh/fechamento');
     expect(homeFor('rh')).toBe('/rh');
-    expect(homeFor('super_admin')).toBe('/sem-acesso');
+    expect(homeFor('super_admin')).toBe('/admin');
   });
 });

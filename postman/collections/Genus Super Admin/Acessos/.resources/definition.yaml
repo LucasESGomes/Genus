@@ -1,0 +1,5 @@
+$kind: collection
+description: |-
+  Sessões, tentativas de login e IPs sinalizados. Só sinalizam: nada é bloqueado. Revogar sessão (ou todas do usuário) pede motivo e grava `session` + `exclusao`.
+  O revogar de uma sessão específica precisa de `sessionId` de uma sessão ativa (veja `GET /access/sessions`). O revogar de um usuário sem sessão devolve `revoked: 0`, o que é um teste determinístico.
+order: 3000

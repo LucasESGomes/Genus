@@ -1,0 +1,12 @@
+$kind: http-request
+name: 9. Janela inválida (400)
+description: "GET /stats/overview com `window=1y`: fora de 24h | 7d | 30d, 400 `VALIDATION_ERROR`."
+url: "{{portalUrl}}/portal/super-admin/stats/overview?window=1y"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 400', () => pm.response.to.have.status(400));
+      pm.test('Código VALIDATION_ERROR', () => pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'));
+    language: text/javascript
+order: 9000

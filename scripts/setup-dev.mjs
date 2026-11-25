@@ -193,6 +193,11 @@ const jobsMsg = syncEnv({
 });
 
 // ------------------------------------------------- apps/api/.env.dev (portal de RH)
+// super_admin do primeiro acesso: a senha só é gerada (e mostrada, uma vez) se não houver senha nem hash.
+const portalBefore = existsSync(PORTAL) ? parse(readFileSync(PORTAL, 'utf8')) : {};
+const superAdminPassword =
+  isPlaceholder(portalBefore.SUPER_ADMIN_PASSWORD) && isPlaceholder(portalBefore.SUPER_ADMIN_PASSWORD_HASH) ? randomBytes(15).toString('base64url') : null;
+const superAdminEmail = isPlaceholder(portalBefore.SUPER_ADMIN_EMAIL) ? 'superadmin@genus.local' : portalBefore.SUPER_ADMIN_EMAIL;
 const portalMsg = syncEnv({
   file: PORTAL,
   example: PORTAL_EXAMPLE,
@@ -211,6 +216,16 @@ const portalMsg = syncEnv({
     // Cadastro facial no totem: só chama POST /embeddings/register da engine.
     ENGINE_URL: `http://localhost:${infra.ENGINE_PORT || '8001'}`,
     ENGINE_API_KEY: infra.ENGINE_API_KEY,
+    // Painel do super_admin: mesma chave mestra do coletor e da engine (cifra a DEK das empresas novas).
+    MASTER_KEY: infra.MASTER_KEY,
+    VALKEY_URL: valkeyDerived.VALKEY_URL,
+    VALKEY_PASSWORD: infra.VALKEY_PASSWORD,
+    COLLECTOR_API_URL: `http://localhost:${infra.COLLECTOR_PORT || '3001'}`,
+  },
+  defaults: {
+    SUPER_ADMIN_EMAIL: 'superadmin@genus.local',
+    SUPER_ADMIN_NAME: '"Operação Genus"',
+    ...(superAdminPassword ? { SUPER_ADMIN_PASSWORD: superAdminPassword } : {}),
   },
 });
 
@@ -220,6 +235,10 @@ out(`${apiCreated ? 'Criado' : 'Conferido'}: apps/collector-api/.env.dev${apiCha
 out(repCoreMsg);
 out(jobsMsg);
 out(portalMsg);
+if (superAdminPassword) {
+  out('');
+  out(`super_admin: ${superAdminEmail} / senha: ${superAdminPassword} (guarde; ative o 2FA no primeiro login)`);
+}
 
 // Só a senha do superusuário do Postgres que já existia no volume exige recriar o volume. Papéis novos
 // (e os do RH) são criados sem isso: o serviço db-roles (db/postgres/bootstrap.sh) cria o que falta.

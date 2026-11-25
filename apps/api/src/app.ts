@@ -29,7 +29,8 @@ export interface AppDeps {
   /** Swagger em /docs. Só true com APP_ENV=dev; mesmo assim só atende 127.0.0.1/::1. */
   apiDocs?: boolean;
   /** Login (Better Auth). Sem ele, só /health responde (testes de health). */
-  auth?: { auth: Auth; baseURL: string; clock: Clock };
+  /** `emailHashKey`: chave do HMAC do e-mail em `tentativas_login` (derivada do BETTER_AUTH_SECRET). Ausente = tentativas não são gravadas. */
+  auth?: { auth: Auth; baseURL: string; clock: Clock; emailHashKey?: Buffer };
   /** Módulos do portal de RH (/portal/*). Exigem `auth`. */
   portal?: PortalDeps;
 }
@@ -65,7 +66,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   if (deps.auth) {
     // req.ctx + app.authenticate/authorize; depois /auth/* (Better Auth) e /me.
     registerRequestContext(app, { auth: deps.auth.auth, db: deps.db, clock: deps.auth.clock });
-    await app.register(authRoutes, { auth: deps.auth.auth, baseURL: deps.auth.baseURL });
+    const emailHashKey = deps.auth.emailHashKey;
+    await app.register(authRoutes, {
+      auth: deps.auth.auth,
+      baseURL: deps.auth.baseURL,
+      ...(emailHashKey ? { loginAttempts: { db: deps.db, clock: deps.auth.clock, emailHashKey } } : {}),
+    });
     await app.register(meRoutes, { db: deps.db });
   }
 

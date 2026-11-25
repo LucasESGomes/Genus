@@ -1,0 +1,3 @@
+$kind: collection
+description: Estado técnico da plataforma (api, bancos, Valkey, engine, coletor, rep-core e jobs). Cache de 5 s. Sem URL, mensagem de exceção nem segredo.
+order: 6000

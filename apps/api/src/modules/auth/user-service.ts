@@ -8,6 +8,7 @@
 import { hashPassword } from 'better-auth/crypto';
 import { z } from 'zod';
 import type { Database } from '../../db/client';
+import type { Transaction } from '../../db/executor';
 import { loginCredentials, users } from '../../db/schema';
 import { HttpError } from '../../plugins/error-handler';
 import { ROLES } from '../../plugins/request-context';
@@ -44,7 +45,23 @@ export interface CreatedUser {
 export class UserService {
   constructor(private readonly d: { db: Database }) {}
 
-  async createUser(input: CreateUserInput): Promise<CreatedUser> {
+  /** `tx`: grava dentro de uma transação já aberta (ex.: criação de conta + admin). */
+  async createUser(input: CreateUserInput, tx?: Transaction): Promise<CreatedUser> {
+    const u = this.parse(input);
+    return this.insert(u, await hashPassword(u.password), tx);
+  }
+
+  /**
+   * Igual a `createUser`, mas com o hash scrypt do Better Auth já pronto (`<saltHex>:<keyHex>`), para o
+   * super_admin do .env (SUPER_ADMIN_PASSWORD_HASH). O hash nunca é logado nem devolvido.
+   */
+  async createUserWithHash(input: Omit<CreateUserInput, 'password'>, passwordHash: string, tx?: Transaction): Promise<CreatedUser> {
+    // A senha só passa pela validação do formato: o valor real é o hash recebido.
+    const u = this.parse({ ...input, password: 'x'.repeat(MIN_PASSWORD_LENGTH) });
+    return this.insert(u, passwordHash, tx);
+  }
+
+  private parse(input: CreateUserInput): z.output<typeof createUserInput> {
     const parsed = createUserInput.safeParse(input);
     if (!parsed.success) {
       throw new HttpError(
@@ -55,10 +72,11 @@ export class UserService {
         parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
       );
     }
-    const u = parsed.data;
-    const passwordHash = await hashPassword(u.password);
+    return parsed.data;
+  }
 
-    return this.d.db.transaction(async (tx) => {
+  private async insert(u: z.output<typeof createUserInput>, passwordHash: string, outer?: Transaction): Promise<CreatedUser> {
+    const run = async (tx: Transaction): Promise<CreatedUser> => {
       const [row] = await tx
         .insert(users)
         .values({ tenantId: u.tenantId, email: u.email, name: u.name, role: u.role, employeeId: u.employeeId })
@@ -67,6 +85,7 @@ export class UserService {
       const id = Number(row.id);
       await tx.insert(loginCredentials).values({ userId: id, accountId: String(id), providerId: 'credential', password: passwordHash });
       return { id, tenantId: row.tenantId === null ? null : Number(row.tenantId), email: row.email, name: row.name, role: u.role };
-    });
+    };
+    return outer ? run(outer) : this.d.db.transaction(run);
   }
 }

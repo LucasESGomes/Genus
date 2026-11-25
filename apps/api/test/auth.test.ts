@@ -468,7 +468,7 @@ describe('2FA (TOTP)', () => {
     const cookie = await login(app, root.email);
     const blocked = await me(app, { cookie });
     expect(blocked.statusCode).toBe(403);
-    expect(blocked.json().code).toBe('FORBIDDEN');
+    expect(blocked.json().code).toBe('MFA_REQUIRED');
 
     const enabled = await enableTotp(app, cookie);
     const res = await me(app, { cookie: enabled.cookie });

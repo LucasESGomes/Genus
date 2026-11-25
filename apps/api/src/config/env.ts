@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { PROVIDER_IDS } from '../modules/certificate-analysis/ai/provider';
+import { MIN_PASSWORD_LENGTH } from '../modules/auth/auth';
 import type { CertificateAiConfig } from '../modules/certificate-analysis/ai/registry';
 
 export const APP_ENVS = ['dev', 'homolog', 'prod'] as const;
@@ -80,7 +81,37 @@ const rawSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'CERTIFICATE_DATA_KEY deve ter 64 caracteres hex (32 bytes)')
     .optional(),
+  // super_admin da plataforma (modules/super-admin/bootstrap.ts): criado/atualizado na partida. As três primeiras
+  // são tudo ou nada; hash (scrypt do Better Auth, `pnpm rh:hash-password`) é preferido à senha em claro.
+  SUPER_ADMIN_EMAIL: z.email({ error: 'SUPER_ADMIN_EMAIL deve ser um e-mail' }).max(254).optional(),
+  SUPER_ADMIN_NAME: z.string().trim().min(1).max(200).optional(),
+  SUPER_ADMIN_PASSWORD_HASH: z
+    .string()
+    .regex(/^[0-9a-f]{32}:[0-9a-f]{128}$/, 'SUPER_ADMIN_PASSWORD_HASH deve ser o hash scrypt do Better Auth (<salt hex>:<chave hex>); gere com pnpm rh:hash-password')
+    .optional(),
+  SUPER_ADMIN_PASSWORD: z
+    .string()
+    .min(MIN_PASSWORD_LENGTH, `SUPER_ADMIN_PASSWORD precisa de pelo menos ${MIN_PASSWORD_LENGTH} caracteres`)
+    .max(128, 'SUPER_ADMIN_PASSWORD aceita no máximo 128 caracteres')
+    .optional(),
+  // KEK (64 hex) que cifra a DEK da empresa nova (POST /super-admin/tenants). Igual à do coletor e da engine.
+  MASTER_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'MASTER_KEY deve ter 64 caracteres hex (32 bytes)')
+    .optional(),
+  // Painel do super_admin: saúde do sistema. Sem elas, o check aparece como não configurado.
+  VALKEY_URL: z.url({ error: 'VALKEY_URL deve ser uma URL' }).optional(),
+  VALKEY_PASSWORD: z.string().min(1).optional(),
+  COLLECTOR_API_URL: z.url({ error: 'COLLECTOR_API_URL deve ser uma URL' }).optional(),
 });
+
+/** Credencial do super_admin da plataforma: hash pronto ou senha em claro (o hash vence). */
+export type SuperAdminPassword = { kind: 'hash'; value: string } | { kind: 'plain'; value: string };
+export interface SuperAdminConfig {
+  email: string;
+  name: string;
+  password: SuperAdminPassword;
+}
 
 export interface Env {
   appEnv: AppEnv;
@@ -101,6 +132,13 @@ export interface Env {
   certificateAi: CertificateAiConfig;
   /** Chave do dado de saúde da análise de atestado; null = não grava CID, texto nem evidências. */
   certificateDataKeyHex: string | null;
+  /** null = SUPER_ADMIN_* ausentes (nenhum super_admin é criado na partida). */
+  superAdmin: SuperAdminConfig | null;
+  /** KEK (64 hex) da DEK das empresas novas; null = POST /super-admin/tenants responde 503. */
+  masterKeyHex: string | null;
+  valkeyUrl: string | null;
+  valkeyPassword: string | null;
+  collectorApiUrl: string | null;
 }
 
 export class EnvError extends Error {
@@ -131,6 +169,7 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     );
   }
   const raw = parsed.data;
+  const superAdmin = superAdminFrom(raw);
 
   // Placeholder dos arquivos .env*.example copiado sem editar.
   const placeholders = Object.entries(input)
@@ -154,8 +193,33 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     attachmentsDir: raw.ATTACHMENTS_DIR,
     maxAttachmentBytes: raw.MAX_ATTACHMENT_BYTES,
     gestorEnabled: raw.PORTAL_GESTOR_ENABLED === 'true',
+    superAdmin,
+    masterKeyHex: raw.MASTER_KEY ?? null,
+    valkeyUrl: raw.VALKEY_URL ?? null,
+    valkeyPassword: raw.VALKEY_PASSWORD ?? null,
+    collectorApiUrl: raw.COLLECTOR_API_URL ?? null,
     ...certificateAiFrom(raw),
   };
+}
+
+/** E-mail, nome e senha (ou hash) vêm juntos ou não vêm. A mensagem cita só os nomes, nunca os valores. */
+function superAdminFrom(raw: z.infer<typeof rawSchema>): SuperAdminConfig | null {
+  const password: SuperAdminPassword | null = raw.SUPER_ADMIN_PASSWORD_HASH
+    ? { kind: 'hash', value: raw.SUPER_ADMIN_PASSWORD_HASH }
+    : raw.SUPER_ADMIN_PASSWORD
+      ? { kind: 'plain', value: raw.SUPER_ADMIN_PASSWORD }
+      : null;
+  const present = [raw.SUPER_ADMIN_EMAIL, raw.SUPER_ADMIN_NAME, password].filter((v) => v !== undefined && v !== null).length;
+  if (present === 0) return null;
+  if (present < 3) {
+    throw new EnvError([
+      {
+        variable: 'SUPER_ADMIN_EMAIL',
+        message: 'defina SUPER_ADMIN_EMAIL, SUPER_ADMIN_NAME e SUPER_ADMIN_PASSWORD_HASH (ou SUPER_ADMIN_PASSWORD) juntas, ou nenhuma',
+      },
+    ]);
+  }
+  return { email: raw.SUPER_ADMIN_EMAIL!, name: raw.SUPER_ADMIN_NAME!, password: password! };
 }
 
 const AI_KEYS = [

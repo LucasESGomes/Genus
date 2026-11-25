@@ -52,7 +52,7 @@ Quase tudo é **um módulo novo no `api-portal` (Fastify) + tabelas novas no ban
 | `gestor` (**opcional**) | Desativado por padrão. Quando habilitado: ver os subordinados diretos e aprovar ajustes e férias da equipe | Ver CID, arquivo de atestado e salário; fechar o mês | Subordinados diretos (`gestor_id`) dentro do estabelecimento |
 | `contador` | Baixar a exportação da folha (RF59) para calcular bônus | Alterar dados; ver CID e salário | Estabelecimentos atribuídos |
 | `colaborador` | Ver o próprio ponto, espelho, banco e férias; enviar atestado; pedir ajuste e férias; dar ciência no espelho | Ver dados de outros | Só os próprios dados (`/me/*`) |
-| `super_admin` (plataforma Genus) | Painel geral: lista de empresas, status da conta, uso, configurações técnicas, logs de erro e integração, sem dados pessoais. Resetar senha, desbloquear usuário, ativar e desativar funcionalidades por empresa | Acessar dados de colaboradores, batidas, atestados, salários ou CID; alterar registros do cliente | Plataforma, fora da área do cliente |
+| `super_admin` (plataforma Genus) | Painel geral: lista de empresas, status da conta, uso, configurações técnicas, logs de erro e integração, sem dados pessoais. Resetar senha, desbloquear usuário, ativar e desativar funcionalidades por empresa. Detalhado na seção *Super Admin* (§3) | Acessar dados de colaboradores, batidas, atestados, salários ou CID; alterar registros do cliente | Plataforma, fora da área do cliente |
 
 **Gestor opcional:** o papel só existe se o `admin` o habilitar na configuração da conta, quando o cliente vê necessidade. Sem gestor, os pedidos de ajuste vão direto para a fila do RH (G5) e as férias têm uma instância só (G9, RF41).
 
@@ -60,7 +60,7 @@ Quase tudo é **um módulo novo no `api-portal` (Fastify) + tabelas novas no ban
 
 **Escopo por estabelecimento (RNF02):** cada usuário só vê os estabelecimentos atribuídos a ele, em `usuarios_estabelecimentos` (`usuario_id`, `estabelecimento_id`, `UNIQUE (conta_id, usuario_id, estabelecimento_id)`). **Sem nenhuma linha, vale a conta inteira**, o que atende o RH de empresa pequena sem cadastro extra. O escopo de equipe do gestor (`gestor_id`) se soma a esse filtro. O `request-context` resolve os dois em `req.ctx` (`establishmentScope`, `teamScope`).
 
-**Login (implementado em 22/11/2026, `apps/api/src/modules/auth/`):** Better Auth com e-mail + senha, sessão em cookie para o portal e JWT curto (15 min) para cliente sem cookie. 2FA por TOTP, obrigatório para o `super_admin` (sem ele, a sessão só serve para ativar o 2FA) e opcional para os demais **[A CONFIRMAR]** se o RH também deve ser obrigado. Sem cadastro público: usuário é criado pelo RH ou `admin` (e, em dev, por `pnpm --filter @genus/api rh:create-user`). Rotas: `POST /auth/sign-in/email`, `POST /auth/two-factor/enable` e `/verify-totp`, `POST /auth/sign-out`, `GET /auth/token`, `GET /auth/jwks` e `GET /me`. Pendentes: convite por e-mail e recuperação de senha (precisam de envio de e-mail), login do colaborador (§9, item 3), acesso excepcional do `super_admin` e auditoria de login. `teamScope` ainda não entra no `req.ctx` (depende do §9, item 4).
+**Login (implementado em 22/11/2026, `apps/api/src/modules/auth/`):** Better Auth com e-mail + senha, sessão em cookie para o portal e JWT curto (15 min) para cliente sem cookie. 2FA por TOTP, obrigatório para o `super_admin` (sem ele, a sessão só serve para ativar o 2FA) e opcional para os demais **[A CONFIRMAR]** se o RH também deve ser obrigado. Sem cadastro público: usuário é criado pelo RH ou `admin` (e, em dev, por `pnpm --filter @genus/api rh:create-user`). Rotas: `POST /auth/sign-in/email`, `POST /auth/two-factor/enable` e `/verify-totp`, `POST /auth/sign-out`, `GET /auth/token`, `GET /auth/jwks` e `GET /me`. Pendentes: convite por e-mail e recuperação de senha (precisam de envio de e-mail), login do colaborador (§9, item 3), acesso excepcional do `super_admin` e auditoria de login. As tentativas de login já são gravadas em `rh.tentativas_login` (seção *Super Admin*); falta só a auditoria de login como evento de `auditoria`. `teamScope` ainda não entra no `req.ctx` (depende do §9, item 4).
 
 **Fiscal:** não há perfil de fiscal neste módulo. O auditor fiscal acessa AFD e AEJ pelo portal fiscal existente (`rep-core` `/fiscal`, `03` §7.3).
 
@@ -428,6 +428,72 @@ O quadro marca o módulo como "MVP / Fase 2" sem dividir. **Decidido em 18/11/20
 - **Exportação para a folha:** a saída depende do sistema do contador (Domínio, Alterdata, Senior, TOTVS e outros). **Proposta:** começar com um **CSV genérico** com o mapeamento `codigos_verba_folha`, e acrescentar layouts específicos sob demanda. **[A DECIDIR]** quais sistemas (§9, item 8).
 - **Trilha de auditoria de alterações (RF60)** é uma tela sobre `logs_auditoria` (já existe como padrão): quem, quando, o quê e motivo. O RH vê só a própria conta.
 - **Avisos por e-mail ou WhatsApp:** ver E6.
+
+### Super Admin (painel da operação Genus)
+
+**Não é módulo do cliente.** É o painel da equipe Genus para operar a plataforma: contas, status, uso e saúde técnica. Não mostra dado de colaborador, batida, atestado, biometria nem CID (§1.4). Sem RF próprio: atende §1.4 (papel `super_admin`), §7.2 (auditoria) e `security-lgpd.md` §5. Contrato da api e do portal: `docs/prompts/super-admin-contrato.md`; fonte da verdade em `apps/api/src/modules/super-admin/contract.ts`. Tela: `/admin` em `apps/portal`.
+
+**Acesso:** guarda `authorize('super_admin')` no escopo de `/portal/super-admin`, antes da validação. Cliente (`admin`, `rh`, `gestor`, `contador`, `colaborador`) recebe 403. Super_admin sem 2FA recebe 403 `MFA_REQUIRED`, e a sessão só serve para `/auth/two-factor/*`; o portal leva para `/admin/ativar-2fa`. Sem sessão, 401.
+
+**Tabelas (migrations 0014 e 0015, schema `rh`):**
+- `contas` ganha `motivo_suspensao`, `suspensa_em`, `suspensa_por_id` (→ `usuarios`) e `atualizado_em` (trigger). `ck_conta_suspensao_coerente`: `eh_ativo = false` só com `suspensa_em` preenchido e motivo.
+- `tentativas_login` (só INSERT): `conta_id` e `usuario_id` ficam nulos quando o e-mail não casou com nenhum usuário; `email_hash` (HMAC-SHA256, nunca o e-mail em claro); `endereco_ip`, `agente_usuario`; `etapa` (`senha` | `totp`); `eh_sucesso`; `motivo` (`credencial_invalida` | `usuario_inativo` | `conta_suspensa` | `totp_invalido`), coerente com `eh_sucesso`; `criado_em`. Índices: `(endereco_ip, criado_em DESC)` e `(criado_em DESC)`.
+- Índices novos: `idx_auditoria_usuario (usuario_id, id DESC)` e `idx_sessao_conta (conta_id, expira_em DESC)`.
+- Retenção de `tentativas_login`: **90 dias [A CONFIRMAR]** (limpeza por job; a linha sai só pela rotina, nunca por UPDATE).
+
+**Endpoints** (prefixo `/portal/super-admin`, 20 rotas; `window` = `24h` | `7d` | `30d`, padrão `24h`):
+
+| Área | Método e caminho | Uso |
+|---|---|---|
+| Contas | `GET /tenants` | Lista com `q`, `status` (`ativa` \| `suspensa`) e paginação |
+| | `POST /tenants` | Cria conta, empresa, estabelecimento e admin numa transação; 201 com `temporaryPassword` (uma vez) |
+| | `GET /tenants/:tenantId` | Detalhe: empresas, admins (sem `colaborador_id`), `hasCompanyKey` |
+| | `PATCH /tenants/:tenantId` | Renomeia a conta |
+| | `POST /tenants/:tenantId/suspend` | Suspende com motivo |
+| | `POST /tenants/:tenantId/reactivate` | Reativa com motivo |
+| Auditoria | `GET /audit-logs` | Trilha com filtros e cursor (`tenantId`, `userId`, `entity`, `action`, `from`, `to`) |
+| | `GET /audit-logs/:id` | Evento com `before`/`after` redigidos |
+| Acessos | `GET /access/sessions` | Sessões ativas e expiradas (e-mail do usuário do portal e IP) |
+| | `GET /access/login-attempts` | Tentativas de login (sem e-mail) |
+| | `GET /access/flagged-ips` | IPs com falhas na janela; só sinaliza |
+| | `POST /access/sessions/:sessionId/revoke` | Derruba uma sessão (com motivo) |
+| | `POST /access/users/:userId/revoke-sessions` | Derruba todas as sessões de um usuário (com motivo) |
+| Reconhecimento | `GET /recognition/summary` | Agregado da janela (contagens, escores, histograma de vivacidade) |
+| | `GET /recognition/series` | Série por hora ou dia (`bucket`) |
+| | `GET /recognition/devices` | Agregado por aparelho |
+| Estatísticas | `GET /stats/overview` | Contas, colaboradores, aparelhos, batidas por dia, taxa processada, uso dos módulos, top contas |
+| | `GET /stats/tenants/:tenantId` | Mesmos números, para uma conta |
+| | `GET /stats/growth` | Série mensal (1 a 36 meses) |
+| Saúde | `GET /system-health` | Estado de api, bancos, Valkey, engine, coletor, rep-core e jobs (cache de 5 s) |
+
+**Regras:**
+- `from`/`to` são ISO com fuso, intervalo `[from, to)`, no máximo 90 dias (400 `VALIDATION_ERROR`).
+- Suspender exige motivo e grava `motivo_suspensao` e `suspensa_em`. Suspender conta já suspensa: 409 `TENANT_ALREADY_SUSPENDED`. Reativar conta ativa: 409 `TENANT_NOT_SUSPENDED`.
+- Suspender desativa a conta e derruba as sessões dela (trigger). Login e requisição de usuário de conta suspensa: 401 `ACCOUNT_SUSPENDED`, com a mensagem "Conta suspensa. Fale com o suporte do Genus."
+- **Suspensão bloqueia só o login no portal.** Os totens continuam registrando batidas **[A CONFIRMAR]**. A obrigação de registro (Portaria 671) pesa contra parar a coleta; suspender a coleta também precisa de parecer jurídico.
+- Criar conta: CNPJ com dígito verificador (400 `CNPJ_INVALIDO`); e-mail do admin já existente na plataforma (409 `EMAIL_IN_USE`); sem `MASTER_KEY` no ambiente (503 `MASTER_KEY_AUSENTE`). A DEK da empresa é criada e guardada cifrada pela `MASTER_KEY`.
+- Revogar sessão exige motivo e grava `session` + `exclusao`.
+- **Sinalização de IP:** `flagged` por `muitas_falhas` ou `muitas_contas` (contas distintas tentadas a partir do mesmo IP). Os limiares e a janela padrão são **[A CONFIRMAR]**. Sinalizar não bloqueia nenhum IP nem login.
+- Toda resposta é `strictObject`: nenhum CPF, nome de colaborador, batida individual, biometria, `_hash`, `_cifrado`, `email_hash`, token ou segredo. Única exceção: `temporaryPassword`, só na criação da conta.
+
+**Auditoria:** `tenant` + `criacao`/`alteracao` (suspender e reativar com motivo); `tenant_admin` + `criacao`; `session` + `exclusao` (com motivo); `super_admin` + `criacao`/`alteracao` no bootstrap (`tenantId` nulo). Toda escrita é auditada na mesma transação.
+- **Leituras entre contas** (`audit_log`, `access_log`, `recognition_stats`, `tenant_stats`) gravam `leitura_sensivel` por requisição, com os filtros em `dados_depois`. `entidade_id` é o `tenantId` filtrado, ou `0` quando a consulta é de todas as contas.
+
+**LGPD:**
+- **Reconhecimento só em agregado** (§1.4): contagens e escores de `arp.entradas`, sem linha de batida. `notRecognized`, `livenessFailed`, `latencyP50Ms` e `latencyP95Ms` saem sempre `null`, porque o arp não guarda tentativas falhas nem latência.
+- Nenhum dado de saúde (atestado, CID, texto de OCR) e nenhuma biometria aparece em tela ou endpoint do painel.
+- **Tentativas de login:** o e-mail entra só como HMAC-SHA256 (`email_hash`); IP e agente de usuário ficam para investigar abuso. Retenção de 90 dias **[A CONFIRMAR]**.
+- **Chave mestra:** a `MASTER_KEY` (KEK) passou a existir também no processo da api do RH, só para criar a DEK de uma empresa nova. Ela não é guardada nem logada (`security-lgpd.md` §2).
+- **Bootstrap do super_admin** por ambiente: `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_NAME`, `SUPER_ADMIN_PASSWORD_HASH` (scrypt do Better Auth, preferido em prod) ou `SUPER_ADMIN_PASSWORD` (só dev). Senha e hash nunca vão para log nem para auditoria.
+- Acesso excepcional do super_admin a dados de um cliente continua **fora** deste painel (§9, item 22). Este painel não abre dado de colaborador.
+
+**Variáveis de ambiente (`apps/api`):** `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_NAME`, `SUPER_ADMIN_PASSWORD_HASH` ou `SUPER_ADMIN_PASSWORD`, `MASTER_KEY` (64 hex), `VALKEY_URL` e `COLLECTOR_API_URL` (o último, usado pelo check `collector_api` do `GET /system-health`). Todas são opcionais no código; em produção, a api avisa em log quando faltam (`warn`).
+
+**Pendente, para a equipe do ponto (fora do escopo deste módulo):**
+- **Gravar as tentativas de reconhecimento** (não reconhecida, falha de vivacidade, latência e IP do aparelho). Hoje `arp.entradas` só tem as batidas aceitas. Sem isso, `notRecognized`, `livenessFailed`, `latencyP50Ms` e `latencyP95Ms` ficam `null`. É mudança no coletor e no `rep-core`.
+- **Índice `entradas (conta_id, marcado_em)`** para o painel de reconhecimento por período (a consulta filtra por conta e janela de tempo).
+
+**Pendente, deste módulo:** tela de acesso excepcional (§9, item 22); alerta ao super_admin quando um IP passar do limiar; exportação da trilha.
 
 ---
 

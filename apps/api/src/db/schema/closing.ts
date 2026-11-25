@@ -106,5 +106,6 @@ export const auditLogs = rh.table(
     ),
     index('idx_auditoria_entidade').on(t.entity, t.entityId, t.createdAt.desc()),
     index('idx_auditoria_conta').on(t.tenantId, t.createdAt.desc()),
+    index('idx_auditoria_usuario').on(t.userId, t.id.desc()),
   ],
 );

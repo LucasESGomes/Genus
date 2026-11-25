@@ -1,0 +1,15 @@
+$kind: http-request
+name: 2. Detalhe do evento
+description: "GET /portal/super-admin/audit-logs/:id. Traz `before` e `after` já redigidos (sem segredo, sem dado de saúde). Usa o `id` do primeiro evento de `1. Listar auditoria`."
+url: "{{portalUrl}}/portal/super-admin/audit-logs/{{auditLogId}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const d = pm.response.json().data;
+      pm.test('Mesmo evento pedido', () => pm.expect(String(d.id)).to.eql(pm.collectionVariables.get('auditLogId')));
+      pm.test('before e after são objeto ou null', () => ['before', 'after'].forEach((k) => pm.expect(d[k] === null || typeof d[k] === 'object').to.eql(true)));
+      pm.test('Ator e alvo do contrato', () => pm.expect(d).to.include.keys('entity', 'entityId', 'action', 'reason', 'userEmail'));
+    language: text/javascript
+order: 2000

@@ -1,0 +1,20 @@
+$kind: http-request
+name: 5. Suspender conta
+description: "POST /portal/super-admin/tenants/:tenantId/suspend com `{ reason }`. Grava `motivo_suspensao` e `suspensa_em`, desativa a conta e derruba as sessões dela. Os totens seguem registrando batidas [A CONFIRMAR]."
+url: "{{portalUrl}}/portal/super-admin/tenants/{{tenantId}}/suspend"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "reason": "Teste Postman: suspensão de rotina" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const d = pm.response.json().data;
+      pm.test('Conta suspensa com o motivo', () => pm.expect(d).to.include({ status: 'suspensa', suspensionReason: 'Teste Postman: suspensão de rotina' }));
+      pm.test('Data da suspensão preenchida', () => pm.expect(d.suspendedAt).to.be.a('string'));
+    language: text/javascript
+order: 5000

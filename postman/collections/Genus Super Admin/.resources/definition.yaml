@@ -1,0 +1,64 @@
+$kind: collection
+name: Genus - Super Admin (api do RH)
+description: |-
+  Painel da operação Genus: rotas `/portal/super-admin/*` da api do RH (`apps/api`). Contrato: `docs/prompts/super-admin-contrato.md`. Documentação: `docs/architecture/04-funcionalidades-rh.md`, seção Super Admin.
+
+  **MANUAL: esta coleção NÃO roda no `pnpm postman:test`** (ele só roda a coleção do coletor). O super_admin entra com 2FA (TOTP). Sem ele a sessão recebe `MFA_REQUIRED`, e o Postman não gera o código do app autenticador. Por isso o login não é automatizado: a sessão entra pelo portal e o JWT vai para a variável.
+
+  **Como usar**
+  1. Entre no portal (`/login`) como super_admin, com 2FA ativo. No mesmo navegador, abra `GET {{portalUrl}}/auth/token` e copie o JWT da resposta.
+  2. No environment, preencha `superAdminToken` (secret) com esse JWT. Preencha `clientToken` (secret) com um JWT de um usuário `rh` ou `admin` de qualquer conta: só serve para os testes 403.
+  3. Rode as pastas na ordem: `Tenants`, `Auditoria`, `Acessos`, `Reconhecimento`, `Estatísticas`, `Saúde`, `Negativos`. Os IDs criados ficam em variáveis da coleção.
+  4. **Não rode em prod.** Criar, suspender, reativar e revogar mexem em contas reais. Use homolog.
+  5. Os dados criados são fictícios: CNPJ com dígitos verificadores válidos, gerado a cada request, e e-mail `@example.com`.
+
+  **Testes comuns (em todo request):** corpo JSON; envelope `{ data }` em sucesso e `{ error, code }` em erro (`code` em UPPER_SNAKE); nenhuma chave com `cpf`, `hash`, `cifrad`, `token`, `secret`, `senha` ou `embedding`; tempo abaixo de `maxResponseMs`. A única exceção é `temporaryPassword`, que só sai na criação da conta.
+
+  Não cobertos aqui: `MFA_REQUIRED` (exige um super_admin sem 2FA, que a coleção não tem) e os exemplos salvos (`*.example.yaml`) do api-testing.md §8.
+variables:
+  portalUrl: http://localhost:3002
+  superAdminToken: ""
+  clientToken: ""
+  maxResponseMs: "2000"
+  tenantName: ""
+  tenantCnpj: ""
+  cnpjInvalido: ""
+  adminEmail: ""
+  tenantId: ""
+  adminUserId: ""
+  auditLogId: ""
+  sessionId: ""
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{superAdminToken}}"
+scripts:
+  - type: http:afterResponse
+    code: |-
+      const maxMs = Number(pm.collectionVariables.get('maxResponseMs')) || 2000;
+      let corpo = null;
+      pm.test('Corpo é JSON', () => { corpo = pm.response.json(); });
+      pm.test('Envelope: { data } em sucesso; { error, code } em erro', () => {
+        if (pm.response.code < 400) pm.expect(corpo).to.have.property('data');
+        else {
+          pm.expect(corpo.error).to.be.a('string');
+          pm.expect(corpo.code).to.match(/^[A-Z][A-Z0-9_]*$/);
+        }
+      });
+      const SENSIVEL = /cpf|hash|cifrad|token|secret|senha|embedding/i;
+      const chaves = [];
+      const coletar = (v) => {
+        if (Array.isArray(v)) v.forEach(coletar);
+        else if (v && typeof v === 'object') {
+          Object.keys(v).forEach((k) => {
+            if (k !== 'temporaryPassword') chaves.push(k);
+            coletar(v[k]);
+          });
+        }
+      };
+      coletar(corpo);
+      pm.test('Nenhuma chave sensível na resposta', () => pm.expect(chaves.filter((k) => SENSIVEL.test(k))).to.be.empty);
+      pm.test('Tempo de resposta abaixo de ' + maxMs + ' ms', () => pm.expect(pm.response.responseTime).to.be.below(maxMs));
+    language: text/javascript
+order: 6000

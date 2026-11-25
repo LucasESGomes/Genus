@@ -1,0 +1,4 @@
+$kind: collection
+description: |-
+  Trilha de auditoria da plataforma. Listar e abrir um evento são leituras entre contas: cada chamada grava `leitura_sensivel` (com os filtros em `dados_depois`). Eventos aparecem com `before`/`after` redigidos.
+order: 2000

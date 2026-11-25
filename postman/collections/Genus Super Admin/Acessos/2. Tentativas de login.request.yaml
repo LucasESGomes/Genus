@@ -1,0 +1,22 @@
+$kind: http-request
+name: 2. Tentativas de login
+description: "GET /portal/super-admin/access/login-attempts. Filtros: `ip`, `tenantId`, `success`, `from`/`to`, `cursor`, `limit`. Nunca traz e-mail nem `email_hash`: só usuário, IP, agente e motivo. `step`: senha | totp. `failureReason` é `null` em sucesso."
+url: "{{portalUrl}}/portal/super-admin/access/login-attempts?success=false&limit=20"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const b = pm.response.json();
+      pm.test('Meta com cursor', () => pm.expect(b.meta).to.include.keys('nextCursor', 'limit'));
+      const CAMPOS = ['id', 'tenantId', 'userId', 'ipAddress', 'userAgent', 'step', 'success', 'failureReason', 'createdAt'];
+      b.data.forEach((t) => {
+        pm.test('Tentativa só com campos do contrato (sem e-mail)', () => pm.expect(Object.keys(t).sort()).to.eql(CAMPOS.slice().sort()));
+        pm.test('Falha tem step e motivo válidos', () => {
+          pm.expect(t.success).to.eql(false);
+          pm.expect(t.step).to.be.oneOf(['senha', 'totp']);
+          pm.expect(t.failureReason).to.be.oneOf(['credencial_invalida', 'usuario_inativo', 'conta_suspensa', 'totp_invalido']);
+        });
+      });
+    language: text/javascript
+order: 2000

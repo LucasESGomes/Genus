@@ -1,0 +1,16 @@
+$kind: http-request
+name: 4. Cliente lê auditoria (403)
+description: "Token de `rh` ou `admin` em GET /audit-logs: 403. A trilha da plataforma não sai para o cliente por esta rota."
+url: "{{portalUrl}}/portal/super-admin/audit-logs?limit=5"
+method: GET
+headers:
+  Authorization: "Bearer {{clientToken}}"
+auth:
+  type: noauth
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 403', () => pm.response.to.have.status(403));
+      pm.test('Código FORBIDDEN', () => pm.expect(pm.response.json().code).to.eql('FORBIDDEN'));
+    language: text/javascript
+order: 4000

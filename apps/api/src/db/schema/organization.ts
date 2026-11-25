@@ -19,12 +19,27 @@ import { bytea, citext, id, ref, rh, tenantId } from './rh';
 
 // Conta (tenant) do SaaS: conta → empresa → estabelecimento → colaborador (04 §G1).
 // É o mesmo `conta_id` que o banco arp grava em cada batida.
-export const tenants = rh.table('contas', {
-  id: id(),
-  name: text('nome').notNull(),
-  isActive: boolean('ativo').notNull().default(true),
-  createdAt: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
-});
+// Suspensão (painel do super_admin): `ativo = false` + motivo. Sem delete físico nem coluna de exclusão.
+export const tenants = rh.table(
+  'contas',
+  {
+    id: id(),
+    name: text('nome').notNull(),
+    isActive: boolean('ativo').notNull().default(true),
+    suspensionReason: text('motivo_suspensao'),
+    suspendedAt: timestamp('suspensa_em', { withTimezone: true }),
+    // FK para usuarios(id) na migration 0015 (SQL manual): declarar aqui cria um ciclo de tipos contas ↔ usuarios.
+    suspendedById: ref('suspensa_por_id'),
+    createdAt: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('atualizado_em', { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [
+    check(
+      'conta_suspensao_coerente',
+      sql`ativo = (suspensa_em IS NULL) AND (ativo OR motivo_suspensao IS NOT NULL)`,
+    ),
+  ],
+);
 
 export const companies = rh.table(
   'empresas',

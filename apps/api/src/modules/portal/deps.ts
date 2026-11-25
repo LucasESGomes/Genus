@@ -8,6 +8,7 @@ import type { PinPepper } from '../employees/pin';
 import type { CertificateAiRegistry } from '../certificate-analysis/ai/registry';
 import type { HealthDataCipher } from '../certificate-analysis/health-crypto';
 import type { FacialEngineClient } from '../facial/engine-client';
+import type { SuperAdminDeps } from '../super-admin/deps';
 
 export interface PortalDeps {
   db: Database;
@@ -27,4 +28,6 @@ export interface PortalDeps {
   maxAttachmentBytes: number;
   /** Análise de atestado (G6): provedores de IA (mock sem configuração) e cifra do dado de saúde (null = sem chave). */
   certificateAi: { registry: CertificateAiRegistry; healthCipher: HealthDataCipher | null };
+  /** Painel do super_admin (/portal/super-admin). Ausente = rotas não registradas. */
+  superAdmin?: SuperAdminDeps;
 }

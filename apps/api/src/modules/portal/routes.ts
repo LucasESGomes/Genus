@@ -10,6 +10,7 @@ import { employeePortalRoutes } from '../employee-portal/routes';
 import { employeeRoutes } from '../employees/routes';
 import { facialRoutes } from '../facial/routes';
 import { scheduleRoutes } from '../schedules/routes';
+import { superAdminRoutes } from '../super-admin/routes';
 import { totemRoutes } from '../totem/routes';
 import { vacationRoutes } from '../vacations/routes';
 import { timesheetRoutes } from '../timesheets/routes';
@@ -29,4 +30,6 @@ export const portalRoutes: FastifyPluginAsyncZod<PortalDeps> = async (app, deps)
   await app.register(facialRoutes, deps);
   await app.register(deviceRoutes, deps);
   await app.register(totemRoutes, deps);
+  // Escopo próprio: a guarda super_admin (onRequest) vale só aqui dentro.
+  if (deps.superAdmin) await app.register(superAdminRoutes, { ...deps.superAdmin, prefix: '/super-admin' });
 };

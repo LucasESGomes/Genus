@@ -14,7 +14,7 @@ import { and, eq, gt } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { Database } from '../db/client';
-import { sessions, userEstablishments, users } from '../db/schema';
+import { sessions, tenants, userEstablishments, users } from '../db/schema';
 import type { Auth } from '../modules/auth/auth';
 import { HttpError } from './error-handler';
 
@@ -44,6 +44,8 @@ declare module 'fastify' {
     authorize: (...roles: Role[]) => preHandlerAsyncHookHandler;
   }
 }
+
+export const ACCOUNT_SUSPENDED_MESSAGE = 'Conta suspensa. Fale com o suporte do Genus.';
 
 const unauthorized = () => new HttpError(401, 'UNAUTHORIZED', 'Faça login para continuar');
 
@@ -84,16 +86,26 @@ async function buildContext(req: FastifyRequest, o: RequestContextOptions): Prom
   if (!session) throw unauthorized();
 
   const [user] = await o.db
-    .select({ tenantId: users.tenantId, employeeId: users.employeeId, role: users.role, isActive: users.isActive, mfaEnabled: users.mfaEnabled })
+    .select({
+      tenantId: users.tenantId,
+      employeeId: users.employeeId,
+      role: users.role,
+      isActive: users.isActive,
+      mfaEnabled: users.mfaEnabled,
+      tenantIsActive: tenants.isActive,
+    })
     .from(users)
+    .leftJoin(tenants, eq(tenants.id, users.tenantId))
     .where(eq(users.id, session.userId))
     .limit(1);
   if (!user?.isActive) throw unauthorized();
+  // Conta suspensa pelo super_admin: nada abre (o trigger da 0015 também derruba as sessões).
+  if (user.tenantId !== null && user.tenantIsActive === false) throw new HttpError(401, 'ACCOUNT_SUSPENDED', ACCOUNT_SUSPENDED_MESSAGE);
   const role = user.role as Role;
 
   // super_admin só opera com 2FA ativo; sem ele, a sessão serve apenas para ativá-lo (/auth/two-factor/*).
   if (role === 'super_admin' && !user.mfaEnabled) {
-    throw new HttpError(403, 'FORBIDDEN', 'Ative a verificação em duas etapas para continuar');
+    throw new HttpError(403, 'MFA_REQUIRED', 'Ative a verificação em duas etapas para continuar');
   }
 
   let establishmentScope: number[] | null = null;
