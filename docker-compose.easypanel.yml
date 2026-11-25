@@ -1,0 +1,320 @@
+# Genus em produção no Easypanel (serviço do tipo Compose, origem Git, este arquivo).
+# Sem portas publicadas no host nem container_name: o proxy do Easypanel roteia por domínio
+# (portal → porta 3000; collector-api → porta 3001). Banco, Valkey, engine, rep-core, jobs e api do RH ficam internos.
+# Variáveis: todas vêm do .env do serviço no Easypanel (ver .env.example). Nenhum segredo entra no Git.
+name: genus
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+x-node-build: &node-build
+  context: .
+  dockerfile: docker/node.Dockerfile
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "effective_cache_size=640MB", "-c", "work_mem=8MB", "-c", "maintenance_work_mem=64MB", "-c", "max_connections=100", "-c", "wal_compression=on", "-c", "log_min_duration_statement=500", "-c", "log_lock_waits=on"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    mem_limit: 1g
+    shm_size: 256m
+    stop_grace_period: 60s
+    init: true
+    logging: *logging
+
+  db-roles:
+    image: postgres:17.6-alpine
+    entrypoint: ["bash", "/bootstrap.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      ARP_OWNER_PASSWORD: ${ARP_OWNER_PASSWORD:?}
+      ARP_COLLECTOR_PASSWORD: ${ARP_COLLECTOR_PASSWORD:?}
+      ARP_CORE_PASSWORD: ${ARP_CORE_PASSWORD:?}
+      ARP_READER_PASSWORD: ${ARP_READER_PASSWORD:?}
+      RH_OWNER_PASSWORD: ${RH_OWNER_PASSWORD:?}
+      RH_API_PASSWORD: ${RH_API_PASSWORD:?}
+      COLETOR_LEITURA_PASSWORD: ${COLETOR_LEITURA_PASSWORD:?}
+    volumes:
+      - ./db/postgres/bootstrap.sh:/bootstrap.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    mem_limit: 64m
+    logging: *logging
+
+  arp-migrate:
+    build:
+      <<: *node-build
+      args: { PKG: "@genus/db-arp", DIR: db/arp }
+    image: genus-db-arp
+    command: ["node_modules/.bin/tsx", "src/cli.ts"]
+    environment:
+      APP_ENV: prod
+      ARP_MIGRATION_DATABASE_URL: postgres://arp_owner:${ARP_OWNER_PASSWORD}@postgres:5432/arp
+    depends_on:
+      db-roles:
+        condition: service_completed_successfully
+    restart: "no"
+    mem_limit: 192m
+    logging: *logging
+
+  rh-migrate:
+    build:
+      <<: *node-build
+      args: { PKG: "@genus/api", DIR: apps/api }
+    image: genus-api
+    command: ["node_modules/.bin/tsx", "src/db/migrate.ts"]
+    environment:
+      RH_MIGRATION_DATABASE_URL: postgres://rh_owner:${RH_OWNER_PASSWORD}@postgres:5432/app
+    depends_on:
+      db-roles:
+        condition: service_completed_successfully
+    restart: "no"
+    mem_limit: 192m
+    logging: *logging
+
+  valkey:
+    image: valkey/valkey:9.2.0-alpine
+    restart: unless-stopped
+    environment:
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD:?}
+    command: sh -c 'umask 077 && printf "requirepass %s\n" "$$VALKEY_PASSWORD" > /tmp/valkey.conf && exec valkey-server /tmp/valkey.conf --appendonly yes --appendfsync everysec --maxmemory 192mb --maxmemory-policy noeviction'
+    volumes:
+      - valkey-dados:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$VALKEY_PASSWORD\" valkey-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    mem_limit: 256m
+    init: true
+    logging: *logging
+
+  face-engine:
+    build: ./services/face-engine
+    image: genus-face-engine
+    restart: unless-stopped
+    environment:
+      MASTER_KEY: ${MASTER_KEY:?}
+      ENGINE_API_KEY: ${ENGINE_API_KEY:?}
+      BENCH_ENDPOINTS: "false"
+      SAVE_AUDIT_FRAMES: "false"
+      ENGINE_THREAD_POOL_SIZE: "1"
+      ONNX_INTRA_OP_THREADS: "1"
+      CV2_NUM_THREADS: "1"
+    volumes:
+      - engine-models:/app/models
+      - insightface:/root/.insightface
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,sys,urllib.request; sys.exit(0 if json.load(urllib.request.urlopen('http://127.0.0.1:8001/health')).get('status')=='ok' else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
+    cpus: ${ENGINE_CPUS:-1.0}
+    mem_limit: ${ENGINE_MEM_LIMIT:-2g}
+    init: true
+    stop_grace_period: 20s
+    logging: *logging
+
+  rep-core:
+    build:
+      <<: *node-build
+      args: { PKG: "@genus/rep-core", DIR: apps/rep-core }
+    image: genus-rep-core
+    command: ["node_modules/.bin/tsx", "src/main.ts"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: prod
+      LOG_LEVEL: info
+      ARP_CORE_DATABASE_URL: postgres://arp_core:${ARP_CORE_PASSWORD}@postgres:5432/arp
+      VALKEY_URL: redis://valkey:6379
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+      QUEUE_ATTEMPTS: ${QUEUE_ATTEMPTS:-5}
+      HEARTBEAT_FILE: /tmp/heartbeat
+    depends_on:
+      arp-migrate: { condition: service_completed_successfully }
+      valkey: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "const t=Number(require('fs').readFileSync('/tmp/heartbeat','utf8'));process.exit(Date.now()-t<20000?0:1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 384m
+    read_only: true
+    tmpfs: ["/tmp"]
+    init: true
+    stop_grace_period: 30s
+    logging: *logging
+
+  jobs:
+    build:
+      <<: *node-build
+      args: { PKG: "@genus/jobs", DIR: apps/jobs }
+    image: genus-jobs
+    command: ["node_modules/.bin/tsx", "src/main.ts"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: prod
+      LOG_LEVEL: info
+      ARP_READER_DATABASE_URL: postgres://arp_reader:${ARP_READER_PASSWORD}@postgres:5432/arp
+      VALKEY_URL: redis://valkey:6379
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD}
+      RESCUE_INTERVAL_MS: ${RESCUE_INTERVAL_MS:-20000}
+      RESCUE_MIN_AGE_MS: ${RESCUE_MIN_AGE_MS:-30000}
+      QUEUE_ATTEMPTS: ${QUEUE_ATTEMPTS:-5}
+      HEARTBEAT_FILE: /tmp/heartbeat
+    depends_on:
+      arp-migrate: { condition: service_completed_successfully }
+      valkey: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "const t=Number(require('fs').readFileSync('/tmp/heartbeat','utf8'));process.exit(Date.now()-t<20000?0:1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 192m
+    read_only: true
+    tmpfs: ["/tmp"]
+    init: true
+    stop_grace_period: 15s
+    logging: *logging
+
+  collector-api:
+    build:
+      <<: *node-build
+      args: { PKG: "@genus/collector-api", DIR: apps/collector-api }
+    image: genus-collector-api
+    command: ["node_modules/.bin/tsx", "src/server.ts"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: prod
+      PORT: "3001"
+      LOG_LEVEL: info
+      ARP_DATABASE_URL: postgres://arp_collector:${ARP_COLLECTOR_PASSWORD}@postgres:5432/arp
+      APP_READONLY_DATABASE_URL: postgres://genus_coletor_leitura:${COLETOR_LEITURA_PASSWORD}@postgres:5432/app
+      VALKEY_URL: redis://valkey:6379
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD}
+      ENGINE_URL: http://face-engine:8001
+      ENGINE_API_KEY: ${ENGINE_API_KEY}
+      MASTER_KEY: ${MASTER_KEY}
+      ENGINE_TIMEOUT_MS: ${ENGINE_TIMEOUT_MS:-800}
+      ENGINE_MAX_CONCURRENCY: ${ENGINE_MAX_CONCURRENCY:-4}
+      COLLECTOR_SERVICE_KEYS: ${COLLECTOR_SERVICE_KEYS:?}
+      QUEUE_PUBLISH_TIMEOUT_MS: ${QUEUE_PUBLISH_TIMEOUT_MS:-250}
+      QUEUE_ATTEMPTS: ${QUEUE_ATTEMPTS:-5}
+      FAKE_CANDIDATES_ENABLED: "false"
+      EXPOSE_TIMINGS: "false"
+    expose: ["3001"]
+    depends_on:
+      arp-migrate: { condition: service_completed_successfully }
+      rh-migrate: { condition: service_completed_successfully }
+      valkey: { condition: service_healthy }
+      face-engine: { condition: service_healthy }
+      rep-core: { condition: service_started }
+      jobs: { condition: service_started }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 384m
+    read_only: true
+    tmpfs: ["/tmp"]
+    init: true
+    stop_grace_period: 15s
+    logging: *logging
+
+  api:
+    build:
+      <<: *node-build
+      args: { PKG: "@genus/api", DIR: apps/api }
+    image: genus-api
+    command: ["node_modules/.bin/tsx", "src/server.ts"]
+    restart: unless-stopped
+    environment:
+      APP_ENV: prod
+      PORT: "3002"
+      LOG_LEVEL: info
+      RH_DATABASE_URL: postgres://rh_api:${RH_API_PASSWORD}@postgres:5432/app
+      # O portal repassa /portal e /auth na mesma origem: ambos apontam para a URL pública do portal.
+      CORS_ORIGINS: ${PORTAL_PUBLIC_URL:?}
+      AUTH_BASE_URL: ${PORTAL_PUBLIC_URL:?}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+      ARP_READER_DATABASE_URL: postgres://arp_reader:${ARP_READER_PASSWORD}@postgres:5432/arp
+      PIN_PEPPER: ${PIN_PEPPER:?}
+      PIN_PEPPER_VERSION: "1"
+      ENGINE_URL: http://face-engine:8001
+      ENGINE_API_KEY: ${ENGINE_API_KEY}
+      ATTACHMENTS_DIR: /repo/apps/api/data/anexos
+      MAX_ATTACHMENT_BYTES: ${MAX_ATTACHMENT_BYTES:-10485760}
+      PORTAL_GESTOR_ENABLED: "false"
+      CERTIFICATE_AI_PROVIDER: ${CERTIFICATE_AI_PROVIDER:-}
+      CERTIFICATE_AI_MODEL: ${CERTIFICATE_AI_MODEL:-}
+      CERTIFICATE_AI_ANTHROPIC_API_KEY: ${CERTIFICATE_AI_ANTHROPIC_API_KEY:-}
+      CERTIFICATE_AI_OPENAI_API_KEY: ${CERTIFICATE_AI_OPENAI_API_KEY:-}
+      CERTIFICATE_AI_OPENAI_BASE_URL: ${CERTIFICATE_AI_OPENAI_BASE_URL:-}
+      CERTIFICATE_AI_TIMEOUT_MS: ${CERTIFICATE_AI_TIMEOUT_MS:-20000}
+      CERTIFICATE_DATA_KEY: ${CERTIFICATE_DATA_KEY:?}
+    depends_on:
+      rh-migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - rh-anexos:/repo/apps/api/data
+    mem_limit: 384m
+    read_only: true
+    tmpfs: ["/tmp"]
+    init: true
+    stop_grace_period: 15s
+    logging: *logging
+
+  portal:
+    build:
+      context: .
+      dockerfile: apps/portal/Dockerfile
+      args:
+        NEXT_PUBLIC_USE_MOCKS: "false"
+        API_URL: http://api:3002
+        COLLECTOR_URL: http://collector-api:3001
+    image: genus-portal
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:3002
+      COLLECTOR_URL: http://collector-api:3001
+    expose: ["3000"]
+    depends_on:
+      - api
+      - collector-api
+    mem_limit: 256m
+    logging: *logging
+
+volumes:
+  pgdata:
+  valkey-dados:
+  engine-models:
+  insightface:
+  rh-anexos:
