@@ -15,11 +15,11 @@ import { useApiQuery } from '@/lib/query/hooks';
 import { useSession } from '@/lib/session';
 import { ALERT_ROUTE, COPY } from './copy';
 import { FeaturedKpiCard } from './FeaturedKpiCard';
+import { HoursChart, IssuesChart, StatusBreakdown, TopOvertime } from './OverviewCharts';
 
 /**
- * Visão geral do RH: KPIs e alertas vêm prontos da api. O front não recalcula nada.
- * O período (URL `from`/`to`) entra na chave de cache e a tela busca de novo ao mudar.
- * [MOCK] GET /portal/overview ainda ignora o período; quando o back existir, ele passa a filtrar.
+ * Visão geral do RH (G11): KPIs, gráficos e alertas vêm prontos da api (GET /portal/overview).
+ * O período (URL `from`/`to`) vai para a api e entra na chave de cache. Empresa nova: estado vazio.
  */
 export function OverviewContent() {
   const { me, establishment } = useSession();
@@ -29,7 +29,7 @@ export function OverviewContent() {
   const q = useApiQuery(
     'overview',
     { establishmentId: establishment.id, from: period.from, to: period.to },
-    (api, signal) => api.overview.get(establishment.id, signal),
+    (api, signal) => api.overview.get(establishment.id, { from: period.from, to: period.to }, signal),
     { enabled: allowed },
   );
 
@@ -57,11 +57,26 @@ export function OverviewContent() {
     );
   }
 
-  const { kpis, alerts } = q.data;
-  if (kpis.length === 0 && alerts.length === 0) {
+  const { kpis, alerts, series, statusBreakdown, topOvertime, calculatedDays } = q.data;
+  const alertsCard = (
+    <Card as="section" className="flex min-w-0 flex-col gap-3 p-6">
+      <div className="flex items-center justify-between">
+        <h2 className="m-0 text-md font-bold tracking-[-0.01em]">{COPY.alertsTitle}</h2>
+        <span className="text-xs font-semibold text-muted tabular-nums">{alerts.length} {alerts.length === 1 ? 'aberto' : 'abertos'}</span>
+      </div>
+      {alerts.length === 0 && <p className="m-0 text-sm text-muted">{COPY.alertsNone}</p>}
+      {alerts.map((a) => <AlertCard key={a.id} alert={a} onAction={() => router.push(ALERT_ROUTE[a.target])} />)}
+    </Card>
+  );
+  if (calculatedDays === 0) {
     return (
       <PageHeader {...header}>
-        <EmptyState icon={ChartLine} title="Ainda não há dados neste período" text={`Nenhuma marcação foi apurada em ${establishment.name} no período escolhido.`} />
+        <EmptyState
+          icon={ChartLine}
+          title={COPY.emptyTitle}
+          text={`Os gráficos aparecem quando houver colaboradores com escala e marcações apuradas em ${establishment.name}. Cadastre setores, cargos, colaboradores e escalas para começar.`}
+        />
+        {alerts.length > 0 && alertsCard}
       </PageHeader>
     );
   }
@@ -70,25 +85,14 @@ export function OverviewContent() {
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(190px,1fr))]">
         {kpis.map((k) => (k.key === 'workedHours' ? <FeaturedKpiCard key={k.key} kpi={k} /> : <KpiCard key={k.key} kpi={k} />))}
       </div>
-      <div className="flex flex-wrap items-stretch gap-4">
-        <Card as="section" className="flex min-w-0 flex-[2_1_560px] flex-col gap-3 p-6">
-          <div>
-            <h2 className="m-0 text-md font-bold tracking-[-0.01em]">{COPY.chartTitle}</h2>
-            <p className="m-0 text-xs text-muted">{COPY.chartHint}</p>
-          </div>
-          <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line-strong bg-surface px-4 py-10 text-center">
-            <ChartLine size={28} className="text-muted" aria-hidden />
-            <p className="m-0 font-semibold">{COPY.chartUnavailable}</p>
-            <p className="m-0 max-w-[420px] text-sm text-muted text-pretty">{COPY.chartUnavailableText}</p>
-          </div>
-        </Card>
-        <Card as="section" className="flex min-w-0 flex-[1_1_320px] flex-col gap-3 p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="m-0 text-md font-bold tracking-[-0.01em]">{COPY.alertsTitle}</h2>
-            <span className="text-xs font-semibold text-muted tabular-nums">{alerts.length} {alerts.length === 1 ? 'aberto' : 'abertos'}</span>
-          </div>
-          {alerts.map((a) => <AlertCard key={a.id} alert={a} onAction={() => router.push(ALERT_ROUTE[a.target])} />)}
-        </Card>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <HoursChart series={series} />
+        {alertsCard}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+        <IssuesChart series={series} />
+        <StatusBreakdown breakdown={statusBreakdown} />
+        <TopOvertime top={topOvertime} />
       </div>
     </PageHeader>
   );

@@ -56,6 +56,12 @@ let own: (Holiday & { establishmentId: EntityId })[] = [];
 const rules = new Map<string, { isWorked: boolean; treatment: Holiday['treatment'] }>();
 let seq = 1;
 
+function withoutEstablishment(h: Holiday & { establishmentId: EntityId }): Holiday {
+  const out: Holiday & { establishmentId?: EntityId } = { ...h };
+  delete out.establishmentId;
+  return out;
+}
+
 function catalog(establishmentId: EntityId, year: number): Holiday[] {
   const list: Holiday[] = NATIONAL.map((h, i) => base({ id: `h${year}-${i + 1}`, date: `${year}-${h.md}`, name: h.name }));
   if (establishmentId === RIO_VERDE_ESTABLISHMENT_ID) {
@@ -63,7 +69,7 @@ function catalog(establishmentId: EntityId, year: number): Holiday[] {
     list.push(base({ id: `h${year}-m1`, date: `${year}-08-05`, name: 'Aniversário de Rio Verde', scope: 'municipal', uf: 'GO', municipalityIbge: '5218805' }));
   }
   const mine = own.filter((h) => h.date.startsWith(String(year)) && (h.scope === 'nacional' || h.establishmentId === establishmentId));
-  return [...list, ...mine.map(({ establishmentId: _e, ...h }) => h)]
+  return [...list, ...mine.map(withoutEstablishment)]
     .map((h) => ({ ...h, ...(rules.get(`${establishmentId}:${h.id}`) ?? {}) }))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -86,16 +92,14 @@ export const mockAdminApi: AdminApi = {
     if (own.some((h) => h.date === body.date && h.scope === body.scope)) throw mockFail(409, 'CONFLICT', 'Já existe esse feriado nessa data');
     const h = { ...base({ id: `own${seq++}`, date: body.date, name: body.name, scope: body.scope, isOptional: body.isOptional ?? false, isOwn: true }), establishmentId: body.establishmentId };
     own = [...own, h];
-    const { establishmentId: _e, ...out } = h;
-    return clone(out);
+    return clone(withoutEstablishment(h));
   },
   updateHoliday: async (id, body) => {
     await delay();
     const h = own.find((x) => x.id === id);
     if (!h) throw mockNotFound();
     Object.assign(h, body);
-    const { establishmentId: _e, ...out } = h;
-    return clone(out);
+    return clone(withoutEstablishment(h));
   },
   deleteHoliday: async (id) => {
     await delay();

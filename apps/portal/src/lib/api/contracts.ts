@@ -1023,9 +1023,9 @@ export interface Establishment {
   isActive: boolean;
 }
 
-/** [MOCK] GET /portal/overview?establishmentId=: não existe no back. Valores já calculados pela api. */
+/** GET /portal/overview?establishmentId&from&to: valores já calculados e formatados pela api. */
 export interface OverviewKpi {
-  key: 'workedHours' | 'overtimeHours' | 'absences' | 'pendingCertificates' | 'activeVacations';
+  key: 'workedHours' | 'overtimeHours' | 'absences' | 'pendingAdjustments' | 'pendingCertificates' | 'activeVacations' | 'timeBankBalance';
   label: string;
   value: string;
   unit: string;
@@ -1035,18 +1035,37 @@ export interface OverviewKpi {
   comparison: string;
 }
 
+export type OverviewAlertTarget = 'apuracao' | 'escalas' | 'colaboradores' | 'ajustes' | 'atestados' | 'banco-horas';
+
 export interface OverviewAlert {
   id: string;
   severity: 'alerta' | 'sinal';
   title: string;
   text: string;
   cta: string;
-  target: 'apuracao' | 'escalas';
+  target: OverviewAlertTarget;
 }
 
-/** [MOCK] GET /portal/overview?establishmentId=: não existe no back. */
+/** Um dia do período, somado para o escopo da sessão. */
+export interface OverviewSeriesPoint {
+  /** AAAA-MM-DD */
+  date: string;
+  workedMinutes: number;
+  overtimeMinutes: number;
+  absences: number;
+  inconsistent: number;
+}
+
 export interface Overview {
+  period: { from: string; to: string };
+  previousPeriod: { from: string; to: string };
+  activeEmployees: number;
+  /** Zero = nenhum dia apurado no período: a tela mostra o estado vazio. */
+  calculatedDays: number;
   kpis: OverviewKpi[];
+  series: OverviewSeriesPoint[];
+  statusBreakdown: { calculada: number; inconsistente: number; falta: number };
+  topOvertime: { employeeId: EntityId; name: string; overtimeMinutes: number }[];
   alerts: OverviewAlert[];
 }
 
