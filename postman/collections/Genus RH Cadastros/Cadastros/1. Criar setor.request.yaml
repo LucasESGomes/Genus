@@ -1,0 +1,18 @@
+$kind: http-request
+name: 1. Criar setor
+description: "Setor do estabelecimento. rh e admin."
+url: "{{portalUrl}}/portal/departments"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "establishmentId": {{establishmentId}}, "name": "Setor Postman {{$timestamp}}", "maxSimultaneousVacations": 2 }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+      pm.collectionVariables.set('departmentId', pm.response.json().data.id);
+    language: text/javascript
+order: 1000

@@ -34,6 +34,8 @@ export const schedules = rh.table(
     /** Âncora do ciclo. */
     referenceDate: date('data_referencia'),
     weeklyMinutes: integer('carga_semanal_min').notNull(),
+    /** Inativa não recebe vínculo novo; os vínculos e a apuração antigos continuam apontando para ela. */
+    isActive: boolean('eh_ativo').notNull().default(true),
   },
   (t) => [
     foreignKey({

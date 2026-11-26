@@ -1,0 +1,17 @@
+$kind: http-request
+name: 3. Alterar feriado da conta
+description: "Só os da conta; os oficiais respondem 404."
+url: "{{portalUrl}}/portal/holidays/{{ownHolidayId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "name": "Feriado municipal (alterado)" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('200 ou 404', () => pm.expect([200, 404]).to.include(pm.response.code));
+    language: text/javascript
+order: 3000

@@ -38,6 +38,10 @@ const RULES = {
   'employee.viewSalary': ['rh', 'admin'],
   'assignment.view': ['rh', 'admin'],
   'assignment.edit': ['rh'],
+  /** Setores, cargos e centros de custo (org-units/routes.ts). */
+  'org.manage': ['rh', 'admin'],
+  /** Feriados da conta e regra de feriado trabalhado (holidays/routes.ts). */
+  'holiday.manage': ['rh', 'admin'],
 
   // Escalas (schedules/routes.ts)
   'schedule.view': ['rh', 'admin'],

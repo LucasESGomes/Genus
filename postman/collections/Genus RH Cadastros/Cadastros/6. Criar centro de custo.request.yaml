@@ -1,0 +1,17 @@
+$kind: http-request
+name: 6. Criar centro de custo
+description: "Centro de custo da empresa."
+url: "{{portalUrl}}/portal/cost-centers"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "establishmentId": {{establishmentId}}, "code": "PM{{$timestamp}}", "name": "Centro Postman" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+    language: text/javascript
+order: 6000

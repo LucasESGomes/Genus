@@ -9,8 +9,10 @@
 import type { AuthApi } from '../endpoints/auth';
 import type { OrgApi } from '../endpoints/org';
 import type { OverviewApi } from '../endpoints/overview';
-import type { Establishment, Me, OrgUnit, Overview, Role } from '../contracts';
+import type { CostCenter, Department, Establishment, JobTitle, Me, OrgUnit, Overview, Role } from '../contracts';
 import { clone, delay, mockFail } from './runtime';
+import { addCivilDays } from '../../format';
+import { MOCK_TODAY } from './employee-portal';
 
 export { useMocks } from './runtime';
 
@@ -93,8 +95,16 @@ export const JOB_TITLES = ['Operador de colhedora', 'Ordenhadora', 'Trabalhador 
 const units = (names: string[], establishmentId: string, base: number): OrgUnit[] =>
   names.map((name, i) => ({ id: String(base + i), establishmentId, name }));
 
-export const mockDepartments = (establishmentId: string) => units(DEPARTMENTS, establishmentId, 10);
-export const mockJobTitles = (establishmentId: string) => units(JOB_TITLES, establishmentId, 30);
+export const mockDepartments = (establishmentId: string): Department[] =>
+  units(DEPARTMENTS, establishmentId, 10).map((u) => ({ ...u, establishmentId, maxSimultaneousVacations: 2 }));
+export const mockJobTitles = (establishmentId: string): JobTitle[] =>
+  units(JOB_TITLES, establishmentId, 30).map(({ id, name }) => ({ id, name, companyId: '1', cbo: null }));
+
+/** Itens criados no modo mock (somem ao recarregar). */
+const created = { departments: [] as Department[], jobTitles: [] as JobTitle[], costCenters: [] as CostCenter[] };
+let nextMockId = 900;
+const mockCostCenters = (): CostCenter[] =>
+  [['CC 100', 'Campo'], ['CC 200', 'Oficina'], ['CC 300', 'Escritório']].map(([code, name], i) => ({ id: String(50 + i), companyId: '1', code: code!, name: name! }));
 
 export const mockOrgApi: OrgApi = {
   establishments: async () => {
@@ -103,31 +113,97 @@ export const mockOrgApi: OrgApi = {
   },
   departments: async (establishmentId) => {
     await delay();
-    return mockDepartments(establishmentId);
+    return [...mockDepartments(establishmentId), ...created.departments.filter((d) => d.establishmentId === establishmentId)];
+  },
+  createDepartment: async (body) => {
+    await delay();
+    const d: Department = { id: String(nextMockId++), establishmentId: body.establishmentId, name: body.name, maxSimultaneousVacations: body.maxSimultaneousVacations ?? 1 };
+    created.departments.push(d);
+    return clone(d);
+  },
+  updateDepartment: async (id, body) => {
+    await delay();
+    const d = created.departments.find((x) => x.id === id) ?? { ...mockDepartments('1').find((x) => x.id === id)!, establishmentId: '1' };
+    Object.assign(d, body);
+    return clone(d);
   },
   jobTitles: async (establishmentId) => {
     await delay();
-    return mockJobTitles(establishmentId);
+    return [...mockJobTitles(establishmentId), ...created.jobTitles];
   },
-  costCenters: async (establishmentId) => {
+  createJobTitle: async (body) => {
     await delay();
-    return units(['CC 100 · Campo', 'CC 200 · Oficina', 'CC 300 · Escritório'], establishmentId, 50);
+    const j: JobTitle = { id: String(nextMockId++), companyId: '1', name: body.name, cbo: body.cbo ?? null };
+    created.jobTitles.push(j);
+    return clone(j);
+  },
+  updateJobTitle: async (id, body) => {
+    await delay();
+    const j = created.jobTitles.find((x) => x.id === id) ?? mockJobTitles('1').find((x) => x.id === id)!;
+    Object.assign(j, body);
+    return clone(j);
+  },
+  costCenters: async () => {
+    await delay();
+    return [...mockCostCenters(), ...created.costCenters];
+  },
+  createCostCenter: async (body) => {
+    await delay();
+    const c: CostCenter = { id: String(nextMockId++), companyId: '1', code: body.code, name: body.name };
+    created.costCenters.push(c);
+    return clone(c);
+  },
+  updateCostCenter: async (id, body) => {
+    await delay();
+    const c = created.costCenters.find((x) => x.id === id) ?? mockCostCenters().find((x) => x.id === id)!;
+    Object.assign(c, body);
+    return clone(c);
   },
 };
 
+/** Série fictícia de 14 dias terminando em MOCK_TODAY (fins de semana com pouco movimento). */
+const mockSeries = (): Overview['series'] =>
+  Array.from({ length: 14 }, (_, i) => {
+    const date = addCivilDays(MOCK_TODAY, i - 13);
+    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+    const weekend = weekday === 0 || weekday === 6;
+    return {
+      date,
+      workedMinutes: weekend ? 1_800 + i * 30 : 19_200 + ((i * 37) % 9) * 240,
+      overtimeMinutes: weekend ? 240 : 600 + ((i * 53) % 7) * 120,
+      absences: weekend ? 0 : (i * 3) % 4,
+      inconsistent: weekend ? 0 : (i * 5) % 3,
+    };
+  });
+
 export const mockOverview: Overview = {
+  period: { from: addCivilDays(MOCK_TODAY, -13), to: MOCK_TODAY },
+  previousPeriod: { from: addCivilDays(MOCK_TODAY, -27), to: addCivilDays(MOCK_TODAY, -14) },
+  activeEmployees: 52,
+  calculatedDays: 640,
   kpis: [
-    { key: 'workedHours', label: 'Horas trabalhadas', value: '18.432', unit: 'h', delta: '3,1%', trend: 'up', tone: 'good', comparison: 'vs. 17.878 h em 1 a 21 de out.' },
-    { key: 'overtimeHours', label: 'Horas extras', value: '1.126', unit: 'h', delta: '12,4%', trend: 'up', tone: 'warn', comparison: 'vs. 1.002 h no período anterior' },
-    { key: 'absences', label: 'Faltas', value: '37', unit: 'dias', delta: '17,8%', trend: 'down', tone: 'good', comparison: 'vs. 45 no período anterior' },
-    { key: 'pendingCertificates', label: 'Atestados pendentes', value: '9', unit: '', delta: '+3', trend: 'up', tone: 'warn', comparison: '4 há mais de 2 dias na fila' },
-    { key: 'activeVacations', label: 'Férias em curso', value: '14', unit: 'pessoas', delta: '+2', trend: 'up', tone: 'neutral', comparison: 'de 412 colaboradores ativos' },
+    { key: 'workedHours', label: 'Horas trabalhadas', value: '3.412', unit: 'h', delta: '+3%', trend: 'up', tone: 'good', comparison: 'vs. período anterior' },
+    { key: 'overtimeHours', label: 'Horas extras', value: '186', unit: 'h', delta: '+12%', trend: 'up', tone: 'warn', comparison: 'vs. período anterior' },
+    { key: 'absences', label: 'Faltas', value: '17', unit: 'dias', delta: '−18%', trend: 'down', tone: 'good', comparison: 'vs. período anterior' },
+    { key: 'pendingAdjustments', label: 'Ajustes pendentes', value: '6', unit: '', delta: '+11', trend: 'up', tone: 'warn', comparison: 'pedidos no período' },
+    { key: 'pendingCertificates', label: 'Atestados pendentes', value: '3', unit: '', delta: '+5', trend: 'up', tone: 'warn', comparison: 'recebidos no período' },
+    { key: 'activeVacations', label: 'Em férias hoje', value: '4', unit: '', delta: '+2', trend: 'up', tone: 'neutral', comparison: 'começam em 30 dias' },
+    { key: 'timeBankBalance', label: 'Saldo do banco de horas', value: '412,5', unit: 'h', delta: '38', trend: 'up', tone: 'warn', comparison: 'h vencem em 30 dias' },
+  ],
+  series: mockSeries(),
+  statusBreakdown: { calculada: 601, inconsistente: 22, falta: 17 },
+  topOvertime: [
+    { employeeId: '101', name: 'Ana Ribeiro', overtimeMinutes: 1_260 },
+    { employeeId: '102', name: 'Bruno Lima', overtimeMinutes: 1_080 },
+    { employeeId: '103', name: 'Carla Souza', overtimeMinutes: 870 },
+    { employeeId: '104', name: 'Diego Martins', overtimeMinutes: 640 },
+    { employeeId: '105', name: 'Elisa Rocha', overtimeMinutes: 420 },
   ],
   alerts: [
-    { id: 'a1', severity: 'alerta', title: 'Marcações ímpares em Colheita', text: '6 colaboradores sem saída registrada ontem. Revise antes do fechamento de 30/11.', cta: 'Revisar marcações', target: 'apuracao' },
-    { id: 'a2', severity: 'alerta', title: 'Interjornada menor que 11 h', text: '3 ocorrências em Manutenção nesta semana.', cta: 'Ver ocorrências', target: 'apuracao' },
-    { id: 'a3', severity: 'sinal', title: 'Jornada de 42 h a partir de 16/12', text: '18 escalas ficam acima do novo limite semanal. Ajuste antes da vigência.', cta: 'Revisar escalas', target: 'escalas' },
-    { id: 'a4', severity: 'sinal', title: 'Lote offline sincronizado', text: 'O coletor do Talhão 7 enviou 214 marcações de 19 e 20/11. Os dias foram recalculados.', cta: 'Ver apuração', target: 'apuracao' },
+    { id: 'inconsistent-days', severity: 'alerta', title: '22 dias inconsistentes', text: 'Há pendências na apuração que impedem o fechamento do período.', cta: 'Revisar apuração', target: 'apuracao' },
+    { id: 'without-schedule', severity: 'alerta', title: '2 colaboradores sem escala', text: 'Sem escala vigente hoje, o dia não é apurado e não há falta nem hora extra.', cta: 'Ver colaboradores', target: 'colaboradores' },
+    { id: 'pending-adjustments', severity: 'sinal', title: '6 ajustes aguardando decisão', text: 'Pedidos de inclusão de batida, justificativa ou abono.', cta: 'Decidir ajustes', target: 'ajustes' },
+    { id: 'pending-certificates', severity: 'sinal', title: '3 atestados para analisar', text: 'O dia só vira afastamento depois de aprovado.', cta: 'Analisar atestados', target: 'atestados' },
   ],
 };
 

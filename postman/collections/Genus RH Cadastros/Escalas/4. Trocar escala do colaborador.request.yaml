@@ -1,0 +1,18 @@
+$kind: http-request
+name: 4. Trocar escala do colaborador
+description: "Encerra a vigente no dia anterior e abre a nova; recalcula os dias já apurados."
+url: "{{portalUrl}}/portal/employees/{{employeeId}}/schedules/switch"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "scheduleId": {{scheduleId}}, "validFrom": "{{from}}" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+      pm.collectionVariables.set('assignmentId', pm.response.json().data.id);
+    language: text/javascript
+order: 4000

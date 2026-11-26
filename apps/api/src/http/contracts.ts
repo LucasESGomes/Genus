@@ -12,6 +12,7 @@ export const PORTAL_ERROR_CODES = [
   'MATRICULA_DUPLICADA',
   'VINCULO_SOBREPOSTO',
   'ESCALA_SOBREPOSTA',
+  'ESCALA_INATIVA',
   'AFASTAMENTO_SOBREPOSTO',
   'PERIODO_AQUISITIVO_SOBREPOSTO',
   'ATESTADO_DUPLICADO',
@@ -55,6 +56,9 @@ export const PORTAL_ERROR_CODES = [
   /** Convite de admin/rh por link, com confirmação de CPF. */
   'CPF_NAO_CONFERE',
   'CONVITE_INVALIDO',
+  /** Setores, cargos e centros de custo (modules/org-units). */
+  'NOME_DUPLICADO',
+  'CODIGO_DUPLICADO',
 ] as const;
 
 export const ERROR_CODES = [

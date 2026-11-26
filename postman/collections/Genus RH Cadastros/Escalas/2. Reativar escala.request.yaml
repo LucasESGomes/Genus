@@ -1,0 +1,17 @@
+$kind: http-request
+name: 2. Reativar escala
+description: "Volta a aceitar vínculos."
+url: "{{portalUrl}}/portal/schedules/{{scheduleId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "isActive": true }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+    language: text/javascript
+order: 2000

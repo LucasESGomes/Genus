@@ -1,0 +1,18 @@
+$kind: http-request
+name: 4. Estabelecimento trabalha no Natal
+description: "RF16: trabalha e manda a hora para o banco de horas."
+url: "{{portalUrl}}/portal/establishments/{{establishmentId}}/holidays/{{holidayId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "isWorked": true, "treatment": "banco_horas" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      pm.test('Trabalha', () => pm.expect(pm.response.json().data.isWorked).to.eql(true));
+    language: text/javascript
+order: 4000

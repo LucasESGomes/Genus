@@ -1,0 +1,11 @@
+$kind: http-request
+name: 6. Remover feriado da conta
+description: "Recalcula os dias já apurados na data."
+url: "{{portalUrl}}/portal/holidays/{{ownHolidayId}}"
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('204 ou 404', () => pm.expect([204, 404]).to.include(pm.response.code));
+    language: text/javascript
+order: 6000

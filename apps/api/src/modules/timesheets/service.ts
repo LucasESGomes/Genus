@@ -19,7 +19,7 @@
  * A janela de cada dia (inclusive a escala que vira o dia) está em schedule-window.ts.
  */
 import type { Clock } from '@genus/shared';
-import { and, asc, between, eq, gte, inArray, isNull, lte, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, between, eq, gte, inArray, isNull, lte, max, min, notInArray, or, sql } from 'drizzle-orm';
 import type { ArpPunchReader } from '../../arp/punch-reader';
 import type { Database } from '../../db/client';
 import type { Executor } from '../../db/executor';
@@ -130,6 +130,19 @@ export class TimesheetService {
       await this.d.posting?.apply(tx, emp, { dailyTimesheetId, date: day.date, result, isClosed });
     }
     return skipped;
+  }
+
+  /**
+   * Recalcula só os dias de [from, to] que já têm apuração (mudou a escala, o feriado ou a troca de
+   * turno). Dia ainda não apurado fica para a fila e para o `close-days`.
+   */
+  async recalculateExistingIn(tx: Executor, emp: EmployeeRecord, from: CivilDate, to: CivilDate): Promise<void> {
+    if (to < from) return;
+    const [range] = await tx
+      .select({ first: min(dailyTimesheets.date), last: max(dailyTimesheets.date) })
+      .from(dailyTimesheets)
+      .where(and(eq(dailyTimesheets.tenantId, emp.tenantId), eq(dailyTimesheets.employeeId, emp.id), between(dailyTimesheets.date, from, to)));
+    if (range?.first && range.last) await this.recalculateIn(tx, emp, range.first, range.last);
   }
 
   /**

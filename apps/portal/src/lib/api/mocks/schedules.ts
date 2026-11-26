@@ -6,8 +6,9 @@
  * [A CONFIRMAR] O limite de 42 h com vigência em 16/12/2026 vem do alerta do design (visão geral), não de
  * norma verificada. Ele existe só aqui, nos dados do mock: a tela mostra o que a api devolve.
  */
-import type { EntityId, Schedule, ScheduleDay, ScheduleSummary, ScheduleDayInput, ScheduleWarning } from '../contracts';
+import type { EmployeeSchedule, EntityId, Schedule, ScheduleDay, ScheduleOverride, ScheduleSummary, ScheduleDayInput, ScheduleWarning } from '../contracts';
 import type { SchedulesApi } from '../endpoints/schedules';
+import { MOCK_TODAY } from './employee-portal';
 import { mockEmployeesApi } from './employees';
 import { clone, delay, matchesQuery, mockFail, mockId, mockNotFound } from './runtime';
 
@@ -27,28 +28,28 @@ const weekOverLimit = (planned: number): ScheduleWarning => ({
 
 const seedSchedules = (): Schedule[] => [
   {
-    id: '1', establishmentId: '1', name: 'Campo 6x1 · 44 h', type: '6x1', cycleType: 'semanal', cycleDays: null, referenceDate: null, weeklyMinutes: 2640,
+    id: '1', establishmentId: '1', name: 'Campo 6x1 · 44 h', type: '6x1', cycleType: 'semanal', cycleDays: null, referenceDate: null, weeklyMinutes: 2640, isActive: true,
     days: [work(0, '07:00', '15:20', '11:00', '12:00'), work(1, '07:00', '15:20', '11:00', '12:00'), work(2, '07:00', '15:20', '11:00', '12:00'),
       work(3, '07:00', '15:20', '11:00', '12:00'), work(4, '07:00', '15:20', '11:00', '12:00'), work(5, '07:00', '15:20', '11:00', '12:00'), off(6)],
     warnings: [weekOverLimit(2640)],
   },
   {
-    id: '2', establishmentId: '1', name: 'Administrativo 5x2 · 44 h', type: '5x2', cycleType: 'semanal', cycleDays: null, referenceDate: null, weeklyMinutes: 2640,
+    id: '2', establishmentId: '1', name: 'Administrativo 5x2 · 44 h', type: '5x2', cycleType: 'semanal', cycleDays: null, referenceDate: null, weeklyMinutes: 2640, isActive: true,
     days: [work(0, '08:00', '17:48'), work(1, '08:00', '17:48'), work(2, '08:00', '17:48'), work(3, '08:00', '17:48'), work(4, '08:00', '17:48'), off(5), off(6)],
     warnings: [weekOverLimit(2640)],
   },
   {
-    id: '3', establishmentId: '1', name: 'Ordenha 12x36', type: '12x36', cycleType: 'ciclico', cycleDays: 2, referenceDate: '2026-11-01', weeklyMinutes: 2520,
+    id: '3', establishmentId: '1', name: 'Ordenha 12x36', type: '12x36', cycleType: 'ciclico', cycleDays: 2, referenceDate: '2026-11-01', weeklyMinutes: 2520, isActive: true,
     days: [work(0, '19:00', '07:00', '00:00', '01:00'), off(1)].map((d) => (d.position === 0 ? { ...d, crossesMidnight: true } : d)),
     warnings: [],
   },
   {
-    id: '4', establishmentId: '1', name: 'Plantão livre', type: 'livre', cycleType: 'semanal', cycleDays: null, referenceDate: null, weeklyMinutes: 2400,
+    id: '4', establishmentId: '1', name: 'Plantão livre', type: 'livre', cycleType: 'semanal', cycleDays: null, referenceDate: null, weeklyMinutes: 2400, isActive: true,
     days: [work(0, '09:00', '17:00'), work(1, '09:00', '17:00'), work(2, '09:00', '17:00'), work(3, '09:00', '17:00'), work(4, '09:00', '17:00'), off(5), off(6)],
     warnings: [{ ruleValidFrom: MOCK_LIMIT_FROM, code: 'folgas_abaixo_minimo', restDays: 1, minRestDays: 2 }],
   },
   {
-    id: '5', establishmentId: '2', name: 'Usina 5x2 · 40 h', type: '5x2', cycleType: 'semanal', cycleDays: null, referenceDate: null, weeklyMinutes: 2400,
+    id: '5', establishmentId: '2', name: 'Usina 5x2 · 40 h', type: '5x2', cycleType: 'semanal', cycleDays: null, referenceDate: null, weeklyMinutes: 2400, isActive: true,
     days: [work(0, '07:00', '15:00'), work(1, '07:00', '15:00'), work(2, '07:00', '15:00'), work(3, '07:00', '15:00'), work(4, '07:00', '15:00'), off(5), off(6)],
     warnings: [],
   },
@@ -70,9 +71,17 @@ let employeeSchedules: EmpSchedule[] = seedEmployeeSchedules();
 export function resetMockSchedules() {
   schedules = seedSchedules();
   employeeSchedules = seedEmployeeSchedules();
+  overrides = [];
 }
 
-const summary = (s: Schedule): ScheduleSummary => ({ id: s.id, establishmentId: s.establishmentId, name: s.name, type: s.type, cycleType: s.cycleType, cycleDays: s.cycleDays, referenceDate: s.referenceDate, weeklyMinutes: s.weeklyMinutes });
+const summary = (s: Schedule): ScheduleSummary => ({ id: s.id, establishmentId: s.establishmentId, name: s.name, type: s.type, cycleType: s.cycleType, cycleDays: s.cycleDays, referenceDate: s.referenceDate, weeklyMinutes: s.weeklyMinutes, isActive: s.isActive });
+const withName = (e: EmpSchedule): EmployeeSchedule => ({ ...e, scheduleName: schedules.find((s) => s.id === e.scheduleId)?.name ?? '' });
+let overrides: ScheduleOverride[] = [];
+const addDaysCivil = (date: string, days: number) => {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
 const find = (id: EntityId) => {
   const s = schedules.find((x) => x.id === id);
   if (!s) throw mockNotFound();
@@ -120,7 +129,10 @@ const overlaps = (a: { validFrom: string; validTo: string | null }, b: { validFr
 export const mockSchedulesApi: SchedulesApi = {
   list: async (q) => {
     await delay();
-    return clone(schedules.filter((s) => (!q.establishmentId || s.establishmentId === q.establishmentId) && matchesQuery(q.q, s.name)).map(summary));
+    return clone(schedules
+      .filter((s) => (!q.establishmentId || s.establishmentId === q.establishmentId) && matchesQuery(q.q, s.name))
+      .filter((s) => !q.status || s.isActive === (q.status === 'ativa'))
+      .map(summary));
   },
   get: async (id) => {
     await delay();
@@ -143,6 +155,7 @@ export const mockSchedulesApi: SchedulesApi = {
       cycleDays: body.cycleType === 'ciclico' ? (body.cycleDays ?? null) : null,
       referenceDate: body.cycleType === 'ciclico' ? (body.referenceDate ?? null) : null,
       weeklyMinutes: body.weeklyMinutes,
+      isActive: true,
       days,
       warnings: warningsFor(body.weeklyMinutes, days),
     };
@@ -156,13 +169,14 @@ export const mockSchedulesApi: SchedulesApi = {
     if (body.name !== undefined) s.name = body.name.trim();
     if (body.weeklyMinutes !== undefined) s.weeklyMinutes = body.weeklyMinutes;
     if (body.days) s.days = toDays(body.days);
+    if (body.isActive !== undefined) s.isActive = body.isActive;
     s.warnings = warningsFor(s.weeklyMinutes, s.days);
     return clone(s);
   },
   employeeSchedules: async (employeeId) => {
     await delay();
     await mockEmployeesApi.get(employeeId);
-    return clone(employeeSchedules.filter((e) => e.employeeId === employeeId).sort((a, b) => a.validFrom.localeCompare(b.validFrom)));
+    return clone(employeeSchedules.filter((e) => e.employeeId === employeeId).sort((a, b) => a.validFrom.localeCompare(b.validFrom)).map(withName));
   },
   assign: async (employeeId, body) => {
     await delay();
@@ -171,6 +185,7 @@ export const mockSchedulesApi: SchedulesApi = {
     if (!s || s.establishmentId !== emp.establishmentId) {
       throw mockFail(400, 'REFERENCIA_INVALIDA', 'Referência inválida', [{ path: 'scheduleId', message: 'escala não encontrada no estabelecimento do colaborador' }]);
     }
+    if (!s.isActive) throw mockFail(400, 'ESCALA_INATIVA', 'A escala está inativa: reative-a antes de atribuir');
     if (body.validTo && body.validTo < body.validFrom) throw validation('validTo', 'fim antes do início');
     const next = { validFrom: body.validFrom, validTo: body.validTo ?? null };
     if (employeeSchedules.some((e) => e.employeeId === employeeId && overlaps(e, next))) {
@@ -178,6 +193,68 @@ export const mockSchedulesApi: SchedulesApi = {
     }
     const row: EmpSchedule = { id: mockId(), employeeId, scheduleId: body.scheduleId, ...next };
     employeeSchedules = [...employeeSchedules, row];
+    return clone(withName(row));
+  },
+  endAssignment: async (employeeId, assignmentId, validTo) => {
+    await delay();
+    const row = employeeSchedules.find((e) => e.employeeId === employeeId && e.id === assignmentId);
+    if (!row) throw mockNotFound();
+    if (validTo !== null && validTo < row.validFrom) throw validation('validTo', 'fim antes do início da escala');
+    row.validTo = validTo;
+    return clone(withName(row));
+  },
+  switchSchedule: async (employeeId, body) => {
+    await delay();
+    const emp = await mockEmployeesApi.get(employeeId);
+    const s = schedules.find((x) => x.id === body.scheduleId);
+    if (!s || s.establishmentId !== emp.establishmentId) {
+      throw mockFail(400, 'REFERENCIA_INVALIDA', 'Referência inválida', [{ path: 'scheduleId', message: 'escala não encontrada no estabelecimento do colaborador' }]);
+    }
+    if (!s.isActive) throw mockFail(400, 'ESCALA_INATIVA', 'A escala está inativa: reative-a antes de atribuir');
+    const mine = employeeSchedules.filter((e) => e.employeeId === employeeId);
+    const current = mine.find((e) => e.validFrom <= body.validFrom && (e.validTo === null || body.validFrom <= e.validTo));
+    if (current && current.validFrom === body.validFrom) {
+      current.scheduleId = body.scheduleId;
+      return clone(withName(current));
+    }
+    const nextStart = mine.filter((e) => e.validFrom > body.validFrom).map((e) => e.validFrom).sort()[0];
+    const validTo = nextStart ? addDaysCivil(nextStart, -1) : (current?.validTo ?? null);
+    if (current) current.validTo = addDaysCivil(body.validFrom, -1);
+    const row: EmpSchedule = { id: mockId(), employeeId, scheduleId: body.scheduleId, validFrom: body.validFrom, validTo };
+    employeeSchedules = [...employeeSchedules, row];
+    return clone(withName(row));
+  },
+  members: async (scheduleId) => {
+    await delay();
+    find(scheduleId);
+    const today = MOCK_TODAY;
+    const rows = employeeSchedules.filter((e) => e.scheduleId === scheduleId && e.validFrom <= today && (e.validTo === null || today <= e.validTo));
+    const out = [];
+    for (const r of rows) {
+      const emp = await mockEmployeesApi.get(r.employeeId).catch(() => null);
+      if (emp) out.push({ employeeId: r.employeeId, name: emp.name, registration: emp.registrationNumber ?? null, assignmentId: r.id, validFrom: r.validFrom, validTo: r.validTo });
+    }
+    return clone(out.sort((a, b) => a.name.localeCompare(b.name)));
+  },
+  overrides: async (employeeId, from, to) => {
+    await delay();
+    return clone(overrides.filter((o) => o.employeeId === employeeId && o.date >= from && o.date <= to).sort((a, b) => b.date.localeCompare(a.date)));
+  },
+  createOverride: async (employeeId, body) => {
+    await delay();
+    await mockEmployeesApi.get(employeeId);
+    if (overrides.some((o) => o.employeeId === employeeId && o.date === body.date)) throw mockFail(409, 'CONFLICT', 'Já existe uma troca de turno para o colaborador nesse dia');
+    const row: ScheduleOverride = {
+      id: mockId(), employeeId, date: body.date, isDayOff: body.isDayOff,
+      startTime: body.isDayOff ? null : (body.startTime ?? null), endTime: body.isDayOff ? null : (body.endTime ?? null),
+      reason: body.reason, createdAt: `${MOCK_TODAY}T12:00:00.000Z`,
+    };
+    overrides = [...overrides, row];
     return clone(row);
+  },
+  deleteOverride: async (employeeId, overrideId) => {
+    await delay();
+    if (!overrides.some((o) => o.employeeId === employeeId && o.id === overrideId)) throw mockNotFound();
+    overrides = overrides.filter((o) => o.id !== overrideId);
   },
 };

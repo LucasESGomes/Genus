@@ -24,13 +24,15 @@ describe('Visão geral', () => {
   it('mostra KPIs e alertas da api, sem violações de acessibilidade', async () => {
     const { container } = setup(async () => mockOverview);
     expect(await screen.findByText('Horas trabalhadas')).toBeInTheDocument();
-    expect(screen.getByText('Marcações ímpares em Colheita')).toBeInTheDocument();
+    expect(screen.getByText('22 dias inconsistentes')).toBeInTheDocument();
     expect(screen.getByText('4 abertos')).toBeInTheDocument();
+    expect(screen.getByText('Mais horas extras no período')).toBeInTheDocument();
+    expect(screen.getByText('Ana Ribeiro')).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });
   it('mostra o estado vazio', async () => {
-    setup(async () => ({ kpis: [], alerts: [] }));
-    expect(await screen.findByText('Ainda não há dados neste período')).toBeInTheDocument();
+    setup(async () => ({ ...mockOverview, calculatedDays: 0, kpis: [], series: [], topOvertime: [], alerts: [] }));
+    expect(await screen.findByText('Ainda não há dias apurados neste período')).toBeInTheDocument();
   });
   it('erro 5xx mostra "Tentar de novo" e busca de novo', async () => {
     const { get } = setup(async () => { throw new ApiError('server', 503, 'HTTP_503', 'x'); });
@@ -52,7 +54,7 @@ describe('Visão geral', () => {
     await screen.findByText('Horas trabalhadas');
     await userEvent.click(screen.getByRole('button', { name: /Trocar/ }));
     await userEvent.click(screen.getByRole('option', { name: /Usina Boa Vista/ }));
-    await waitFor(() => expect(get).toHaveBeenLastCalledWith('2', expect.anything()));
+    await waitFor(() => expect(get).toHaveBeenLastCalledWith('2', expect.anything(), expect.anything()));
   });
 
   it('a ação primária leva à apuração filtrada por inconsistência', async () => {
@@ -62,10 +64,10 @@ describe('Visão geral', () => {
   });
   it('cada alerta navega pelo seu target', async () => {
     setup(async () => mockOverview);
-    await userEvent.click(await screen.findByRole('button', { name: /Revisar marcações/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /Revisar apuração/ }));
     expect(router.push).toHaveBeenLastCalledWith('/rh/apuracao?aba=inconsistente');
-    await userEvent.click(screen.getByRole('button', { name: /Revisar escalas/ }));
-    expect(router.push).toHaveBeenLastCalledWith('/rh/escalas?aviso=carga_semanal_acima_limite');
+    await userEvent.click(screen.getByRole('button', { name: /Ver colaboradores/ }));
+    expect(router.push).toHaveBeenLastCalledWith('/rh/colaboradores');
   });
   it('trocar o período grava from/to na URL e busca de novo', async () => {
     const { get } = setup(async () => mockOverview);
@@ -77,10 +79,10 @@ describe('Visão geral', () => {
     expect(currentRoute()).toContain('to=2026-10-31');
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
   });
-  it('o gráfico de horas extras aparece como indisponível, sem valores calculados', async () => {
+  it('mostra os gráficos de horas e de faltas, com resumo em texto', async () => {
     setup(async () => mockOverview);
-    expect(await screen.findByText('Gráfico indisponível: aguardando o back')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Horas extras por dia' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Horas por dia' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Faltas e inconsistências por dia' })).toBeInTheDocument();
   });
   it('mostra o subtítulo com o período real e o fuso', async () => {
     setup(async () => mockOverview);

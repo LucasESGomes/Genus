@@ -184,6 +184,8 @@ export interface ScheduleListQuery {
   establishmentId?: EntityId;
   /** Busca pelo nome da escala (2 a 100 caracteres). */
   q?: string;
+  /** Sem filtro: todas. */
+  status?: 'ativa' | 'inativa';
 }
 
 /** Dia da escala na entrada. Horários no formato HH:mm. */
@@ -218,11 +220,13 @@ export interface CreateScheduleBody {
   days: ScheduleDayInput[];
 }
 
-/** Troca nome, carga e dias (todos os dias da escala são substituídos). Tipo e ciclo não mudam. */
+/** Troca nome, carga, dias (todos os dias da escala são substituídos) e ativa/desativa. Tipo e ciclo não mudam. */
 export interface UpdateScheduleBody {
   name?: string;
   weeklyMinutes?: number;
   days?: ScheduleDayInput[];
+  /** Inativa não recebe vínculo novo; quem já está nela continua. */
+  isActive?: boolean;
 }
 
 export interface ScheduleDay {
@@ -261,6 +265,7 @@ export interface Schedule {
   /** AAAA-MM-DD */
   referenceDate: string | null;
   weeklyMinutes: number;
+  isActive: boolean;
   days: ScheduleDay[];
   /** Só avisa, nunca bloqueia (RN06, art. 74). */
   warnings: ScheduleWarning[];
@@ -281,10 +286,51 @@ export interface EmployeeSchedule {
   id: EntityId;
   employeeId: EntityId;
   scheduleId: EntityId;
+  scheduleName: string;
   /** AAAA-MM-DD */
   validFrom: string;
   /** AAAA-MM-DD */
   validTo: string | null;
+}
+
+/** Troca de escala: a vigente termina no dia anterior a `validFrom` e a nova começa nele. */
+export interface SwitchScheduleBody {
+  scheduleId: EntityId;
+  /** AAAA-MM-DD */
+  validFrom: string;
+}
+
+/** GET /portal/schedules/:id/employees: quem está na escala na data. */
+export interface ScheduleMember {
+  employeeId: EntityId;
+  name: string;
+  registration: string | null;
+  assignmentId: EntityId;
+  validFrom: string;
+  validTo: string | null;
+}
+
+/** Troca pontual de turno ou folga num dia (RF12). Muda só o previsto; nunca a marcação. */
+export interface ScheduleOverride {
+  id: EntityId;
+  employeeId: EntityId;
+  /** AAAA-MM-DD */
+  date: string;
+  isDayOff: boolean;
+  /** HH:mm */
+  startTime: string | null;
+  /** HH:mm */
+  endTime: string | null;
+  reason: string;
+  createdAt: string;
+}
+
+export interface CreateScheduleOverrideBody {
+  date: string;
+  isDayOff: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
+  reason: string;
 }
 
 // ---- timesheets (apps/api/src/modules/timesheets) ----
@@ -977,9 +1023,9 @@ export interface Establishment {
   isActive: boolean;
 }
 
-/** [MOCK] GET /portal/overview?establishmentId=: não existe no back. Valores já calculados pela api. */
+/** GET /portal/overview?establishmentId&from&to: valores já calculados e formatados pela api. */
 export interface OverviewKpi {
-  key: 'workedHours' | 'overtimeHours' | 'absences' | 'pendingCertificates' | 'activeVacations';
+  key: 'workedHours' | 'overtimeHours' | 'absences' | 'pendingAdjustments' | 'pendingCertificates' | 'activeVacations' | 'timeBankBalance';
   label: string;
   value: string;
   unit: string;
@@ -989,30 +1035,77 @@ export interface OverviewKpi {
   comparison: string;
 }
 
+export type OverviewAlertTarget = 'apuracao' | 'escalas' | 'colaboradores' | 'ajustes' | 'atestados' | 'banco-horas';
+
 export interface OverviewAlert {
   id: string;
   severity: 'alerta' | 'sinal';
   title: string;
   text: string;
   cta: string;
-  target: 'apuracao' | 'escalas';
+  target: OverviewAlertTarget;
 }
 
-/** [MOCK] GET /portal/overview?establishmentId=: não existe no back. */
+/** Um dia do período, somado para o escopo da sessão. */
+export interface OverviewSeriesPoint {
+  /** AAAA-MM-DD */
+  date: string;
+  workedMinutes: number;
+  overtimeMinutes: number;
+  absences: number;
+  inconsistent: number;
+}
+
 export interface Overview {
+  period: { from: string; to: string };
+  previousPeriod: { from: string; to: string };
+  activeEmployees: number;
+  /** Zero = nenhum dia apurado no período: a tela mostra o estado vazio. */
+  calculatedDays: number;
   kpis: OverviewKpi[];
+  series: OverviewSeriesPoint[];
+  statusBreakdown: { calculada: number; inconsistente: number; falta: number };
+  topOvertime: { employeeId: EntityId; name: string; overtimeMinutes: number }[];
   alerts: OverviewAlert[];
 }
 
 // Os contratos abaixo são PROPOSTAS para o back (docs/portal-endpoints-pendentes.md).
 // Enquanto não existem, só respondem com NEXT_PUBLIC_USE_MOCKS=true; com false, a tela mostra "Em breve".
 
-/** [MOCK] GET /portal/departments|job-titles|cost-centers?establishmentId= (hoje o vínculo só traz ids). */
+/** Item de cadastro para seletores e nomes (setor, cargo ou centro de custo). */
 export interface OrgUnit {
   id: EntityId;
-  establishmentId: EntityId;
+  /** Só o setor é do estabelecimento; cargo e centro de custo são da empresa. */
+  establishmentId?: EntityId;
   name: string;
 }
+
+/** GET /portal/departments?establishmentId= */
+export interface Department extends OrgUnit {
+  establishmentId: EntityId;
+  /** Quantas pessoas do setor podem estar de férias ao mesmo tempo (mínimo 1). */
+  maxSimultaneousVacations: number;
+}
+
+/** GET /portal/job-titles?establishmentId= (cargos da empresa do estabelecimento). */
+export interface JobTitle extends OrgUnit {
+  companyId: EntityId;
+  /** CBO com 6 dígitos, opcional. */
+  cbo: string | null;
+}
+
+/** GET /portal/cost-centers?establishmentId= (centros de custo da empresa do estabelecimento). */
+export interface CostCenter extends OrgUnit {
+  companyId: EntityId;
+  code: string;
+}
+
+export interface CreateDepartmentBody { establishmentId: EntityId; name: string; maxSimultaneousVacations?: number }
+export type UpdateDepartmentBody = Partial<Pick<Department, 'name' | 'maxSimultaneousVacations'>>;
+export interface CreateJobTitleBody { establishmentId: EntityId; name: string; cbo?: string | null }
+export type UpdateJobTitleBody = Partial<Pick<JobTitle, 'name' | 'cbo'>>;
+export interface CreateCostCenterBody { establishmentId: EntityId; code: string; name: string }
+export type UpdateCostCenterBody = Partial<Pick<CostCenter, 'code' | 'name'>>;
 
 /** [MOCK] GET /portal/vacations/calendar?establishmentId&departmentId&month=AAAA-MM. */
 export interface VacationCalendar {
@@ -1187,10 +1280,37 @@ export interface CompanySettings {
   punchToleranceMinutes: number;
 }
 
+export type HolidayScope = 'nacional' | 'estadual' | 'municipal';
+export type HolidayTreatment = 'pagar_100' | 'banco_horas';
+
+/** GET /portal/holidays?establishmentId&year: oficiais e da conta, com a regra do estabelecimento. */
 export interface Holiday {
   id: EntityId;
   /** AAAA-MM-DD */
   date: string;
   name: string;
-  scope: 'nacional' | 'estadual' | 'municipal' | 'empresa';
+  scope: HolidayScope;
+  uf: string | null;
+  municipalityIbge: string | null;
+  /** Facultativo não muda a apuração. */
+  isOptional: boolean;
+  /** Cadastrado pela conta (edita e remove); os demais são do catálogo oficial. */
+  isOwn: boolean;
+  /** O estabelecimento da consulta trabalha nesse feriado? */
+  isWorked: boolean;
+  treatment: HolidayTreatment | null;
+}
+
+/** Feriado da conta. `nacional` = todos os estabelecimentos da conta; os outros usam a UF/município do estabelecimento. */
+export interface CreateHolidayBody {
+  establishmentId: EntityId;
+  date: string;
+  name: string;
+  scope: HolidayScope;
+  isOptional?: boolean;
+}
+export type UpdateHolidayBody = Partial<Pick<Holiday, 'date' | 'name' | 'isOptional'>>;
+export interface SetEstablishmentHolidayBody {
+  isWorked: boolean;
+  treatment?: HolidayTreatment | null;
 }

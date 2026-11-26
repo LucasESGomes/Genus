@@ -1,10 +1,10 @@
-import { ArrowDownRight, ArrowUpRight, Clock, FirstAidKit, SunHorizon, Timer, UserMinus} from '@phosphor-icons/react/dist/ssr';
+import { ArrowDownRight, ArrowUpRight, Bank, ClipboardText, Clock, FirstAidKit, SunHorizon, Timer, UserMinus } from '@phosphor-icons/react/dist/ssr';
 import type { Icon } from '@phosphor-icons/react';
 import type { OverviewKpi, Tone } from '@/lib/api/contracts';
 import { Card } from './Card';
 
 const ICON: Record<OverviewKpi['key'], Icon> = {
-  workedHours: Clock, overtimeHours: Timer, absences: UserMinus, pendingCertificates: FirstAidKit, activeVacations: SunHorizon,
+  workedHours: Clock, overtimeHours: Timer, absences: UserMinus, pendingAdjustments: ClipboardText, pendingCertificates: FirstAidKit, activeVacations: SunHorizon, timeBankBalance: Bank,
 };
 const TONE: Record<Tone, string> = { good: 'bg-tint text-brand', warn: 'bg-warn-bg text-warn', neutral: 'bg-surface text-muted' };
 
