@@ -14,8 +14,9 @@ import { TextInput } from '@/components/ui/Fields';
 import { PendingBackTooltip } from '@/components/ui/PendingBackTooltip';
 import { useZodForm } from '@/components/ui/useZodForm';
 import { useMocks } from '@/lib/api/mocks/runtime';
+import { asApiError } from '@/lib/api/errors';
 import { useApi } from '@/lib/api/provider';
-import { safeNext, SESSION_KEY } from '@/lib/auth/gate';
+import { MFA_SETUP_PATH, safeNext, SESSION_KEY } from '@/lib/auth/gate';
 import { homeFor } from '@/lib/auth/permissions';
 import { COPY, DEMO_EMAILS } from './copy';
 import { describeLoginError, type LoginStep } from './errors';
@@ -83,6 +84,11 @@ export function LoginScreen() {
       const me = await api.auth.me();
       router.replace(next ?? homeFor(me.role));
     } catch (e) {
+      // super_admin sem 2FA: a senha entrou, mas a sessão só serve para ativar o 2FA. Não é erro de login.
+      if (asApiError(e).code === 'MFA_REQUIRED') {
+        router.replace(MFA_SETUP_PATH);
+        return;
+      }
       setRedirecting(false);
       setError(describeLoginError(e, 'password').message);
     }
