@@ -14,8 +14,10 @@ describe('componentes base', () => {
     expect(screen.getByRole('button', { name: 'Aprovar' })).toBeInTheDocument();
   });
   it('KPI mostra valor, unidade e variação com rótulo', () => {
-    render(<KpiCard kpi={mockOverview.kpis[0]!} />);
-    expect(screen.getByText('18.432')).toBeInTheDocument();
+    const kpi = mockOverview.kpis[0]!;
+    render(<KpiCard kpi={kpi} />);
+    expect(screen.getByText(kpi.value)).toBeInTheDocument();
+    expect(screen.getByText(kpi.unit)).toBeInTheDocument();
     expect(screen.getByLabelText('Alta')).toBeInTheDocument();
   });
   it('alerta e sinal têm ícone e texto', () => {
