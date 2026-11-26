@@ -1,0 +1,1 @@
+ALTER TABLE "rh"."escalas" ADD COLUMN "eh_ativo" boolean DEFAULT true NOT NULL;

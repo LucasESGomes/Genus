@@ -48,18 +48,25 @@ function coherent(b: { cycleType?: 'semanal' | 'ciclico'; cycleDays?: number | n
 
 export const createScheduleBody = scheduleBase.superRefine(coherent);
 
-/** Troca nome, carga e dias (todos os `dias_escala` são substituídos). Tipo e ciclo não mudam. */
+/** Troca nome, carga, dias (todos os `dias_escala` são substituídos) e ativa/desativa. Tipo e ciclo não mudam. */
 export const updateScheduleBody = z
   .object({
     name: scheduleBase.shape.name,
     weeklyMinutes: scheduleBase.shape.weeklyMinutes,
     days: scheduleBase.shape.days,
+    /** Inativa não recebe vínculo novo; quem já está nela continua. */
+    isActive: z.boolean(),
   })
   .partial()
   .refine((b) => Object.keys(b).length > 0, 'envie ao menos um campo');
 
 /** `q`: nome da escala (contém, sem diferenciar maiúsculas). */
-export const listSchedulesQuery = z.object({ establishmentId: positiveId.optional(), q: searchText.optional() });
+export const listSchedulesQuery = z.object({
+  establishmentId: positiveId.optional(),
+  q: searchText.optional(),
+  /** Sem filtro: todas. */
+  status: z.enum(['ativa', 'inativa']).optional(),
+});
 
 const scheduleDayDto = z.object({
   position: z.number(),
@@ -90,6 +97,7 @@ export const scheduleDto = z.object({
   cycleDays: z.number().nullable(),
   referenceDate: z.string().nullable(),
   weeklyMinutes: z.number(),
+  isActive: z.boolean(),
   days: z.array(scheduleDayDto),
   /** Só avisa, nunca bloqueia (RN06, art. 74). */
   warnings: z.array(warningDto),
@@ -106,8 +114,58 @@ export const employeeScheduleDto = z.object({
   id: z.number(),
   employeeId: z.number(),
   scheduleId: z.number(),
+  scheduleName: z.string(),
   validFrom: z.string(),
   validTo: z.string().nullable(),
 });
 export const employeeScheduleResponse = z.object({ data: employeeScheduleDto });
 export const employeeScheduleListResponse = z.object({ data: z.array(employeeScheduleDto) });
+
+export const assignmentParams = z.object({ id: positiveId, assignmentId: positiveId });
+
+/** Encerra (ou reabre, com null) o vínculo. O início não muda: para isso, encerre e crie outro. */
+export const updateEmployeeScheduleBody = z.object({ validTo: civilDate.nullable() });
+
+/** Troca de escala: o vínculo vigente em `validFrom` termina no dia anterior e o novo começa nele. */
+export const switchScheduleBody = z.object({ scheduleId: positiveId, validFrom: civilDate });
+
+/** Quem está na escala na data (padrão: hoje no fuso do estabelecimento). */
+export const scheduleEmployeesQuery = z.object({ date: civilDate.optional() });
+export const scheduleEmployeeDto = z.object({
+  employeeId: z.number(),
+  name: z.string(),
+  registration: z.string().nullable(),
+  assignmentId: z.number(),
+  validFrom: z.string(),
+  validTo: z.string().nullable(),
+});
+export const scheduleEmployeeListResponse = z.object({ data: z.array(scheduleEmployeeDto) });
+
+// RF12: troca pontual de turno ou folga num dia. Não é marcação: muda só o previsto do dia.
+export const overrideParams = z.object({ id: positiveId, overrideId: positiveId });
+export const listOverridesQuery = z
+  .object({ from: civilDate, to: civilDate })
+  .refine((q) => q.to >= q.from, { path: ['to'], message: 'fim antes do início' });
+export const createOverrideBody = z
+  .object({
+    date: civilDate,
+    isDayOff: z.boolean().default(false),
+    startTime: time.nullable().optional(),
+    endTime: time.nullable().optional(),
+    reason: z.string().trim().min(3, 'escreva o motivo').max(500),
+  })
+  .refine((d) => (d.isDayOff ? !d.startTime && !d.endTime : !!d.startTime && !!d.endTime), {
+    message: 'folga não tem horário; dia de trabalho tem entrada e saída',
+  });
+export const overrideDto = z.object({
+  id: z.number(),
+  employeeId: z.number(),
+  date: z.string(),
+  isDayOff: z.boolean(),
+  startTime: z.string().nullable(),
+  endTime: z.string().nullable(),
+  reason: z.string(),
+  createdAt: z.string(),
+});
+export const overrideResponse = z.object({ data: overrideDto });
+export const overrideListResponse = z.object({ data: z.array(overrideDto) });

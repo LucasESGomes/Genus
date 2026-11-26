@@ -1,0 +1,17 @@
+$kind: http-request
+name: 6. Encerrar vínculo de escala
+description: "Último dia na escala (null reabre)."
+url: "{{portalUrl}}/portal/employees/{{employeeId}}/schedules/{{assignmentId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "validTo": "{{to}}" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+    language: text/javascript
+order: 6000

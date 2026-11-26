@@ -33,6 +33,7 @@ import { formatCpf, formatDate, todayCivil } from '@/lib/format';
 import { EMPLOYEE_STATUS } from '@/lib/labels';
 import { useSession } from '@/lib/session';
 import { oneOf, useUrlState } from '@/lib/url-state';
+import { EmployeeSchedulePanel } from '@/features/schedules/EmployeeSchedulePanel';
 import { AssignmentsPanel } from './AssignmentsPanel';
 import { COPY, PAGE_SIZE, STATUS_TABS, type StatusTab } from './copy';
 import { EmployeeFormPanel } from './EmployeeFormPanel';
@@ -40,7 +41,7 @@ import { useEmployeesList, useTerminateEmployee } from './hooks';
 import { InitialPinDialog } from './InitialPinDialog';
 import { TerminateDialog } from './TerminateDialog';
 
-type Panel = { kind: 'create' } | { kind: 'edit'; employee: Employee } | { kind: 'assignments'; employee: Employee } | null;
+type Panel = { kind: 'create' } | { kind: 'edit'; employee: Employee } | { kind: 'assignments'; employee: Employee } | { kind: 'schedule'; employee: Employee } | null;
 
 export function EmployeesScreen() {
   const { me } = useSession();
@@ -63,6 +64,7 @@ export function EmployeesScreen() {
   const canEdit = can(role, 'employee.edit');
   const canTerminate = can(role, 'employee.terminate');
   const canAssignments = can(role, 'assignment.view');
+  const canSchedule = can(role, 'schedule.view');
 
   const columns = useMemo<ColumnDef<Employee, never>[]>(() => [
     {
@@ -100,6 +102,7 @@ export function EmployeesScreen() {
         const items = [
           canEdit && { key: 'edit', label: 'Editar', run: () => setPanel({ kind: 'edit', employee: e }) },
           canAssignments && { key: 'assignments', label: 'Vínculos', run: () => setPanel({ kind: 'assignments', employee: e }) },
+          canSchedule && { key: 'schedule', label: 'Escala e trocas de turno', run: () => setPanel({ kind: 'schedule', employee: e }) },
           canTerminate && e.status === 'ativo' && { key: 'terminate', label: 'Desligar', run: () => setTerminating(e) },
         ].filter((i): i is { key: string; label: string; run: () => void } => i !== false);
         if (items.length === 0) return null;
@@ -118,7 +121,7 @@ export function EmployeesScreen() {
         );
       },
     },
-  ], [canEdit, canAssignments, canTerminate]);
+  ], [canEdit, canAssignments, canSchedule, canTerminate]);
 
   if (!can(role, 'nav.employees')) {
     return (
@@ -183,6 +186,11 @@ export function EmployeesScreen() {
       <AssignmentsPanel
         open={panel?.kind === 'assignments'}
         employee={panel?.kind === 'assignments' ? panel.employee : null}
+        onOpenChange={(o) => { if (!o) setPanel(null); }}
+      />
+      <EmployeeSchedulePanel
+        open={panel?.kind === 'schedule'}
+        employee={panel?.kind === 'schedule' ? panel.employee : null}
         onOpenChange={(o) => { if (!o) setPanel(null); }}
       />
       <InitialPinDialog pin={pin?.pin ?? null} name={pin?.name ?? ''} onClose={() => setPin(null)} />

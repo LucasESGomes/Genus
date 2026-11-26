@@ -1,0 +1,11 @@
+$kind: http-request
+name: 10. Remover troca de turno
+description: "O dia volta ao horário da escala."
+url: "{{portalUrl}}/portal/employees/{{employeeId}}/schedule-overrides/{{overrideId}}"
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('204 ou 404', () => pm.expect([204, 404]).to.include(pm.response.code));
+    language: text/javascript
+order: 10000

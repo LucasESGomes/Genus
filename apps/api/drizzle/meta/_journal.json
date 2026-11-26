@@ -141,6 +141,13 @@
       "when": 1795660815391,
       "tag": "0019_carga_parametros_legais",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795721446579,
+      "tag": "0020_escalas_eh_ativo",
+      "breakpoints": true
     }
   ]
 }

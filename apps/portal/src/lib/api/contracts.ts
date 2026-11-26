@@ -184,6 +184,8 @@ export interface ScheduleListQuery {
   establishmentId?: EntityId;
   /** Busca pelo nome da escala (2 a 100 caracteres). */
   q?: string;
+  /** Sem filtro: todas. */
+  status?: 'ativa' | 'inativa';
 }
 
 /** Dia da escala na entrada. Horários no formato HH:mm. */
@@ -218,11 +220,13 @@ export interface CreateScheduleBody {
   days: ScheduleDayInput[];
 }
 
-/** Troca nome, carga e dias (todos os dias da escala são substituídos). Tipo e ciclo não mudam. */
+/** Troca nome, carga, dias (todos os dias da escala são substituídos) e ativa/desativa. Tipo e ciclo não mudam. */
 export interface UpdateScheduleBody {
   name?: string;
   weeklyMinutes?: number;
   days?: ScheduleDayInput[];
+  /** Inativa não recebe vínculo novo; quem já está nela continua. */
+  isActive?: boolean;
 }
 
 export interface ScheduleDay {
@@ -261,6 +265,7 @@ export interface Schedule {
   /** AAAA-MM-DD */
   referenceDate: string | null;
   weeklyMinutes: number;
+  isActive: boolean;
   days: ScheduleDay[];
   /** Só avisa, nunca bloqueia (RN06, art. 74). */
   warnings: ScheduleWarning[];
@@ -281,10 +286,51 @@ export interface EmployeeSchedule {
   id: EntityId;
   employeeId: EntityId;
   scheduleId: EntityId;
+  scheduleName: string;
   /** AAAA-MM-DD */
   validFrom: string;
   /** AAAA-MM-DD */
   validTo: string | null;
+}
+
+/** Troca de escala: a vigente termina no dia anterior a `validFrom` e a nova começa nele. */
+export interface SwitchScheduleBody {
+  scheduleId: EntityId;
+  /** AAAA-MM-DD */
+  validFrom: string;
+}
+
+/** GET /portal/schedules/:id/employees: quem está na escala na data. */
+export interface ScheduleMember {
+  employeeId: EntityId;
+  name: string;
+  registration: string | null;
+  assignmentId: EntityId;
+  validFrom: string;
+  validTo: string | null;
+}
+
+/** Troca pontual de turno ou folga num dia (RF12). Muda só o previsto; nunca a marcação. */
+export interface ScheduleOverride {
+  id: EntityId;
+  employeeId: EntityId;
+  /** AAAA-MM-DD */
+  date: string;
+  isDayOff: boolean;
+  /** HH:mm */
+  startTime: string | null;
+  /** HH:mm */
+  endTime: string | null;
+  reason: string;
+  createdAt: string;
+}
+
+export interface CreateScheduleOverrideBody {
+  date: string;
+  isDayOff: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
+  reason: string;
 }
 
 // ---- timesheets (apps/api/src/modules/timesheets) ----

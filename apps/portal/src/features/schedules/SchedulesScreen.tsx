@@ -4,7 +4,8 @@
  * Avisos de jornada (`warnings`) só sinalizam e nunca bloqueiam (RN06, art. 74): o texto e os números vêm da api.
  * `?aviso=` (URL) pré-filtra as escalas com aquele aviso; o alerta da visão geral aponta para cá.
  * Lacuna: a listagem não traz avisos, então cada escala é lida em detalhe (ver hooks.ts).
- * [A CONFIRMAR] posição 0 de uma escala semanal = qual dia da semana (a tela mostra "Dia N", sem nome de dia).
+ * Escala semanal: posição 0 = domingo ... 6 = sábado (schedules/rules/day-schedule.ts). Cíclica: "Dia N" do ciclo.
+ * Inativa não recebe vínculo novo; quem já está nela continua (desativar não apaga nada).
  */
 import { CalendarCheck, Plus, WarningCircle } from '@phosphor-icons/react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -30,7 +31,10 @@ import { useTextSearch } from '@/lib/use-debounced-value';
 import { AssignSchedulePanel } from './AssignSchedulePanel';
 import { COPY, WARNING_FILTERS, type WarningFilter } from './copy';
 import { ScheduleFormPanel } from './ScheduleFormPanel';
-import { useSchedules } from './hooks';
+import { useSchedules, useUpdateSchedule } from './hooks';
+import { asApiError } from '@/lib/api/errors';
+import { notify } from '@/components/ui/notify';
+import { useApiQuery } from '@/lib/query/hooks';
 
 const typeLabel = (t: string) => SCHEDULE_TYPE[t as ScheduleType]?.label ?? t;
 const cycleLabel = (s: Pick<Schedule, 'cycleType' | 'cycleDays'>) =>
@@ -68,6 +72,7 @@ export function SchedulesScreen() {
     { id: 'type', header: 'Tipo', cell: ({ row }) => typeLabel(row.original.type) },
     { id: 'cycle', header: 'Ciclo', cell: ({ row }) => cycleLabel(row.original) },
     { id: 'weekly', header: 'Carga semanal', cell: ({ row }) => <span className="tabular-nums">{formatMinutes(row.original.weeklyMinutes)}</span> },
+    { id: 'active', header: 'Situação', cell: ({ row }) => <StatusBadge tone={row.original.isActive ? 'good' : 'neutral'} label={row.original.isActive ? 'Ativa' : 'Inativa'} /> },
     {
       id: 'warnings',
       header: 'Avisos',
@@ -141,13 +146,18 @@ export function SchedulesScreen() {
         title={selected?.name ?? 'Escala'}
         description={selected ? `${typeLabel(selected.type)} · ${cycleLabel(selected)}` : undefined}
         width="lg"
-        footer={selected && canEdit ? <Button variant="secondary" onClick={() => setEditing(selected)}>Editar escala</Button> : undefined}
+        footer={selected && canEdit ? (
+          <>
+            <ToggleActiveButton schedule={selected} />
+            <Button variant="secondary" onClick={() => setEditing(selected)}>Editar escala</Button>
+          </>
+        ) : undefined}
       >
         {!selectedId || !selected ? <NotFoundState onBack={() => setUrl({ id: null })} /> : <ScheduleDetail schedule={selected} />}
       </SidePanel>
 
       <ScheduleFormPanel open={creating || editing !== null} schedule={editing} onOpenChange={(o) => { if (!o) { setCreating(false); setEditing(null); } }} />
-      <AssignSchedulePanel open={assigning} onOpenChange={setAssigning} schedules={all} defaultScheduleId={selected?.id} />
+      <AssignSchedulePanel open={assigning} onOpenChange={setAssigning} schedules={all.filter((s) => s.isActive)} defaultScheduleId={selected?.isActive ? selected.id : undefined} />
     </PageHeader>
   );
 }
@@ -161,8 +171,10 @@ function ScheduleDetail({ schedule }: { schedule: Schedule }) {
           { label: 'Ciclo', value: cycleLabel(schedule) },
           ...(schedule.referenceDate ? [{ label: 'Data de referência', value: formatDate(schedule.referenceDate) }] : []),
           { label: 'Carga semanal', value: <span className="tabular-nums">{formatMinutes(schedule.weeklyMinutes)}</span> },
+          { label: 'Situação', value: schedule.isActive ? 'Ativa' : 'Inativa: não recebe vínculo novo' },
         ]}
       />
+      <MembersSection scheduleId={schedule.id} />
       <section aria-label="Avisos da escala" className="flex flex-col gap-2">
         <h3 className="m-0 text-sm font-bold">Avisos</h3>
         {schedule.warnings.length === 0 ? (
@@ -184,7 +196,7 @@ function ScheduleDetail({ schedule }: { schedule: Schedule }) {
         <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
           {[...schedule.days].sort((a, b) => a.position - b.position).map((d) => (
             <li key={d.position} className="flex items-center justify-between gap-3 border-b border-line-soft py-1.5 last:border-b-0">
-              <span className="font-medium">Dia {d.position + 1}</span>
+              <span className="font-medium">{dayLabel(schedule, d.position)}</span>
               {d.isDayOff ? <span className="text-muted">Folga</span> : (
                 <span className="tabular-nums">
                   {d.startTime} às {d.endTime}
@@ -197,5 +209,49 @@ function ScheduleDetail({ schedule }: { schedule: Schedule }) {
         </ul>
       </section>
     </div>
+  );
+}
+
+const WEEKDAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const dayLabel = (s: Pick<Schedule, 'cycleType'>, position: number) =>
+  s.cycleType === 'semanal' ? (WEEKDAYS[position] ?? `Dia ${position + 1}`) : `Dia ${position + 1} do ciclo`;
+
+function ToggleActiveButton({ schedule }: { schedule: Schedule }) {
+  const update = useUpdateSchedule();
+  const next = !schedule.isActive;
+  return (
+    <Button
+      variant="ghost"
+      loading={update.isPending}
+      onClick={() => {
+        update.mutateAsync({ id: schedule.id, body: { isActive: next } }).then(
+          () => notify.success(next ? 'Escala reativada' : 'Escala desativada', next ? undefined : 'Quem já está nela continua; ela só não recebe vínculo novo.'),
+          (e: unknown) => notify.error(asApiError(e)),
+        );
+      }}
+    >
+      {next ? 'Reativar' : 'Desativar'}
+    </Button>
+  );
+}
+
+function MembersSection({ scheduleId }: { scheduleId: string }) {
+  const q = useApiQuery('schedules', { members: scheduleId }, (api, signal) => api.schedules.members(scheduleId, signal));
+  return (
+    <section aria-label="Quem está nesta escala" className="flex flex-col gap-2">
+      <h3 className="m-0 text-sm font-bold">Quem está nesta escala hoje</h3>
+      <QueryView query={q} what="os colaboradores da escala" loading={<p className="m-0 text-sm text-muted">Carregando…</p>} isEmpty={(d) => d.length === 0} empty={<p className="m-0 text-sm text-muted">Ninguém nesta escala hoje.</p>}>
+        {(rows) => (
+          <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
+            {rows.map((m) => (
+              <li key={m.assignmentId} className="flex items-center justify-between gap-3 border-b border-line-soft py-1.5 last:border-b-0">
+                <span className="font-medium">{m.name}{m.registration ? <span className="text-muted"> · {m.registration}</span> : null}</span>
+                <span className="text-xs text-muted tabular-nums">desde {formatDate(m.validFrom)}{m.validTo ? ` até ${formatDate(m.validTo)}` : ''}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </QueryView>
+    </section>
   );
 }
