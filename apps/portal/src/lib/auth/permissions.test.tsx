@@ -44,6 +44,11 @@ describe('regras de exibição', () => {
     }
     expect(ALL.filter((r) => can(r, 'assignment.edit'))).toEqual(['rh']);
   });
+  it('banco de horas: gestor vê saldos; a regra é consultada por rh e admin e editada só pelo rh', () => {
+    expect(ALL.filter((r) => can(r, 'timeBank.view'))).toEqual(['admin', 'rh', 'gestor']);
+    expect(ALL.filter((r) => can(r, 'timeBank.viewPolicy'))).toEqual(['admin', 'rh']);
+    expect(ALL.filter((r) => can(r, 'timeBank.editPolicy'))).toEqual(['rh']);
+  });
   it('usuários: só o admin convida', () => {
     expect(ALL.filter((r) => can(r, 'nav.users'))).toEqual(['admin']);
   });

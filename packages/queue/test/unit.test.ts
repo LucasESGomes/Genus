@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DAY_RECALCULATION_QUEUE,
+  dayRecalculationJobOptions,
   defaultJobOptions,
+  POST_PUNCH_EVENTS,
+  POST_PUNCH_QUEUE,
+  queueNameForEvent,
   loadQueueConfig,
   postPunchJobId,
   postPunchPayloadSchema,
@@ -65,6 +70,19 @@ describe('opções de job', () => {
     expect(punchesJobOptions().removeOnComplete).toEqual({ age: 86_400, count: 10_000 });
     expect(postPunchJobOptions().removeOnComplete).toBe(false);
     expect(postPunchJobOptions().removeOnFail).toBe(false);
+    expect(dayRecalculationJobOptions().removeOnComplete).toEqual({ age: 172_800 });
+    expect(dayRecalculationJobOptions().removeOnFail).toBe(false);
+    expect(dayRecalculationJobOptions(3).attempts).toBe(3);
+  });
+});
+
+describe('roteamento por evento', () => {
+  it('recalculate-day vai para day-recalculation; os demais ficam em post-punch', () => {
+    expect(Object.fromEntries(POST_PUNCH_EVENTS.map((e) => [e, queueNameForEvent(e)]))).toEqual({
+      'generate-receipt-pdf': POST_PUNCH_QUEUE,
+      'recalculate-day': DAY_RECALCULATION_QUEUE,
+      'official-qr': POST_PUNCH_QUEUE,
+    });
   });
 });
 

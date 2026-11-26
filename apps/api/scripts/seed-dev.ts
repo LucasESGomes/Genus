@@ -1,6 +1,8 @@
 /**
- * Semente de DESENVOLVIMENTO (idempotente): conta, empresa, estabelecimento, chave da empresa (DEK)
- * e um usuário RH, para o portal e o totem web funcionarem num banco vazio. Nunca rodar em produção.
+ * Semente de DESENVOLVIMENTO (idempotente): conta, empresa, estabelecimento, chave da empresa (DEK),
+ * escala 5x2, regra de banco de horas e um usuário RH, para o portal e o totem web funcionarem num
+ * banco vazio. A escala é ligada aos colaboradores ativos sem nenhuma (rode de novo depois de
+ * cadastrá-los). Nunca rodar em produção.
  *
  *   MASTER_KEY=<64 hex, a mesma da engine> pnpm --filter @genus/api rh:seed-dev
  *
@@ -62,6 +64,35 @@ try {
       [tenantId, companyId, k.keyVersion, k.dekIv, k.dekTag, k.dekCt, k.masterKeyVersion],
     );
   }
+  const schedule =
+    (await one<{ id: string }>("SELECT id FROM rh.escalas WHERE conta_id = $1 AND estabelecimento_id = $2 AND nome = 'Comercial 5x2'", [tenantId, establishmentId])) ??
+    (await one<{ id: string }>(
+      "INSERT INTO rh.escalas (conta_id, estabelecimento_id, nome, tipo, ciclo_tipo, carga_semanal_min) VALUES ($1, $2, 'Comercial 5x2', '5x2', 'semanal', 2400) RETURNING id",
+      [tenantId, establishmentId],
+    ));
+  const scheduleId = Number(schedule!.id);
+  // Segunda (1) a sexta (5), 8 h com 1 h de intervalo; dia sem linha é folga.
+  await pool.query(
+    `INSERT INTO rh.dias_escala (conta_id, escala_id, posicao, entrada, saida, intervalo_inicio, intervalo_fim)
+     SELECT $1, $2, dia, '07:00', '16:00', '11:00', '12:00' FROM generate_series(1, 5) AS dia
+     ON CONFLICT (escala_id, posicao) DO NOTHING`,
+    [tenantId, scheduleId],
+  );
+  await pool.query(
+    `INSERT INTO rh.colaboradores_escalas (conta_id, colaborador_id, escala_id, vigencia_inicio)
+     SELECT c.conta_id, c.id, $3, c.data_admissao FROM rh.colaboradores c
+      WHERE c.conta_id = $1 AND c.estabelecimento_id = $2 AND c.data_desligamento IS NULL
+        AND NOT EXISTS (SELECT 1 FROM rh.colaboradores_escalas e WHERE e.conta_id = c.conta_id AND e.colaborador_id = c.id)`,
+    [tenantId, establishmentId, scheduleId],
+  );
+
+  // Regra do banco de horas do estabelecimento: sem ela, a apuração não lança nada.
+  await pool.query(
+    `INSERT INTO rh.regras_banco_horas (conta_id, estabelecimento_id, modalidade, peso_domingo, peso_feriado, vigencia_inicio)
+     SELECT $1, $2, 'individual_6m', 1.00, 1.00, DATE '2026-01-01'
+      WHERE NOT EXISTS (SELECT 1 FROM rh.regras_banco_horas WHERE conta_id = $1 AND estabelecimento_id = $2)`,
+    [tenantId, establishmentId],
+  );
   await pool.query('COMMIT');
 
   // Usuário RH pelo serviço real (hash de senha do Better Auth).

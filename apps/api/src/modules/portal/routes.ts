@@ -13,6 +13,7 @@ import { facialRoutes } from '../facial/routes';
 import { inviteRoutes } from '../invites/routes';
 import { scheduleRoutes } from '../schedules/routes';
 import { superAdminRoutes } from '../super-admin/routes';
+import { timeBankRoutes } from '../time-bank/routes';
 import { totemRoutes } from '../totem/routes';
 import { vacationRoutes } from '../vacations/routes';
 import { timesheetRoutes } from '../timesheets/routes';
@@ -22,6 +23,7 @@ export const portalRoutes: FastifyPluginAsyncZod<PortalDeps> = async (app, deps)
   await app.register(employeeRoutes, deps);
   await app.register(scheduleRoutes, deps);
   await app.register(timesheetRoutes, deps);
+  await app.register(timeBankRoutes, deps);
   await app.register(adjustmentRoutes, deps);
   await app.register(absenceRoutes, deps);
   await app.register(certificateRoutes, deps);

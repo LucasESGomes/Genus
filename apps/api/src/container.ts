@@ -19,6 +19,8 @@ import { PgArpOpsReader } from './arp/ops-reader';
 import { PgRecognitionStatsReader } from './arp/recognition-reader';
 import { deriveEmailHashKey } from './modules/super-admin/access-logs/email-hash';
 import { ValkeyQueueInspector } from './modules/super-admin/system-health/queue-inspector';
+import { TimeBankPoster } from './modules/time-bank/poster';
+import { startDayRecalculation, type DayRecalculationConsumer } from './modules/timesheets/consumer';
 
 /** Versão exibida na saúde dos sistemas (sem segredo). APP_VERSION vem do deploy; padrão = pacote. */
 const API_VERSION = process.env.APP_VERSION ?? '0.0.0';
@@ -28,6 +30,8 @@ export interface Container {
   logger: Logger;
   clock: Clock;
   database: DatabaseHandle;
+  /** Liga os consumidores de fila (só o processo da api chama). Sem VALKEY_URL, não liga nada. */
+  startWorkers(): void;
   close(): Promise<void>;
 }
 
@@ -54,6 +58,8 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
   const pinPepper = { version: env.pinPepper.version, key: Buffer.from(env.pinPepper.keyHex, 'hex') };
   const inviteCpfHashKey = deriveInviteCpfKey(env.authSecret);
 
+  const arpReader = new PgArpPunchReader(arpPool);
+
   // Análise de atestado (G6): avisa na partida se a IA é a simulada ou se falta a chave do dado de saúde.
   const certificateAi = new CertificateAiRegistry(env.certificateAi);
   const ai = certificateAi.default();
@@ -68,7 +74,8 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
     if (!env.collectorApiUrl) logger.warn('super_admin: sem COLLECTOR_API_URL, a saúde da api do coletor não é consultada');
   }
 
-  return {
+  let recalculation: DayRecalculationConsumer | null = null;
+  const container: Container = {
     logger,
     clock,
     database,
@@ -83,7 +90,8 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
         db: database.db,
         clock,
         access: new PortalAccess(env.gestorEnabled),
-        arp: new PgArpPunchReader(arpPool),
+        arp: arpReader,
+        posting: new TimeBankPoster({ clock }),
         storage: new LocalDiskStorage(env.attachmentsDir),
         engine: env.engine ? new HttpFacialEngineClient({ baseUrl: env.engine.url, apiKey: env.engine.apiKey }) : null,
         engineDefaults: env.engineDefaults,
@@ -110,10 +118,29 @@ export function createContainer(env: Env, overrides: { logger?: Logger; clock?: 
         },
       },
     },
+    startWorkers: () => {
+      if (recalculation) return;
+      if (!env.valkeyUrl) {
+        logger.warn('apuração automática desligada: sem VALKEY_URL, o dia só é calculado a pedido');
+        return;
+      }
+      recalculation = startDayRecalculation({
+        db: database.db,
+        clock,
+        arp: arpReader,
+        logger,
+        // O mesmo gancho do portal: o lançamento no banco de horas vale também para o automático.
+        posting: container.appDeps.portal?.posting,
+        valkey: { url: env.valkeyUrl, password: env.valkeyPassword },
+      });
+    },
     close: async () => {
+      // Primeiro o consumidor: os jobs ativos ainda usam os dois bancos.
+      await recalculation?.close();
       await queues?.close();
       await arpPool.end();
       await database.close();
     },
   };
+  return container;
 }

@@ -1,8 +1,9 @@
-/** Apuração (apps/api/src/modules/timesheets) + [MOCK] apuração do dia de todos. */
+/** Apuração (apps/api/src/modules/timesheets): espelho por colaborador e apuração do dia de todos. */
 import { qs, type ApiClient } from '../client';
-import type { DayRowPage, DayRowQuery, EntityId, Envelope, PeriodQuery, RecalculateBody, RecalculateResult, TimesheetDay } from '../contracts';
+import type {
+  DayRecalculateBody, DayRecalculateResult, DayRowPage, DayRowQuery, EntityId, Envelope, PeriodQuery, RecalculateBody, RecalculateResult, TimesheetDay,
+} from '../contracts';
 import { apiPath } from '../ids';
-import { missing } from '../missing';
 
 export const timesheetsApi = (c: ApiClient) => ({
   byEmployee: async (employeeId: EntityId, q: PeriodQuery, signal?: AbortSignal) =>
@@ -10,7 +11,16 @@ export const timesheetsApi = (c: ApiClient) => ({
   /** Recalcula a partir das marcações; as originais não mudam. */
   recalculate: async (employeeId: EntityId, body: RecalculateBody) =>
     (await c.post<Envelope<RecalculateResult>>(apiPath`/portal/employees/${employeeId}/timesheets/recalculate`, body)).data,
-  /** [MOCK] GET /portal/timesheets?date&establishmentId…: não existe no back. */
-  day: (_q: DayRowQuery, _signal?: AbortSignal): Promise<DayRowPage> => missing(),
+  /** A resposta é a própria página (`{ data, meta, counts }`), sem outro envelope. */
+  day: (q: DayRowQuery, signal?: AbortSignal) =>
+    c.get<DayRowPage>(
+      `/portal/timesheets${qs({
+        date: q.date, establishmentId: q.establishmentId, departmentId: q.departmentId, status: q.status, q: q.q, page: q.page, pageSize: q.pageSize,
+      })}`,
+      signal,
+    ),
+  /** Recalcula o dia de todos os colaboradores do estabelecimento (rh). */
+  recalculateDay: async (body: DayRecalculateBody) =>
+    (await c.post<Envelope<DayRecalculateResult>>('/portal/timesheets/recalculate', body)).data,
 });
 export type TimesheetsApi = ReturnType<typeof timesheetsApi>;

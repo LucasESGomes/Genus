@@ -36,6 +36,7 @@ async function main(): Promise<void> {
 
   await app.listen({ port: env.port, host: '0.0.0.0' });
   container.logger.info({ port: env.port, appEnv: env.appEnv }, 'api do portal no ar');
+  container.startWorkers();
 }
 
 main().catch((err: unknown) => {

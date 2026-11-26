@@ -14,7 +14,7 @@ import {
   range,
 } from '../support/asserts';
 import { startInfra, waitFor, type Infra } from '../support/infra';
-import { disposer, openQueues, postPunch, startCollector, startRepCore, totalJobs } from '../support/stack';
+import { disposer, eventJobs, openQueues, postPunch, startCollector, startRepCore, totalJobs } from '../support/stack';
 
 const TENANT = 1;
 const ESTABLISHMENT = 7001;
@@ -63,13 +63,13 @@ describe('E1: fluxo completo com 200 batidas', () => {
     expect(statuses.filter((s) => s !== 200)).toEqual([]);
     expect(new Set(outcomes)).toEqual(new Set(['registered']));
 
-    // Tudo escoado: 200 processadas e 600 jobs publicados em post-punch.
+    // Tudo escoado: 200 processadas e 600 jobs publicados (400 em post-punch, 200 em day-recalculation).
     await waitFor(
       async () => ((await entryStatusCounts(infra.owner, ESTABLISHMENT))['processado'] ?? 0) === TOTAL,
       '200 entradas processadas',
       90_000,
     );
-    await waitFor(async () => (await totalJobs(queues.postPunch)) === TOTAL * 3, '600 jobs em post-punch', 60_000);
+    await waitFor(async () => (await eventJobs(queues)) === TOTAL * 3, '600 jobs de eventos', 60_000);
 
     // NSR exatamente {1..200}.
     expect(await nsrList(infra.owner, ESTABLISHMENT)).toEqual(range(1, TOTAL));
@@ -88,8 +88,10 @@ describe('E1: fluxo completo com 200 batidas', () => {
     expect(await entryStatusCounts(infra.owner, ESTABLISHMENT)).toEqual({ processado: TOTAL });
 
     const postPunchCounts = await queues.postPunch.getJobCounts();
-    expect(postPunchCounts['waiting']).toBe(TOTAL * 3);
-    expect(await totalJobs(queues.postPunch)).toBe(TOTAL * 3);
+    expect(postPunchCounts['waiting']).toBe(TOTAL * 2);
+    expect(await totalJobs(queues.postPunch)).toBe(TOTAL * 2);
+    expect((await queues.dayRecalculation.getJobCounts())['waiting']).toBe(TOTAL);
+    expect(await totalJobs(queues.dayRecalculation)).toBe(TOTAL);
 
     const punchesCounts = await queues.punches.getJobCounts();
     expect(punchesCounts['failed']).toBe(0);

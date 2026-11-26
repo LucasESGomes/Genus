@@ -2,7 +2,7 @@
  * Processo de resgate (`apps/jobs`). A cada `RESCUE_INTERVAL_MS` republica o que ficou
  * pendente no banco e não chegou à fila. Lê com `arp_reader`; nunca escreve no banco.
  */
-import { createPostPunchQueue, createProducerConnection, createPunchesQueue } from '@genus/queue';
+import { createDayRecalculationQueue, createPostPunchQueue, createProducerConnection, createPunchesQueue } from '@genus/queue';
 import { createLogger, startHeartbeat, SystemClock } from '@genus/shared';
 import pg from 'pg';
 import { JobsConfigError, loadJobsConfig } from './config.js';
@@ -46,11 +46,13 @@ async function main(): Promise<void> {
   });
   const punchesQueue = createPunchesQueue(connection, { attempts: config.attempts });
   const postPunchQueue = createPostPunchQueue(connection, { attempts: config.attempts });
+  const dayRecalculationQueue = createDayRecalculationQueue(connection, { attempts: config.attempts });
   const onQueueError = (err: Error) => {
     logger.warn({ event: 'queue_error', err: { name: err.name } }, 'jobs: erro na fila');
   };
   punchesQueue.on('error', onQueueError);
   postPunchQueue.on('error', onQueueError);
+  dayRecalculationQueue.on('error', onQueueError);
 
   let stopped = false;
   let timer: NodeJS.Timeout | undefined;
@@ -80,6 +82,7 @@ async function main(): Promise<void> {
         logger,
         punchesQueue,
         postPunchQueue,
+        dayRecalculationQueue,
         minAgeMs: config.minAgeMs,
         postPunchDepthWarn: config.postPunchDepthWarn,
       });
@@ -125,7 +128,7 @@ async function main(): Promise<void> {
     wake?.();
     try {
       await running; // deixa a rodada em andamento terminar
-      await Promise.allSettled([punchesQueue.close(), postPunchQueue.close()]);
+      await Promise.allSettled([punchesQueue.close(), postPunchQueue.close(), dayRecalculationQueue.close()]);
       connection.disconnect();
       await reader.end();
       logger.info({ event: 'jobs_stopped' }, 'jobs: encerrado');

@@ -154,6 +154,8 @@ URLs de conexão e senhas nunca aparecem em log.
 
 Sem consumidor de `post-punch`, cada batida gera 3 jobs `waiting` e 3 linhas `pendente` no outbox. Esperado até os consumidores existirem. Não criar consumidor falso que marque `processado`. Mitigações: `pnpm queue:inspect` mostra profundidade por fila; resgate emite `warn` acima de `POST_PUNCH_DEPTH_WARN`; com `noeviction`, o Valkey recusa escritas ao encher a memória (documentado em `docs/fila-batidas.md`).
 
+> **Atualização (26/11/2026):** `recalculate-day` saiu de `post-punch` para a fila `day-recalculation`, consumida pela api do RH (apuração e banco de horas). Payload e `jobId` não mudaram; o resgate republica só linhas de até 1 h e não recria job concluído. O outbox continua `pendente`. Detalhes em `docs/fila-batidas.md` §4 e §9. O texto acima descreve a rodada original.
+
 ## 12. Fora de escopo
 
 Consumidores de `post-punch` (PDF, jornada, QR), signer, app mobile, nginx, mTLS, lotes offline, modo PIN, portal, banco `app`, Drizzle, `../visage`, alterações no `services/face-engine`. O contrato HTTP do coletor não muda.

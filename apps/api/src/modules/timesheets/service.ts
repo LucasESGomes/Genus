@@ -11,9 +11,12 @@
  * - Batida ímpar ou duplicada vira inconsistência, com o dia sem minutos
  *   calculados; nunca cálculo silencioso.
  * - Período fechado: 409 PERIODO_FECHADO, para o intervalo inteiro.
+ * - Dia aberto (janela ainda não encerrada) não acusa falta, atraso nem batida
+ *   faltando (rules/open-day.ts); o banco de horas só lança no dia encerrado.
+ * - Um recálculo por colaborador de cada vez (lock de transação): fila, recálculo
+ *   manual, ajuste e afastamento passam por `recalculateIn`.
  *
- * Batida depois da meia-noite: se a escala do dia vira o dia, as batidas até
- * 4 h depois da saída prevista contam para o dia da entrada [A CONFIRMAR].
+ * A janela de cada dia (inclusive a escala que vira o dia) está em schedule-window.ts.
  */
 import type { Clock } from '@genus/shared';
 import { and, asc, between, eq, gte, inArray, isNull, lte, notInArray, or, sql } from 'drizzle-orm';
@@ -23,11 +26,8 @@ import type { Executor } from '../../db/executor';
 import {
   absences,
   dailyTimesheets,
-  employeeSchedules,
   establishmentHolidays,
   holidays,
-  scheduleOverrides,
-  schedules,
   timeAdjustments,
   timesheetIssues,
   timesheetPunches,
@@ -39,16 +39,15 @@ import { closedDates, periodClosed } from '../closing/period-lock';
 import { findEmployeeInScope, type EmployeeRecord } from '../employees/lookup';
 import { loadLegalParameters } from '../legal-parameters/repository';
 import { ParameterReader, type LegalParameterRow } from '../legal-parameters/rules/resolve';
-import { addDays, diffDays, type CivilDate, type LocalDateTime } from '../rules-common/rules/civil-time';
-import { localToInstant, timezoneForUf, toLocalDateTime } from '../rules-common/rules/timezone';
-import { loadScheduleDays } from '../schedules/service';
-import { resolveScheduleDay, type ResolvedScheduleDay, type ScheduleDayDef, type ScheduleDef } from '../schedules/rules/day-schedule';
-import { toIssueTypes, type IssueType } from './issue-codes';
+import { addDays, diffDays, type CivilDate } from '../rules-common/rules/civil-time';
+import { timezoneForUf, toLocalDateTime } from '../rules-common/rules/timezone';
+import type { DayPostingHook } from '../time-bank/posting-hook';
+import { BLOCKING_ISSUE_TYPES, toIssueTypes, type IssueType } from './issue-codes';
 import { computeDay, type DayResult, type HolidayTreatment, type Punch } from './rules/day';
 import type { NightWorkType } from './rules/night';
+import { asOpenDay } from './rules/open-day';
+import { dayEndsAt, loadScheduleResolver } from './schedule-window';
 
-/** Quanto depois da saída prevista uma batida ainda conta para o dia que virou [A CONFIRMAR]. */
-const CROSS_MIDNIGHT_GRACE_MS = 4 * 60 * 60 * 1000;
 /** Chave do tipo de trabalho noturno da empresa (RN07). Sem linha: urbano [A CONFIRMAR]. */
 const NIGHT_TYPE_KEY = 'tipo_trabalho_noturno';
 const NIGHT_TYPES: readonly NightWorkType[] = ['urbano', 'rural_lavoura', 'rural_pecuaria'];
@@ -59,6 +58,9 @@ export interface SkippedDay {
   date: CivilDate;
   reason: 'sem_escala';
 }
+
+/** Resultado do recálculo de um dia fora de uma requisição por colaborador (fila e dia do estabelecimento). */
+export type DayRecalculationOutcome = 'recalculado' | 'sem_escala' | 'periodo_fechado';
 
 export interface TimesheetDayDto {
   date: string;
@@ -88,17 +90,19 @@ interface PlacedPunch {
 
 interface ComputedDay {
   date: CivilDate;
+  /** Fim da janela do dia: a partir dele o dia está encerrado. */
+  endsAt: Date;
   scheduleId: number;
   result: DayResult;
   punches: PlacedPunch[];
 }
 
-const BLOCKING: readonly IssueType[] = ['batidas_impares', 'marcacao_duplicada'];
-
 export interface TimesheetServiceDeps {
   db: Database;
   clock: Clock;
   arp: ArpPunchReader;
+  /** Lançamento no banco de horas, na mesma transação do dia. Ausente = nada é lançado. */
+  posting?: DayPostingHook;
 }
 
 export class TimesheetService {
@@ -113,10 +117,33 @@ export class TimesheetService {
 
   /** Recalcula dentro da transação de quem chama (ex.: aprovação de ajuste). */
   async recalculateIn(tx: Executor, emp: EmployeeRecord, from: CivilDate, to: CivilDate): Promise<SkippedDay[]> {
+    // Vale até o fim da transação: dois recálculos do mesmo colaborador não lançam em dobro no banco de horas.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`rh.apuracao:${emp.tenantId}:${emp.id}`}, 0))`);
     if ((await closedDates(tx, emp.id, from, to)).length > 0) throw periodClosed();
+    // Um só instante decide se o dia está encerrado e carimba `calculado_em` (o `close-days` compara os dois).
+    const now = this.d.clock.now();
     const { computed, skipped } = await this.compute(tx, emp, from, to);
-    for (const day of computed) await this.persist(tx, emp, day);
+    for (const day of computed) {
+      const isClosed = now.getTime() >= day.endsAt.getTime();
+      const result = isClosed ? day.result : asOpenDay(day.result);
+      const dailyTimesheetId = await this.persist(tx, emp, { ...day, result }, now);
+      await this.d.posting?.apply(tx, emp, { dailyTimesheetId, date: day.date, result, isClosed });
+    }
     return skipped;
+  }
+
+  /**
+   * Um dia em transação própria, sem checar escopo (quem chama já checou, ou é a fila).
+   * Período fechado e falta de escala não são erro: o dia fica como estava.
+   */
+  async recalculateDay(emp: EmployeeRecord, date: CivilDate): Promise<DayRecalculationOutcome> {
+    try {
+      const skipped = await this.d.db.transaction((tx) => this.recalculateIn(tx, emp, date, date));
+      return skipped.length > 0 ? 'sem_escala' : 'recalculado';
+    } catch (err) {
+      if (err instanceof HttpError && err.code === 'PERIODO_FECHADO') return 'periodo_fechado';
+      throw err;
+    }
   }
 
   async list(ctx: RequestContext, employeeId: number, from: CivilDate, to: CivilDate): Promise<TimesheetDayDto[]> {
@@ -131,26 +158,13 @@ export class TimesheetService {
       .from(dailyTimesheets)
       .where(and(eq(dailyTimesheets.tenantId, tenantId), eq(dailyTimesheets.employeeId, employeeId), between(dailyTimesheets.date, from, to)))
       .orderBy(asc(dailyTimesheets.date));
-    if (days.length === 0) return [];
-    const ids = days.map((d) => d.id);
-    const [punches, issues] = await Promise.all([
-      ex
-        .select()
-        .from(timesheetPunches)
-        .where(and(eq(timesheetPunches.tenantId, tenantId), inArray(timesheetPunches.dailyTimesheetId, ids)))
-        .orderBy(asc(timesheetPunches.sequence)),
-      ex
-        .select()
-        .from(timesheetIssues)
-        .where(and(eq(timesheetIssues.tenantId, tenantId), inArray(timesheetIssues.dailyTimesheetId, ids)))
-        .orderBy(asc(timesheetIssues.type)),
-    ]);
+    const details = await loadDayDetails(ex, tenantId, days.map((d) => d.id));
     return days.map((d) => {
-      const dayIssues = issues.filter((i) => i.dailyTimesheetId === d.id).map((i) => ({ type: i.type as IssueType, resolved: i.isResolved }));
+      const { punches, issues, status } = details(d.id);
       return {
         date: d.date,
         situation: d.situation,
-        status: dayIssues.some((i) => !i.resolved && BLOCKING.includes(i.type)) ? 'inconsistente' : 'calculada',
+        status,
         scheduleId: d.scheduleId,
         expectedMinutes: d.expectedMinutes,
         workedMinutes: d.workedMinutes,
@@ -162,10 +176,8 @@ export class TimesheetService {
         breakMinutes: d.breakMinutes,
         parameterVersion: d.parameterVersion,
         calculatedAt: d.calculatedAt.toISOString(),
-        punches: punches
-          .filter((p) => p.dailyTimesheetId === d.id)
-          .map((p) => ({ sequence: p.sequence, at: p.punchedAt.toISOString(), origin: p.origin as 'original' | 'tratada', nsr: p.nsr, adjustmentId: p.adjustmentId })),
-        issues: dayIssues,
+        punches,
+        issues,
       };
     });
   }
@@ -177,60 +189,12 @@ export class TimesheetService {
     const first = addDays(from, -2);
     const lastPlus = addDays(to, 1);
 
-    const assignments = await ex
-      .select({
-        scheduleId: employeeSchedules.scheduleId,
-        validFrom: employeeSchedules.validFrom,
-        validTo: employeeSchedules.validTo,
-        cycleType: schedules.cycleType,
-        cycleDays: schedules.cycleDays,
-        referenceDate: schedules.referenceDate,
-      })
-      .from(employeeSchedules)
-      .innerJoin(schedules, and(eq(schedules.tenantId, employeeSchedules.tenantId), eq(schedules.id, employeeSchedules.scheduleId)))
-      .where(
-        and(
-          eq(employeeSchedules.tenantId, emp.tenantId),
-          eq(employeeSchedules.employeeId, emp.id),
-          lte(employeeSchedules.validFrom, lastPlus),
-          or(isNull(employeeSchedules.validTo), gte(employeeSchedules.validTo, first)),
-        ),
-      );
-    const dayCache = new Map<number, ScheduleDayDef[]>();
-    for (const a of assignments) {
-      if (!dayCache.has(a.scheduleId)) dayCache.set(a.scheduleId, await loadScheduleDays(ex, emp.tenantId, a.scheduleId));
-    }
-    const overrides = await ex
-      .select()
-      .from(scheduleOverrides)
-      .where(and(eq(scheduleOverrides.tenantId, emp.tenantId), eq(scheduleOverrides.employeeId, emp.id), between(scheduleOverrides.date, first, lastPlus)));
-
-    const scheduleFor = (date: CivilDate): { scheduleId: number; resolved: ResolvedScheduleDay } | null => {
-      const a = assignments.find((x) => x.validFrom <= date && (x.validTo === null || date <= x.validTo));
-      if (!a) return null;
-      const def: ScheduleDef = {
-        cycleType: a.cycleType as ScheduleDef['cycleType'],
-        cycleDays: a.cycleDays,
-        referenceDate: a.referenceDate,
-        days: dayCache.get(a.scheduleId) ?? [],
-      };
-      const o = overrides.find((x) => x.date === date);
-      const override = o ? { isDayOff: o.isDayOff, startTime: o.startTime?.slice(0, 5) ?? null, endTime: o.endTime?.slice(0, 5) ?? null } : null;
-      return { scheduleId: a.scheduleId, resolved: resolveScheduleDay(def, date, override) };
-    };
+    const resolve = await loadScheduleResolver(ex, emp.tenantId, [emp.id], first, lastPlus);
+    const scheduleFor = (date: CivilDate) => resolve(emp.id, date);
 
     // Janela de cada dia em instantes: [fim do dia anterior, fim do dia).
     const endOf = new Map<CivilDate, Date>();
-    for (let date = first; date <= to; date = addDays(date, 1)) {
-      const s = scheduleFor(date);
-      const midnight = localToInstant(`${addDays(date, 1)}T00:00`, tz);
-      if (s?.resolved.crossesMidnight && s.resolved.schedule.kind === 'trabalho') {
-        const lastExpected = s.resolved.schedule.expectedPunches.at(-1) as LocalDateTime;
-        endOf.set(date, new Date(Math.max(midnight.getTime(), localToInstant(lastExpected, tz).getTime() + CROSS_MIDNIGHT_GRACE_MS)));
-      } else {
-        endOf.set(date, midnight);
-      }
-    }
+    for (let date = first; date <= to; date = addDays(date, 1)) endOf.set(date, dayEndsAt(date, scheduleFor(date), tz));
     const windowStart = (date: CivilDate) => endOf.get(addDays(date, -1)) as Date;
 
     const arpPunches = await this.d.arp.listPunches({ tenantId: emp.tenantId, cpf: emp.cpf, from: windowStart(addDays(from, -1)), to: endOf.get(to) as Date });
@@ -310,7 +274,7 @@ export class TimesheetService {
         nightWorkType,
         parameters,
       });
-      computed.push({ date, scheduleId: s.scheduleId, result, punches: placed });
+      computed.push({ date, endsAt: endOf.get(date) as Date, scheduleId: s.scheduleId, result, punches: placed });
     }
     return { computed, skipped };
   }
@@ -343,7 +307,8 @@ export class TimesheetService {
 
   // ------------------------------------------------------------------ gravação
 
-  private async persist(tx: Executor, emp: EmployeeRecord, day: ComputedDay): Promise<void> {
+  /** Devolve o id da apuração do dia. */
+  private async persist(tx: Executor, emp: EmployeeRecord, day: ComputedDay, calculatedAt: Date): Promise<number> {
     const r = day.result;
     const values = {
       scheduleId: day.scheduleId,
@@ -359,7 +324,7 @@ export class TimesheetService {
       breakMinutes: r.breakMinutes,
       isDsrDeducted: false,
       parameterVersion: r.parameterVersion,
-      calculatedAt: this.d.clock.now(),
+      calculatedAt,
     };
     const [row] = await tx
       .insert(dailyTimesheets)
@@ -401,7 +366,37 @@ export class TimesheetService {
         .values(types.map((type) => ({ tenantId: emp.tenantId, dailyTimesheetId: id, type })))
         .onConflictDoNothing({ target: [timesheetIssues.dailyTimesheetId, timesheetIssues.type] });
     }
+    return id;
   }
+}
+
+/** Marcações, inconsistências e status de um lote de apurações da conta, na ordem de exibição. */
+export async function loadDayDetails(ex: Executor, tenantId: number, ids: number[]) {
+  const [punches, issues] =
+    ids.length === 0
+      ? [[], []]
+      : await Promise.all([
+          ex
+            .select()
+            .from(timesheetPunches)
+            .where(and(eq(timesheetPunches.tenantId, tenantId), inArray(timesheetPunches.dailyTimesheetId, ids)))
+            .orderBy(asc(timesheetPunches.sequence)),
+          ex
+            .select()
+            .from(timesheetIssues)
+            .where(and(eq(timesheetIssues.tenantId, tenantId), inArray(timesheetIssues.dailyTimesheetId, ids)))
+            .orderBy(asc(timesheetIssues.type)),
+        ]);
+  return (id: number): Pick<TimesheetDayDto, 'status' | 'punches' | 'issues'> => {
+    const dayIssues = issues.filter((i) => i.dailyTimesheetId === id).map((i) => ({ type: i.type as IssueType, resolved: i.isResolved }));
+    return {
+      status: dayIssues.some((i) => !i.resolved && BLOCKING_ISSUE_TYPES.includes(i.type)) ? 'inconsistente' : 'calculada',
+      punches: punches
+        .filter((p) => p.dailyTimesheetId === id)
+        .map((p) => ({ sequence: p.sequence, at: p.punchedAt.toISOString(), origin: p.origin as 'original' | 'tratada', nsr: p.nsr, adjustmentId: p.adjustmentId })),
+      issues: dayIssues,
+    };
+  };
 }
 
 function resolveNightType(rows: readonly LegalParameterRow[], date: CivilDate, companyId: string): NightWorkType {

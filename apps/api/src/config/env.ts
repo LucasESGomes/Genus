@@ -99,7 +99,8 @@ const rawSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, 'MASTER_KEY deve ter 64 caracteres hex (32 bytes)')
     .optional(),
-  // Painel do super_admin: saúde do sistema. Sem elas, o check aparece como não configurado.
+  // Valkey (URL sem senha): a apuração automática consome `day-recalculation`. Sem VALKEY_URL, o dia só é
+  // calculado a pedido, e a saúde do sistema (painel do super_admin) aparece como não configurada.
   VALKEY_URL: z.url({ error: 'VALKEY_URL deve ser uma URL' }).optional(),
   VALKEY_PASSWORD: z.string().min(1).optional(),
   COLLECTOR_API_URL: z.url({ error: 'COLLECTOR_API_URL deve ser uma URL' }).optional(),

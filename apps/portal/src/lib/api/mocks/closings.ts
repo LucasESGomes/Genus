@@ -61,6 +61,10 @@ const find = (id: string) => {
   return r;
 };
 
+/** Competência fechada que cobre o dia (o mock de timesheets deixa esses dias fora do recálculo). */
+export const isMockPeriodClosed = (establishmentId: string, date: string) =>
+  rows.some((r) => r.closing.establishmentId === establishmentId && r.closing.status === 'fechado' && r.closing.startDate <= date && date <= r.closing.endDate);
+
 // ---- espelho ----
 
 const instant = (date: string, hhmm: string) => `${date}T${hhmm}:00-03:00`;

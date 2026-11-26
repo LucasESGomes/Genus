@@ -1,39 +1,40 @@
 'use client';
 /**
- * Escala e apuração do dia (mapa §4.4). A lista do dia de todos os colaboradores é [MOCK] no back
+ * Escala e apuração do dia (mapa §4.4). Lista o dia de todos os colaboradores do estabelecimento
  * (api.timesheets.day): o front mostra o que a api devolve, sem calcular extra, falta nem status.
- * [A CONFIRMAR] "Recalcular dia" do estabelecimento: o back só recalcula por colaborador.
+ * "Recalcular dia" (rh) pede à api para refazer o dia de todos; as marcações originais não mudam.
  */
 import { keepPreviousData } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { ArrowClockwise, CaretLeft, CaretRight, FingerprintSimple, FunnelSimpleX } from '@phosphor-icons/react';
 import { useRouter } from 'next/navigation';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { CountTabs } from '@/components/ui/CountTabs';
 import { DataTable } from '@/components/ui/DataTable';
 import { SelectField } from '@/components/ui/Fields';
+import { notify } from '@/components/ui/notify';
 import { noResultsTitle, SearchBar } from '@/components/ui/SearchBar';
 import { Pagination } from '@/components/ui/Pagination';
-import { PendingBackTooltip } from '@/components/ui/PendingBackTooltip';
 import { QueryView } from '@/components/ui/QueryView';
 import { EmptyState, ForbiddenState } from '@/components/ui/States';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Minutes } from '@/components/domain/Minutes';
 import { PunchChips } from '@/components/domain/PunchChips';
-import type { DayRow, DayRowPage, TimesheetDayStatus } from '@/lib/api/contracts';
+import type { DayRecalculateBody, DayRecalculateResult, DayRow, DayRowPage, TimesheetDayStatus } from '@/lib/api/contracts';
 import { isEntityId } from '@/lib/api/ids';
 import { can } from '@/lib/auth/permissions';
 import { useClock } from '@/lib/clock-context';
 import { addCivilDays, DEFAULT_TZ, formatDate, plural, todayCivil } from '@/lib/format';
 import { daySituationLabel, ISSUE_TYPE, TIMESHEET_DAY_STATUS } from '@/lib/labels';
-import { useApiQuery } from '@/lib/query/hooks';
+import { useApiMutation, useApiQuery } from '@/lib/query/hooks';
 import { useSession } from '@/lib/session';
 import { oneOf, useUrlState } from '@/lib/url-state';
 import { useTextSearch } from '@/lib/use-debounced-value';
-import { ABSENCE_LABEL, COPY, emptyDayTitle } from './copy';
+import { ABSENCE_LABEL, COPY, emptyDayTitle, recalculatedText, skippedTitle } from './copy';
+import { DayRecalcNotice } from './DayRecalcNotice';
 import { LinkButton } from './LinkButton';
 
 const TABS = ['todos', 'inconsistente', 'falta', 'calculada'] as const;
@@ -140,6 +141,19 @@ export function DayScreen() {
   );
   const columns = useColumns();
 
+  // O resultado guarda o dia e o estabelecimento pedidos: ao trocar de dia, o aviso não aparece no dia errado.
+  const [lastRecalc, setLastRecalc] = useState<(DayRecalculateBody & { result: DayRecalculateResult }) | null>(null);
+  const recalculation = useApiMutation((api, body: DayRecalculateBody) => api.timesheets.recalculateDay(body), {
+    invalidates: ['day', 'timesheets', 'timeBank'],
+    onSuccess: (result, body) => {
+      setLastRecalc({ ...body, result });
+      const skipped = result.skipped.length > 0 ? ` · ${skippedTitle(result.skipped.length)}` : '';
+      notify.success(COPY.recalcDayDone, `${recalculatedText(result.recalculated)}${skipped}`);
+    },
+    onError: (e) => notify.error(e),
+  });
+  const shownRecalc = lastRecalc && lastRecalc.date === date && lastRecalc.establishmentId === establishment.id ? lastRecalc : null;
+
   if (!allowed) return <ForbiddenState screen="Escala e apuração" establishment={establishment.name} />;
 
   const canRecalc = can(me.role, 'timesheet.recalculate');
@@ -162,14 +176,20 @@ export function DayScreen() {
     </div>
   );
 
-  const recalc = canRecalc && (
-    <span title={COPY.recalcDayPending}>
-      <PendingBackTooltip>
-        <Button variant="secondary" disabled aria-describedby="recalc-day-note" icon={<ArrowClockwise size={18} aria-hidden />}>{COPY.recalcDay}</Button>
-      </PendingBackTooltip>
-      <span id="recalc-day-note" className="sr-only">{COPY.recalcDayPending}</span>
-    </span>
-  );
+  const recalc = canRecalc ? (
+    <Button
+      variant="accent"
+      loading={recalculation.isPending}
+      disabled={!hasEstablishment || date > today}
+      icon={<ArrowClockwise size={18} aria-hidden />}
+      onClick={() => {
+        setLastRecalc(null);
+        recalculation.mutate({ establishmentId: establishment.id, date });
+      }}
+    >
+      {COPY.recalcDay}
+    </Button>
+  ) : undefined;
 
   const emptyDay = (
     <div className="flex flex-col items-center gap-4">
@@ -232,7 +252,7 @@ export function DayScreen() {
           {canSchedules && <LinkButton href="/rh/escalas">{COPY.seeSchedules}</LinkButton>}
         </>
       }
-      primary={recalc || undefined}
+      primary={recalc}
     >
       {!hasEstablishment ? (
         <EmptyState icon={FingerprintSimple} title={COPY.pickEstablishmentTitle} text={COPY.pickEstablishmentText} />
@@ -258,6 +278,7 @@ export function DayScreen() {
               />
             </div>
           </div>
+          {shownRecalc && <DayRecalcNotice date={shownRecalc.date} result={shownRecalc.result} />}
           <CountTabs label="Situação do dia" items={tabs} value={aba} onChange={(v) => setUrl({ aba: v === 'todos' ? null : v, page: null })} />
           <QueryView
             query={q}

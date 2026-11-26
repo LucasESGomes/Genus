@@ -265,6 +265,8 @@ Os valores de RN02 a RN05 vêm da especificação com a fonte legal indicada. Os
 
 **Testes de borda obrigatórios:** batida faltando, número ímpar de batidas, virada de dia, jornada noturna (urbana e rural), feriado, batida atrasada do modo offline e a troca de regra em 16/12/2026 e 16/12/2027.
 
+**Implementado (26/11/2026):** apuração automática. O `recalculate-day` do rep-core cai na fila `day-recalculation`, consumida pela api, que recalcula o dia anterior, o dia e o seguinte (até hoje). O job de hora em hora `close-days` gera a falta e encerra os dias (olha 3 dias para trás). Dia aberto não acusa falta, atraso nem batida faltando. Rotas: `GET /portal/timesheets` e `POST /portal/timesheets/recalculate` (dia do estabelecimento). A migration `0019` carrega os `parametros_legais` padrão. Desvio do desenho: o outbox do `arp` não é marcado `processado`. Pendente: o fechamento não confere se todos os dias do período já foram encerrados **[A CONFIRMAR]**.
+
 ### G5 · Ajustes e justificativas (MVP)
 
 **Tabelas:**
@@ -372,6 +374,8 @@ Atende RF61 (leitura do texto), RF62 (datas × informado), RF63 (CRM só em form
 - **Folga compensatória:** ao aprovar, grava débito e marca o dia como `compensado` na apuração.
 - **Alerta de saldo alto ou vencendo:** job diário `check-deadlines` (`minutos_saldo_alto`, `dias_alerta_vencimento`). No MVP aparece nas "Pendências" do painel (G11); na fase 2, vira aviso (E6).
 - **Pagamento ou desconto no vencimento ou no desligamento (RF38, RN09):** job grava `pagamento` (crédito não compensado vira hora extra paga) ou `desconto` (saldo negativo). No **desligamento** (`employee.terminated`, G1) o saldo inteiro é liquidado na hora, sem esperar o vencimento. **Desconto de saldo negativo é restrito pela lei trabalhista: só com previsão em acordo [A CONFIRMAR]**; começa desligado (`eh_desconto_saldo_negativo = false`) e exige parametrização.
+
+**Implementado (26/11/2026):** lançamento automático na transação da apuração, só em dia encerrado e com regra em `regras_banco_horas`; o ledger recebe a diferença entre o que o dia vale e o já lançado (`criado_por` NULL = sistema). Rotas: `GET /portal/time-bank`, `GET /portal/employees/:id/time-bank`, `GET` e `PUT /portal/establishments/:id/time-bank-policy`. **[A CONFIRMAR]:** falta integral não debita o banco (só atraso e saída antecipada); pesos de domingo e feriado valem só para a extra de dia de descanso; `banco_saldo_negativo_max_min` não é carregado. Pendente: pagamento no vencimento, liquidação no desligamento, folga compensatória, lançamento manual e regra por colaborador na tela.
 
 ### G9 · Férias (Fase 2)
 

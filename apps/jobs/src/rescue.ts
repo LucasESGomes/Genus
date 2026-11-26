@@ -9,6 +9,10 @@
  * - "Agora" vem do `Clock` injetado, não do `now()` do SQL.
  * - Tudo usa o MESMO `jobId` da publicação normal (`punchJobId` / `postPunchJobId`), então
  *   republicar é idempotente.
+ * - `recalculate-day` tem regra própria: o outbox não vira `processado` (só o rep-core escreve
+ *   no `arp`), então a marca de processado é o job `completed`, guardado por 48 h em
+ *   `day-recalculation`. Só entram linhas entre `minAgeMs` e 1 h de idade, e job concluído
+ *   não é republicado. Job que falha por mais de 1 h fica `failed` (recálculo manual).
  */
 import {
   postPunchJobId,
@@ -17,6 +21,7 @@ import {
   PUNCH_JOB_NAME,
   punchJobId,
   punchPayloadSchema,
+  RECALCULATE_DAY_EVENT,
   type PostPunchJobData,
   type PunchJobData,
 } from '@genus/queue';
@@ -25,6 +30,8 @@ import type { Queue } from 'bullmq';
 import type { Pool } from 'pg';
 
 export const RESCUE_BATCH_SIZE = 500;
+/** Idade máxima de um `recalculate-day` republicado. Menor que a retenção do job concluído (48 h). */
+export const RECALCULATE_RESCUE_MAX_AGE_MS = 60 * 60 * 1000;
 /** Trava de segurança contra varredura sem fim num único ciclo (500 x 200 = 100 mil linhas). */
 const MAX_BATCHES_PER_KIND = 200;
 /** Itens verificados em paralelo dentro de um lote (cada um faz poucos comandos ao Valkey). */
@@ -37,6 +44,7 @@ export interface RescueDeps {
   logger: Logger;
   punchesQueue: Queue<PunchJobData>;
   postPunchQueue: Queue<PostPunchJobData>;
+  dayRecalculationQueue: Queue<PostPunchJobData>;
   minAgeMs: number;
   postPunchDepthWarn: number;
 }
@@ -75,13 +83,15 @@ function toSafeInt(value: string): number | null {
 /**
  * Garante que existe um job vivo para `jobId`:
  * inexistente -> add; waiting/active/delayed -> nada; failed -> retry;
- * completed (com a linha ainda pendente) -> remove e add.
+ * completed (com a linha ainda pendente) -> conforme `onCompleted`: remove e add, ou nada
+ * (quando o job concluído é a marca de processado).
  */
 async function ensureJob<T>(
   queue: Queue<T>,
   name: string,
   data: T,
   jobId: string,
+  onCompleted: 'republish' | 'keep' = 'republish',
 ): Promise<EnsureOutcome> {
   const existing = await queue.getJob(jobId);
   if (!existing) {
@@ -96,6 +106,7 @@ async function ensureJob<T>(
       await existing.retry('failed', { resetAttemptsMade: true });
       return 'enqueued';
     case 'completed':
+      if (onCompleted === 'keep') return 'skipped';
       // A linha segue `pendente` (senão nem teria sido selecionada): o job concluiu sem efeito.
       await existing.remove();
       await queue.add(name as never, data as never, { jobId });
@@ -177,16 +188,26 @@ export function parseOutboxKey(chave: string, establishmentId: number): number |
   return nsr;
 }
 
-async function rescueOutbox(deps: RescueDeps, cutoff: Date, result: RescueResult): Promise<void> {
+/** Qual parte do outbox varrer, para onde publicar e o que fazer com job concluído. */
+interface OutboxScan {
+  kind: 'outbox' | 'recalculate-day';
+  /** Condição sobre `evento` e idade; os parâmetros dela começam em `$4`. */
+  condition: string;
+  params: string[];
+  queue: Queue<PostPunchJobData>;
+  onCompleted: 'republish' | 'keep';
+}
+
+async function rescueOutbox(deps: RescueDeps, scan: OutboxScan, cutoff: Date, result: RescueResult): Promise<void> {
   let lastId = 0;
   for (let batch = 0; batch < MAX_BATCHES_PER_KIND; batch++) {
     const res = await deps.reader.query<OutboxRow>(
       `SELECT id, conta_id, estabelecimento_id, evento, chave
          FROM outbox
-        WHERE status = 'pendente' AND criado_em < $1::timestamptz AND id > $2
+        WHERE status = 'pendente' AND criado_em < $1::timestamptz AND id > $2 AND ${scan.condition}
         ORDER BY id
         LIMIT $3`,
-      [cutoff.toISOString(), lastId, RESCUE_BATCH_SIZE],
+      [cutoff.toISOString(), lastId, RESCUE_BATCH_SIZE, ...scan.params],
     );
     if (res.rows.length === 0) return;
     result.lotes += 1;
@@ -203,10 +224,11 @@ async function rescueOutbox(deps: RescueDeps, cutoff: Date, result: RescueResult
       }
       const payload = postPunchPayloadSchema.parse({ outboxId, tenantId, establishmentId, nsr });
       const outcome = await ensureJob(
-        deps.postPunchQueue,
+        scan.queue,
         row.evento,
         payload,
         postPunchJobId(row.evento, establishmentId, nsr),
+        scan.onCompleted,
       );
       if (outcome === 'enqueued') result.outboxReenfileirados += 1;
       else result.ignorados += 1;
@@ -216,19 +238,38 @@ async function rescueOutbox(deps: RescueDeps, cutoff: Date, result: RescueResult
     lastId = lastParsed;
     if (res.rows.length < RESCUE_BATCH_SIZE) return;
   }
-  deps.logger.warn({ event: 'rescue_batch_cap_reached', kind: 'outbox' }, 'resgate: limite de lotes do ciclo atingido; o resto fica para a próxima rodada');
+  deps.logger.warn({ event: 'rescue_batch_cap_reached', kind: scan.kind }, 'resgate: limite de lotes do ciclo atingido; o resto fica para a próxima rodada');
 }
 
 /**
- * Uma rodada de resgate: varre `entradas` e `outbox` pendentes há mais de `minAgeMs`,
- * em lotes de 500 (mais antigos primeiro), e republica o que não tem job vivo.
+ * Uma rodada de resgate: varre `entradas` e `outbox` pendentes há mais de `minAgeMs`
+ * (`recalculate-day`: só até 1 h de idade), em lotes de 500 (mais antigos primeiro), e
+ * republica o que não tem job vivo.
  */
 export async function runRescueOnce(deps: RescueDeps): Promise<RescueResult> {
   const cutoff = new Date(deps.clock.now().getTime() - deps.minAgeMs);
   const result: RescueResult = { entradasReenfileiradas: 0, outboxReenfileirados: 0, ignorados: 0, lotes: 0 };
 
   await rescueEntries(deps, cutoff, result);
-  await rescueOutbox(deps, cutoff, result);
+  await rescueOutbox(
+    deps,
+    { kind: 'outbox', condition: 'evento <> $4', params: [RECALCULATE_DAY_EVENT], queue: deps.postPunchQueue, onCompleted: 'republish' },
+    cutoff,
+    result,
+  );
+  const oldest = new Date(deps.clock.now().getTime() - RECALCULATE_RESCUE_MAX_AGE_MS);
+  await rescueOutbox(
+    deps,
+    {
+      kind: 'recalculate-day',
+      condition: 'evento = $4 AND criado_em >= $5::timestamptz',
+      params: [RECALCULATE_DAY_EVENT, oldest.toISOString()],
+      queue: deps.dayRecalculationQueue,
+      onCompleted: 'keep',
+    },
+    cutoff,
+    result,
+  );
 
   const counts = await deps.postPunchQueue.getJobCounts('waiting', 'delayed', 'active');
   const depth = (counts.waiting ?? 0) + (counts.delayed ?? 0) + (counts.active ?? 0);

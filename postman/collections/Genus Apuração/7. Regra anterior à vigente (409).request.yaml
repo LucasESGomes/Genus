@@ -1,0 +1,18 @@
+$kind: http-request
+name: 7. Regra anterior à vigente (409)
+description: "Vigência anterior à regra atual."
+url: "{{portalUrl}}/portal/establishments/{{establishmentId}}/time-bank-policy"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "modality": "individual_6m", "sundayWeight": "1.00", "holidayWeight": "1.00", "validFrom": "2000-01-01" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 409', () => pm.response.to.have.status(409));
+      pm.test('Código', () => pm.expect(pm.response.json().code).to.eql('BANCO_REGRA_VIGENCIA'));
+    language: text/javascript
+order: 7000

@@ -1,8 +1,9 @@
 import type { JobsOptions } from 'bullmq';
+import { DAY_RECALCULATION_KEEP_COMPLETED_SECONDS } from './constants.js';
 
 export const DEFAULT_ATTEMPTS = 5;
 
-/** Opções comuns às duas filas (`removeOnComplete` é de cada fila). */
+/** Opções comuns às filas (`removeOnComplete` é de cada fila). */
 export function defaultJobOptions(attempts: number = DEFAULT_ATTEMPTS) {
   return {
     attempts,
@@ -21,4 +22,9 @@ export function punchesJobOptions(attempts: number = DEFAULT_ATTEMPTS): JobsOpti
 /** `post-punch`: concluídos ficam; o consumidor futuro marca o outbox e só então remove. */
 export function postPunchJobOptions(attempts: number = DEFAULT_ATTEMPTS): JobsOptions {
   return { ...defaultJobOptions(attempts), removeOnComplete: false };
+}
+
+/** `day-recalculation`: concluídos ficam 48 h (o resgate não republica job `completed`). Falhos ficam. */
+export function dayRecalculationJobOptions(attempts: number = DEFAULT_ATTEMPTS): JobsOptions {
+  return { ...defaultJobOptions(attempts), removeOnComplete: { age: DAY_RECALCULATION_KEEP_COMPLETED_SECONDS } };
 }

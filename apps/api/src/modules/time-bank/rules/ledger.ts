@@ -30,6 +30,8 @@ export interface TimeBankEntry {
   minutes: number;
   competenceDate: CivilDate;
   dueDate: CivilDate | null;
+  /** `apuracao_dia_id`: os lançamentos da apuração do mesmo dia se compensam entre si. */
+  dailyTimesheetId?: string | null;
 }
 
 export function timeBankBalance(entries: readonly TimeBankEntry[]): number {
@@ -72,18 +74,51 @@ export interface OpenCredit {
   remainingMinutes: number;
 }
 
+/** Ordem de consumo: vencimento (sem vencimento por último), competência e id. */
+function byDueDate(a: TimeBankEntry, b: TimeBankEntry): number {
+  const da = a.dueDate ?? '9999-12-31';
+  const db = b.dueDate ?? '9999-12-31';
+  if (da !== db) return da < db ? -1 : 1;
+  if (a.competenceDate !== b.competenceDate) return a.competenceDate < b.competenceDate ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * Soma os lançamentos `credito` e `debito` de cada dia apurado num só. Recalcular
+ * um dia grava a diferença no ledger; sem esta soma, o estorno de um dia
+ * consumiria o crédito de outro. Saldo positivo fica com o vencimento mais
+ * próximo entre os créditos do dia [A CONFIRMAR].
+ */
+function netByDay(entries: readonly TimeBankEntry[]): TimeBankEntry[] {
+  const out: TimeBankEntry[] = [];
+  const days = new Map<string, TimeBankEntry[]>();
+  for (const e of entries) {
+    if (!e.dailyTimesheetId || (e.type !== 'credito' && e.type !== 'debito')) {
+      out.push(e);
+      continue;
+    }
+    const group = days.get(e.dailyTimesheetId);
+    if (group) group.push(e);
+    else days.set(e.dailyTimesheetId, [e]);
+  }
+  for (const group of days.values()) {
+    const minutes = timeBankBalance(group);
+    if (minutes === 0) continue;
+    if (minutes < 0) {
+      out.push({ ...(group[0] as TimeBankEntry), type: 'debito', minutes, dueDate: null });
+    } else {
+      const source = group.filter((e) => e.minutes > 0).sort(byDueDate)[0] as TimeBankEntry;
+      out.push({ ...source, minutes });
+    }
+  }
+  return out;
+}
+
 /** Créditos com saldo, depois de consumir todos os débitos do mais antigo para o mais novo. */
 export function openCredits(entries: readonly TimeBankEntry[]): OpenCredit[] {
-  const credits = entries
-    .filter((e) => e.minutes > 0)
-    .sort((a, b) => {
-      const da = a.dueDate ?? '9999-12-31';
-      const db = b.dueDate ?? '9999-12-31';
-      if (da !== db) return da < db ? -1 : 1;
-      if (a.competenceDate !== b.competenceDate) return a.competenceDate < b.competenceDate ? -1 : 1;
-      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-    });
-  let toConsume = -entries.filter((e) => e.minutes < 0).reduce((s, e) => s + e.minutes, 0);
+  const net = netByDay(entries);
+  const credits = net.filter((e) => e.minutes > 0).sort(byDueDate);
+  let toConsume = -net.filter((e) => e.minutes < 0).reduce((s, e) => s + e.minutes, 0);
   const open: OpenCredit[] = [];
   for (const c of credits) {
     const used = Math.min(c.minutes, toConsume);
@@ -108,6 +143,22 @@ export function creditsExpiringWithin(
 ): OpenCredit[] {
   const limit = addDays(asOf, days);
   return openCredits(entries).filter((c) => c.dueDate !== null && c.dueDate > asOf && c.dueDate <= limit);
+}
+
+export interface TimeBankSummary {
+  balanceMinutes: number;
+  expiringIn30DaysMinutes: number;
+  /** Vencimento mais próximo, depois de `asOf`, entre os créditos com saldo. */
+  nextDueDate: CivilDate | null;
+}
+
+/** Resumo mostrado nas telas: saldo, a vencer em 30 dias e próximo vencimento (FIFO). */
+export function timeBankSummary(entries: readonly TimeBankEntry[], asOf: CivilDate): TimeBankSummary {
+  return {
+    balanceMinutes: timeBankBalance(entries),
+    expiringIn30DaysMinutes: creditsExpiringWithin(entries, asOf, 30).reduce((s, c) => s + c.remainingMinutes, 0),
+    nextDueDate: openCredits(entries).find((c) => c.dueDate !== null && c.dueDate > asOf)?.dueDate ?? null,
+  };
 }
 
 export interface ProposedEntry {

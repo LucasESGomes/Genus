@@ -67,6 +67,7 @@ export function captureLogs(): { logger: ReturnType<typeof createLogger>; logs: 
 export interface WorkerHarness {
   punches: Queue;
   postPunch: Queue;
+  dayRecalculation: Queue;
   logs: CapturedLogs;
   /** Enfileira em `punches` como a API faria (jobId = aparelho-sequência). */
   enqueue(entry: { entryId: number; tenantId: number; establishmentId: number }, deviceId: number, sequence: number): Promise<string>;
@@ -94,7 +95,14 @@ export async function startHarness(opts: HarnessOptions): Promise<WorkerHarness>
   const punches = createPunchesQueue(queueConn, { attempts });
   const inspectConn = new Redis(opts.valkeyUrl, { maxRetriesPerRequest: null });
   const postPunch = new Queue('post-punch', { connection: inspectConn });
-  cleanups.push(() => punches.close(), () => postPunch.close(), () => queueConn.disconnect(), () => inspectConn.disconnect());
+  const dayRecalculation = new Queue('day-recalculation', { connection: inspectConn });
+  cleanups.push(
+    () => punches.close(),
+    () => postPunch.close(),
+    () => dayRecalculation.close(),
+    () => queueConn.disconnect(),
+    () => inspectConn.disconnect(),
+  );
 
   let publisher = opts.publisher;
   if (!publisher) {
@@ -122,6 +130,7 @@ export async function startHarness(opts: HarnessOptions): Promise<WorkerHarness>
   return {
     punches,
     postPunch,
+    dayRecalculation,
     logs,
     async enqueue(entry, deviceId, sequence) {
       const jobId = punchJobId(deviceId, sequence);
@@ -149,11 +158,11 @@ export async function waitFor(
   }
 }
 
-/** Remove jobs das duas filas entre testes (o nome das filas é fixo). */
+/** Remove jobs das filas entre testes (o nome das filas é fixo). */
 export async function resetQueues(valkeyUrl: string): Promise<void> {
   const conn = new Redis(valkeyUrl, { maxRetriesPerRequest: null });
   try {
-    for (const name of ['punches', 'post-punch']) {
+    for (const name of ['punches', 'post-punch', 'day-recalculation']) {
       const q = new Queue(name, { connection: conn });
       await q.obliterate({ force: true });
       await q.close();

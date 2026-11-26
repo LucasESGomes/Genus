@@ -1,0 +1,1 @@
+ALTER TABLE "rh"."lancamentos_banco_horas" ALTER COLUMN "criado_por" DROP NOT NULL;

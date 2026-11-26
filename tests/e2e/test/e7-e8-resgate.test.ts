@@ -12,6 +12,7 @@ import { quiesce, resetQueues, startInfra, waitFor, type Infra } from '../suppor
 import {
   disposer,
   openQueues,
+  eventJobs,
   postPunch,
   rescueRunner,
   SERVER_NOW,
@@ -106,14 +107,14 @@ describe('E8: evento de post-punch já publicado não duplica', () => {
     const core = startRepCore(infra);
     cleanup.add(() => core.close());
     expect((await postPunch(collector, 1)).statusCode).toBe(200);
-    await waitFor(async () => (await totalJobs(queues.postPunch)) === 3, '3 jobs em post-punch', 30_000);
+    await waitFor(async () => (await eventJobs(queues)) === 3, '3 jobs de eventos', 30_000);
     await core.close();
     const dbNow = (await infra.owner.query<{ t: Date }>('SELECT now() AS t')).rows[0]!.t;
     return { queues, dbNow };
   }
 
   const waitingIds = async (q: Awaited<ReturnType<typeof openQueues>>) =>
-    (await q.postPunch.getJobs(['waiting'])).map((j) => j.id).sort();
+    [...(await q.postPunch.getJobs(['waiting'])), ...(await q.dayRecalculation.getJobs(['waiting']))].map((j) => j.id).sort();
 
   it('jobs ainda na fila: dois resgates seguidos não criam job novo (mesmos jobIds)', async () => {
     const est = 7901;
@@ -126,7 +127,7 @@ describe('E8: evento de post-punch já publicado não duplica', () => {
       const res = await rescue.run(new FixedClock(new Date(dbNow.getTime() + 60_000 * round)));
       expect(res.outboxReenfileirados).toBe(0);
       expect(res.ignorados).toBe(3);
-      expect(await totalJobs(queues.postPunch)).toBe(3);
+      expect(await eventJobs(queues)).toBe(3);
       expect(await waitingIds(queues)).toEqual(before);
     }
     expect(await outboxCounts(infra.owner, est)).toEqual({ pendente: 3 });
@@ -137,31 +138,40 @@ describe('E8: evento de post-punch já publicado não duplica', () => {
     const { queues, dbNow } = await processOnePunch(est, 8902);
     const before = await waitingIds(queues);
 
-    // Consumidor de teste que conclui os jobs sem marcar o outbox (o consumidor real ainda não existe).
+    // Consumidores de teste que concluem os jobs sem marcar o outbox.
     const conn = createWorkerConnection({ url: infra.valkey.url, password: undefined });
     conn.on('error', () => undefined);
     const consumer = new Worker('post-punch', async () => undefined, { connection: conn });
     consumer.on('error', () => undefined);
+    const recalcConn = createWorkerConnection({ url: infra.valkey.url, password: undefined });
+    recalcConn.on('error', () => undefined);
+    const recalcConsumer = new Worker('day-recalculation', async () => undefined, { connection: recalcConn });
+    recalcConsumer.on('error', () => undefined);
     await waitFor(
-      async () => (await queues.postPunch.getJobCounts('completed'))['completed'] === 3,
+      async () => (await queues.postPunch.getJobCounts('completed'))['completed'] === 2 &&
+        (await queues.dayRecalculation.getJobCounts('completed'))['completed'] === 1,
       '3 jobs concluídos pelo consumidor de teste',
       30_000,
     );
     await consumer.close();
     conn.disconnect();
+    await recalcConsumer.close();
+    recalcConn.disconnect();
     expect(await outboxCounts(infra.owner, est)).toEqual({ pendente: 3 });
 
     const rescue = rescueRunner(infra, queues);
     const first = await rescue.run(new FixedClock(new Date(dbNow.getTime() + 60_000)));
-    expect(first.outboxReenfileirados).toBe(3);
-    expect(await totalJobs(queues.postPunch)).toBe(3);
-    expect(await queues.postPunch.getJobCounts('waiting', 'completed')).toEqual({ waiting: 3, completed: 0 });
-    expect(await waitingIds(queues)).toEqual(before);
+    // post-punch republica os 2; o `recalculate-day` concluído não volta (o job concluído é a marca).
+    expect(first.outboxReenfileirados).toBe(2);
+    expect(await eventJobs(queues)).toBe(3);
+    expect(await queues.postPunch.getJobCounts('waiting', 'completed')).toEqual({ waiting: 2, completed: 0 });
+    expect(await queues.dayRecalculation.getJobCounts('waiting', 'completed')).toEqual({ waiting: 0, completed: 1 });
+    expect(await waitingIds(queues)).toEqual(before.filter((id) => !id!.startsWith('recalculate-day-')));
 
     // Segunda rodada: já estão `waiting`, não duplica.
     const second = await rescue.run(new FixedClock(new Date(dbNow.getTime() + 120_000)));
     expect(second.outboxReenfileirados).toBe(0);
-    expect(await totalJobs(queues.postPunch)).toBe(3);
+    expect(await eventJobs(queues)).toBe(3);
     expect(await countRegistros(infra.owner, est)).toBe(1);
   });
 });

@@ -16,6 +16,9 @@ export const ISSUE_TYPES = [
 ] as const;
 export type IssueType = (typeof ISSUE_TYPES)[number];
 
+/** Não resolvidas, deixam o dia `inconsistente` (os minutos não foram calculados). */
+export const BLOCKING_ISSUE_TYPES: readonly IssueType[] = ['batidas_impares', 'marcacao_duplicada'];
+
 const MAP: Readonly<Record<InconsistencyCode, IssueType>> = {
   marcacoes_impares: 'batidas_impares',
   marcacao_ausente: 'batida_faltando',

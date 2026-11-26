@@ -1,0 +1,18 @@
+$kind: http-request
+name: 3. Recalcular dia do estabelecimento
+description: "Recalcula o dia de todos. Só rh."
+url: "{{portalUrl}}/portal/timesheets/recalculate"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "establishmentId": {{establishmentId}}, "date": "{{date}}" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      pm.test('Contagem e ignorados', () => { const d = pm.response.json().data; pm.expect(d.recalculated).to.be.a('number'); pm.expect(d.skipped).to.be.an('array'); });
+    language: text/javascript
+order: 3000

@@ -6,7 +6,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FixedClock, PortalHarness, type Org } from './support/portal';
 
-const h = new PortalHarness({ arp: true, clock: new FixedClock('2026-11-23T12:00:00Z') });
+const clock = new FixedClock('2026-11-23T12:00:00Z');
+const h = new PortalHarness({ arp: true, clock });
 let org: Org;
 let rh: string;
 let scheduleId: number;
@@ -105,6 +106,9 @@ describe('escalas', () => {
 });
 
 describe('apuração do dia', () => {
+  // Os dias apurados abaixo já encerraram (dia aberto não acusa falta nem batida ímpar).
+  beforeAll(() => clock.set('2026-11-27T12:00:00Z'));
+
   it('dia normal: lê as 4 batidas do arp, 8 h trabalhadas, NSR guardado, sem inconsistência', async () => {
     const emp = await employeeOnSchedule();
     await punches(emp, '2026-11-23', ['07:00', '11:00', '12:00', '16:00']);

@@ -48,11 +48,11 @@ export function captureLogs() {
   return { logger, lines, byEvent: (event: string) => lines.filter((l) => l.event === event) };
 }
 
-/** Remove os jobs das duas filas (os nomes são fixos entre testes). */
+/** Remove os jobs das filas (os nomes são fixos entre testes). */
 export async function resetQueues(valkeyUrl: string): Promise<void> {
   const conn = new Redis(valkeyUrl, { maxRetriesPerRequest: null });
   try {
-    for (const name of ['punches', 'post-punch']) {
+    for (const name of ['punches', 'post-punch', 'day-recalculation']) {
       const q = new Queue(name, { connection: conn });
       await q.obliterate({ force: true });
       await q.close();

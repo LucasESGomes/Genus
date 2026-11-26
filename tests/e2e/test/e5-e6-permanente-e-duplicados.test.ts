@@ -20,10 +20,10 @@ import {
   disposer,
   enqueuePunch,
   openQueues,
+  eventJobs,
   postPunch,
   startCollector,
   startRepCore,
-  totalJobs,
 } from '../support/stack';
 
 const TENANT = 1;
@@ -65,7 +65,7 @@ describe('E5: falha permanente por entrada inexistente', () => {
     expect(failed?.failedReason).toBeTruthy();
     expect(core.logs.byEvent('punch_unrecoverable')).toHaveLength(1);
     expect(await countRegistros(infra.owner, est)).toBe(0);
-    expect(await totalJobs(queues.postPunch)).toBe(0);
+    expect(await eventJobs(queues)).toBe(0);
 
     expect((await postPunch(collector, 1)).statusCode).toBe(200);
     await waitFor(async () => (await nsrList(infra.owner, est)).length === 1, 'registro real', 30_000);
@@ -134,14 +134,15 @@ describe('E6: job duplicado na fila gera 1 registro', () => {
       'os 2 jobs concluídos',
       30_000,
     );
-    await waitFor(async () => (await totalJobs(queues.postPunch)) === 3, '3 jobs em post-punch', 15_000);
+    await waitFor(async () => (await eventJobs(queues)) === 3, '3 jobs de eventos', 15_000);
 
     expect(await nsrList(infra.owner, est)).toEqual([1]);
     expect(await countEvidencias(infra.owner, est)).toBe(1);
     expect(await countOutbox(infra.owner, est)).toBe(3);
     expect(await entryStatusCounts(infra.owner, est)).toEqual({ processado: 1 });
     // O segundo job republica os 3 eventos com o MESMO jobId: continua 1 job por evento.
-    expect(await queues.postPunch.getJobCounts('waiting')).toEqual({ waiting: 3 });
+    expect(await queues.postPunch.getJobCounts('waiting')).toEqual({ waiting: 2 });
+    expect(await queues.dayRecalculation.getJobCounts('waiting')).toEqual({ waiting: 1 });
     const outcomes = core.logs.byEvent('punch_processed').map((l) => l['outcome']).sort();
     expect(outcomes).toEqual(['already_processed', 'created']);
     expect(await queues.punches.getJobCounts('failed')).toEqual({ failed: 0 });

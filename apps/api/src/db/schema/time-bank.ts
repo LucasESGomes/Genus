@@ -51,7 +51,8 @@ export const timeBankEntries = rh.table(
     minutes: integer('minutos').notNull(),
     referenceDate: date('data_competencia').notNull(),
     dueDate: date('data_vencimento'),
-    createdById: ref('criado_por').notNull(),
+    /** NULL = lançamento automático do sistema (apuração). */
+    createdById: ref('criado_por'),
     createdAt: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

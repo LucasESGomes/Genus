@@ -9,6 +9,7 @@ import type { CertificateAiRegistry } from '../certificate-analysis/ai/registry'
 import type { HealthDataCipher } from '../certificate-analysis/health-crypto';
 import type { FacialEngineClient } from '../facial/engine-client';
 import type { SuperAdminDeps } from '../super-admin/deps';
+import type { DayPostingHook } from '../time-bank/posting-hook';
 
 export interface PortalDeps {
   db: Database;
@@ -16,6 +17,8 @@ export interface PortalDeps {
   access: PortalAccess;
   /** Batidas do arp, só leitura. */
   arp: ArpPunchReader;
+  /** Lançamento no banco de horas, chamado pela apuração. Ausente = nada é lançado. */
+  posting?: DayPostingHook;
   /** Arquivos de atestado. */
   storage: FileStorage;
   /** Engine facial; null = cadastro facial indisponível (503). */

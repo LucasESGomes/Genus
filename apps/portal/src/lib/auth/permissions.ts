@@ -76,11 +76,15 @@ const RULES = {
   'closing.reopen': ['rh'],
   'closing.viewMirror': ['rh', 'admin', 'contador', 'gestor'],
 
-  // [MOCK] sem back: Totens, Relatórios, Configurações, Banco de horas do RH
+  // Banco de horas (time-bank/routes.ts). Gestor vê saldos e extrato; a regra é do RH (admin só consulta).
+  'timeBank.view': ['rh', 'admin', 'gestor'],
+  'timeBank.viewPolicy': ['rh', 'admin'],
+  'timeBank.editPolicy': ['rh'],
+
+  // [MOCK] sem back: Totens, Relatórios, Configurações
   'device.manage': ['rh', 'admin'],
   'report.generate': ['rh', 'admin', 'contador'],
   'settings.manage': ['rh', 'admin'],
-  'timeBank.view': ['rh', 'admin', 'gestor'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Action = keyof typeof RULES;

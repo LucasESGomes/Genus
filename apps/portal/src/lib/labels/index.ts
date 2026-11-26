@@ -28,6 +28,8 @@ import type {
   ManualAbsenceType,
   PunchOrigin,
   RecalculateSkipReason,
+  DayRecalculateSkipReason,
+  TimeBankModality,
   Recommendation,
   ReliabilityBand,
   RiskLevel,
@@ -113,6 +115,16 @@ export const ISSUE_TYPE: Record<IssueType, Label> = {
 
 export const RECALCULATE_SKIP_REASON: Record<RecalculateSkipReason, Label> = {
   sem_escala: { label: 'Sem escala vigente', tone: 'warn' },
+};
+
+export const DAY_RECALCULATE_SKIP_REASON: Record<DayRecalculateSkipReason, Label> = {
+  sem_escala: { label: 'Sem escala vigente', tone: 'warn' },
+  periodo_fechado: { label: 'Período fechado', tone: 'warn' },
+};
+
+export const TIME_BANK_MODALITY: Record<TimeBankModality, Label> = {
+  individual_6m: { label: 'Acordo individual (6 meses)', tone: 'neutral' },
+  coletivo_12m: { label: 'Acordo coletivo (12 meses)', tone: 'neutral' },
 };
 
 export const ADJUSTMENT_TYPE: Record<AdjustmentType, Label> = {

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 import type { DayRowPage, DayRowQuery, Role } from '@/lib/api/contracts';
+import type { TimesheetsApi } from '@/lib/api/endpoints/timesheets';
 import { ApiError } from '@/lib/api/errors';
 import { mockTimesheetsApi } from '@/lib/api/mocks/timesheets';
 import { renderWithSession } from '../../../test/render';
@@ -12,11 +13,17 @@ import { DayScreen } from './DayScreen';
 const ROUTE = '/rh/apuracao?date=2026-11-21';
 const realDay = (q: DayRowQuery) => mockTimesheetsApi.day(q);
 
-function setup(day: (q: DayRowQuery) => Promise<DayRowPage> = realDay, role: Exclude<Role, 'super_admin'> = 'rh', route = ROUTE) {
+function setup(
+  day: (q: DayRowQuery) => Promise<DayRowPage> = realDay,
+  role: Exclude<Role, 'super_admin'> = 'rh',
+  route = ROUTE,
+  recalcDay: TimesheetsApi['recalculateDay'] = mockTimesheetsApi.recalculateDay,
+) {
   const dayFn = vi.fn(day);
   const recalculate = vi.fn(mockTimesheetsApi.recalculate);
-  const view = renderWithSession(<DayScreen />, { role, route, api: { timesheets: { day: dayFn, recalculate } } });
-  return { ...view, dayFn, recalculate };
+  const recalculateDay = vi.fn(recalcDay);
+  const view = renderWithSession(<DayScreen />, { role, route, api: { timesheets: { day: dayFn, recalculate, recalculateDay } } });
+  return { ...view, dayFn, recalculate, recalculateDay };
 }
 
 describe('Apuração do dia', () => {
@@ -99,13 +106,60 @@ describe('Apuração do dia', () => {
     expect(await screen.findByText('Item não encontrado')).toBeInTheDocument();
   });
 
-  it('rh vê "Recalcular dia" desabilitado (o back não tem o endpoint) e nada é chamado', async () => {
-    const { recalculate } = setup();
+  it('"Recalcular dia" chama o endpoint do estabelecimento com o dia da tela e atualiza a lista', async () => {
+    const { dayFn, recalculateDay, recalculate, container } = setup();
     await screen.findByText('Antônio Carlos Ferreira');
-    const button = screen.getByRole('button', { name: 'Recalcular dia' });
+    const before = dayFn.mock.calls.length;
+    await userEvent.click(screen.getByRole('button', { name: 'Recalcular dia' }));
+    expect(recalculateDay).toHaveBeenCalledTimes(1);
+    expect(recalculateDay).toHaveBeenCalledWith({ establishmentId: '1', date: '2026-11-21' });
+    expect(await screen.findByText(/21\/11\/2026: 17 colaboradores recalculados\./)).toBeInTheDocument();
+    expect(screen.queryByText(/de fora/)).toBeNull();
+    await waitFor(() => expect(dayFn.mock.calls.length).toBeGreaterThan(before));
+    expect(recalculate).not.toHaveBeenCalled();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('mostra quem ficou de fora e por quê, com o nome do colaborador', async () => {
+    setup(realDay, 'rh', ROUTE, async () => ({
+      recalculated: 1,
+      skipped: [
+        { employeeId: '102', reason: 'sem_escala' },
+        { employeeId: '103', reason: 'periodo_fechado' },
+        { employeeId: '999', reason: 'periodo_fechado' },
+      ],
+    }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Recalcular dia' }));
+    expect(await screen.findByText(/1 colaborador recalculado\./)).toBeInTheDocument();
+    // O aviso curto (toast) repete a contagem; o detalhe fica no aviso da tela.
+    expect(screen.getAllByText(/3 colaboradores ficaram de fora/).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/Sem escala vigente \(1 colaborador\): Antônio Carlos Ferreira/)).toBeInTheDocument();
+    expect(await screen.findByText(/Período fechado \(2 colaboradores\): Maria Aparecida Souza, Colaborador/)).toBeInTheDocument();
+  });
+
+  it('o resultado some ao mostrar outro dia', async () => {
+    setup();
+    await userEvent.click(await screen.findByRole('button', { name: 'Recalcular dia' }));
+    expect(await screen.findByText(/21\/11\/2026: 17 colaboradores recalculados/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Dia anterior' }));
+    await waitFor(() => expect(screen.queryByText(/21\/11\/2026: 17 colaboradores recalculados/)).toBeNull());
+  });
+
+  it('falha no recálculo avisa o erro e não mostra resultado', async () => {
+    setup(realDay, 'rh', ROUTE, async () => { throw new ApiError('server', 503, 'HTTP_503', 'Não foi possível recalcular.'); });
+    await userEvent.click(await screen.findByRole('button', { name: 'Recalcular dia' }));
+    expect(await screen.findByText('Não foi possível recalcular.')).toBeInTheDocument();
+    // O aviso da tela começa pela data (toasts de outros testes ficam no DOM e não a trazem).
+    expect(screen.queryByText(/21\/11\/2026: .*recalculado/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Recalcular dia' })).toBeEnabled();
+  });
+
+  it('dia no futuro não pode ser recalculado', async () => {
+    const { recalculateDay } = setup(realDay, 'rh', '/rh/apuracao?date=2026-11-30');
+    const button = await screen.findByRole('button', { name: 'Recalcular dia' });
     expect(button).toBeDisabled();
     await userEvent.click(button);
-    expect(recalculate).not.toHaveBeenCalled();
+    expect(recalculateDay).not.toHaveBeenCalled();
   });
 
   it('gestor e admin não veem "Recalcular dia"; contador não vê a tela e a api não é chamada', async () => {
@@ -129,5 +183,19 @@ describe('Apuração do dia', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Dia anterior' }));
     expect(router.replace).toHaveBeenCalledWith(expect.stringContaining('date=2026-11-20'), expect.anything());
     await waitFor(() => expect(screen.getByRole('button', { name: 'Próximo dia' })).toBeEnabled());
+  });
+});
+
+describe('mock do recálculo do dia', () => {
+  it('deixa de fora quem não tinha escala e a competência fechada', async () => {
+    const closed = await mockTimesheetsApi.recalculateDay({ establishmentId: '1', date: '2026-10-15' });
+    expect(closed.recalculated).toBe(0);
+    expect(new Set(closed.skipped.map((s) => s.reason))).toEqual(new Set(['periodo_fechado']));
+    const old = await mockTimesheetsApi.recalculateDay({ establishmentId: '1', date: '2023-01-10' });
+    expect(old.skipped).toContainEqual({ employeeId: '101', reason: 'sem_escala' });
+  });
+
+  it('estabelecimento desconhecido responde 404', async () => {
+    await expect(mockTimesheetsApi.recalculateDay({ establishmentId: '99', date: '2026-11-21' })).rejects.toMatchObject({ status: 404 });
   });
 });

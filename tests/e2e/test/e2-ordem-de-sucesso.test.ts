@@ -22,6 +22,7 @@ import {
   disposer,
   installOutboxFailure,
   openQueues,
+  eventJobs,
   postPunch,
   removeOutboxFailure,
   startCollector,
@@ -91,7 +92,7 @@ describe('E2a: falha do INSERT em entradas nunca vira `registered`', () => {
     expect(await countEvidencias(infra.owner, est)).toBe(0);
     expect(await countOutbox(infra.owner, est)).toBe(0);
     expect(await totalJobs(queues.punches)).toBe(0);
-    expect(await totalJobs(queues.postPunch)).toBe(0);
+    expect(await eventJobs(queues)).toBe(0);
   }
 
   async function installEntriesTrigger(body: string): Promise<void> {
@@ -185,7 +186,7 @@ describe('E2b: falha no outbox: o job não termina com sucesso e a entrada segue
     expect(await countEvidencias(infra.owner, est)).toBe(0);
     expect(await countOutbox(infra.owner, est)).toBe(0);
     expect(await lastNsr(est)).toBe(0);
-    expect(await totalJobs(queues.postPunch)).toBe(0);
+    expect(await eventJobs(queues)).toBe(0);
     const job = await queues.punches.getJob(punchJobId(device, 1));
     expect(job).toBeDefined();
     expect(await job!.getState()).not.toBe('completed');
@@ -194,7 +195,7 @@ describe('E2b: falha no outbox: o job não termina com sucesso e a entrada segue
     // Conserta a causa: a próxima tentativa do BullMQ conclui.
     await removeOutboxFailure(infra.owner);
     await waitFor(async () => (await entryRow(est))[0]?.status === 'processado', 'entrada processada após o conserto', 30_000);
-    await waitFor(async () => (await totalJobs(queues.postPunch)) === 3, '3 jobs em post-punch', 15_000);
+    await waitFor(async () => (await eventJobs(queues)) === 3, '3 jobs de eventos', 15_000);
 
     expect(await nsrList(infra.owner, est)).toEqual([1]);
     expect(await countEvidencias(infra.owner, est)).toBe(1);
@@ -229,7 +230,7 @@ describe('E2b: falha no outbox: o job não termina com sucesso e a entrada segue
     expect(await countRegistros(infra.owner, est)).toBe(0);
     expect(await countOutbox(infra.owner, est)).toBe(0);
     expect(await lastNsr(est)).toBe(0);
-    expect(await totalJobs(queues.postPunch)).toBe(0);
+    expect(await eventJobs(queues)).toBe(0);
     expect(core.logs.byEvent('punch_retry_exhausted')).toHaveLength(1);
     expect(core.logs.byEvent('punch_failed_permanently')).toHaveLength(0);
   });

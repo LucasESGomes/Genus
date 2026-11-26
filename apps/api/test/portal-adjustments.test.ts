@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BASE_URL, FixedClock, PortalHarness, type Org } from './support/portal';
 import { fakePdf, multipart } from './support/multipart';
 
-const h = new PortalHarness({ arp: true, clock: new FixedClock('2026-11-23T12:00:00Z') });
+const h = new PortalHarness({ arp: true, clock: new FixedClock('2026-11-24T12:00:00Z') });
 let org: Org;
 let rh: { userId: number; cookie: string };
 let rh2: string;

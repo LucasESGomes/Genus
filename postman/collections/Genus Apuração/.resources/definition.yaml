@@ -1,0 +1,32 @@
+$kind: collection
+name: Genus - Apuração e banco de horas (api do RH)
+description: |-
+  Apuração do dia (G4) e banco de horas (G8) em `apps/api`. Contratos: `docs/prompts/apuracao-banco-horas-orquestracao.md` §3.
+
+  **MANUAL: esta coleção NÃO roda no `pnpm postman:test`.** Entre no portal como usuário `rh`, abra `GET {{portalUrl}}/auth/token` no mesmo navegador e ponha o JWT em `rhToken` (secret). Preencha `establishmentId` e `employeeId` com dados fictícios. **Não rode em prod:** o recálculo e a regra do banco alteram dados.
+variables:
+  portalUrl: http://localhost:3002
+  rhToken: ""
+  establishmentId: ""
+  employeeId: ""
+  date: "2026-11-24"
+  validFrom: "2026-01-01"
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{rhToken}}"
+scripts:
+  - type: http:afterResponse
+    code: |-
+      let corpo = null;
+      pm.test('Corpo é JSON', () => { corpo = pm.response.json(); });
+      pm.test('Envelope: { data } em sucesso; { error, code } em erro', () => {
+        if (pm.response.code < 400) pm.expect(corpo).to.have.property('data');
+        else {
+          pm.expect(corpo.error).to.be.a('string');
+          pm.expect(corpo.code).to.match(/^[A-Z][A-Z0-9_]*$/);
+        }
+      });
+      pm.test('Sem CPF nem hash na resposta', () => pm.expect(pm.response.text()).to.not.match(/"(cpf|hash)[A-Za-z]*":/i));
+    language: text/javascript

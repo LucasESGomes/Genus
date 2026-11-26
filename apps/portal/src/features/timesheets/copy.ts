@@ -1,10 +1,12 @@
 /** Textos e rótulos locais da apuração. Rótulos de enumeração do back ficam em lib/labels. */
+import { plural } from '@/lib/format';
 import type { Label } from '@/lib/labels';
 
 export const COPY = {
   dayTitle: 'Escala e apuração',
   recalcDay: 'Recalcular dia',
-  recalcDayPending: 'O back ainda não tem “recalcular o dia do estabelecimento”. Recalcule por colaborador, no espelho.',
+  recalcDayDone: 'Dia recalculado',
+  loadingNames: 'carregando os nomes…',
   seeSchedules: 'Ver escalas',
   searchLabel: 'Buscar colaborador por nome ou matrícula',
   pickEstablishmentTitle: 'Escolha um estabelecimento',
@@ -30,3 +32,6 @@ const SITUATION: Record<string, string> = {
 export const situationLabel = (s: string) => SITUATION[s] ?? s;
 
 export const emptyDayTitle = (ddmm: string) => `Nenhuma marcação em ${ddmm}`;
+
+export const recalculatedText = (n: number) => plural(n, 'colaborador recalculado', 'colaboradores recalculados');
+export const skippedTitle = (n: number) => plural(n, 'colaborador ficou de fora', 'colaboradores ficaram de fora');

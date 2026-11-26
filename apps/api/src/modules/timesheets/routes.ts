@@ -1,17 +1,52 @@
 /**
  * Apuração (G4), sob /portal. Recalcular: só rh. Consultar: rh, admin e
  * gestor (equipe, se ligado). O colaborador consulta a própria em /portal/me/timesheets.
+ * `/timesheets` é o dia de todos do estabelecimento; `/employees/:id/timesheets`, o período de um.
  */
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { idParams } from '../../http/schemas';
 import type { PortalDeps } from '../portal/deps';
-import { periodQuery, recalculateBody, recalculateResponse, timesheetListResponse } from './schemas';
+import { EstablishmentDayService } from './establishment-day';
+import {
+  dayRowsQuery,
+  dayRowsResponse,
+  periodQuery,
+  recalculateBody,
+  recalculateEstablishmentBody,
+  recalculateEstablishmentResponse,
+  recalculateResponse,
+  timesheetListResponse,
+} from './schemas';
 import { TimesheetService } from './service';
 
 const tags = ['Apuração'];
 
 export const timesheetRoutes: FastifyPluginAsyncZod<PortalDeps> = async (app, deps) => {
   const service = new TimesheetService(deps);
+  const establishmentDay = new EstablishmentDayService(deps);
+
+  app.get(
+    '/timesheets',
+    {
+      preHandler: [app.authorize(...deps.access.roles('rh', 'admin', 'gestor'))],
+      schema: { tags, summary: 'Apuração do dia dos colaboradores do estabelecimento', querystring: dayRowsQuery, response: { 200: dayRowsResponse } },
+    },
+    async (req) => establishmentDay.list(req.ctx!, req.query),
+  );
+
+  app.post(
+    '/timesheets/recalculate',
+    {
+      preHandler: [app.authorize('rh')],
+      schema: {
+        tags,
+        summary: 'Recalcula o dia de todos os colaboradores do estabelecimento',
+        body: recalculateEstablishmentBody,
+        response: { 200: recalculateEstablishmentResponse },
+      },
+    },
+    async (req) => ({ data: await establishmentDay.recalculate(req.ctx!, req.body) }),
+  );
 
   app.post(
     '/employees/:id/timesheets/recalculate',

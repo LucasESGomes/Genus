@@ -22,6 +22,7 @@ import type { RequestContext } from '../../plugins/request-context';
 import { recordAudit } from '../audit/audit';
 import { assertPeriodOpen } from '../closing/period-lock';
 import { findEmployeeInScope } from '../employees/lookup';
+import type { DayPostingHook } from '../time-bank/posting-hook';
 import { TimesheetService } from '../timesheets/service';
 import type { adjustmentDto, createAdjustmentBody, listAdjustmentsQuery } from './schemas';
 
@@ -46,6 +47,8 @@ function toDto(r: Row): AdjustmentDto {
 }
 
 export interface AdjustmentServiceDeps {
+  /** Repassado à apuração: o recálculo lança no banco de horas. */
+  posting?: DayPostingHook;
   db: Database;
   clock: Clock;
   arp: ArpPunchReader;

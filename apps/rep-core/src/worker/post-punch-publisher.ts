@@ -1,17 +1,17 @@
 /**
- * Publicador da fila `post-punch` usado pelo worker, DEPOIS do COMMIT do NSR e fora
- * de qualquer transação (docs/SPEC-nsr-fila.md §2 item 4). Falha ou prazo estourado
+ * Publicador dos eventos pós-batida usado pelo worker (a fila de cada evento vem de
+ * `queueNameForEvent`: `recalculate-day` em `day-recalculation`, o resto em `post-punch`),
+ * DEPOIS do COMMIT do NSR e fora de qualquer transação (docs/SPEC-nsr-fila.md §2 item 4). Falha ou prazo estourado
  * só é sinalizado a quem chama, que registra `warn` e segue: o outbox continua
  * `pendente` e o resgate (apps/jobs) publica depois.
  */
 import {
-  createPostPunchQueue,
+  createOutboxEventQueues,
   postPunchJobId,
   type PostPunchEvent,
   type PostPunchJobData,
 } from '@genus/queue';
 import type { Logger } from '@genus/shared';
-import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 
 export interface PostPunchPublisher {
@@ -82,7 +82,7 @@ const ERROR_LOG_THROTTLE_MS = 30_000;
 
 export function createPostPunchPublisher(opts: PostPunchPublisherOptions): PostPunchPublisher {
   const { connection, logger, timeoutMs } = opts;
-  const queue: Queue<PostPunchJobData> = createPostPunchQueue(connection, { attempts: opts.attempts });
+  const queues = createOutboxEventQueues(connection, { attempts: opts.attempts });
 
   // Sem ouvinte, erro de conexão derruba o processo. Loga só nome/código (nunca URL), no máximo a cada 30 s.
   let lastErrorLogAt = Number.NEGATIVE_INFINITY;
@@ -96,7 +96,7 @@ export function createPostPunchPublisher(opts: PostPunchPublisherOptions): PostP
     );
   };
   connection.on('error', onError);
-  queue.on('error', onError);
+  for (const queue of queues.all) queue.on('error', onError);
 
   return {
     async publish(event, data) {
@@ -104,16 +104,16 @@ export function createPostPunchPublisher(opts: PostPunchPublisherOptions): PostP
       await withDeadline(timeoutMs, async (signal) => {
         await waitUntilReady(connection, signal);
         // O nome do job é o evento; o payload só tem IDs.
-        await queue.add(event, data, { jobId });
+        await queues.forEvent(event).add(event, data, { jobId });
       });
     },
 
     async close() {
       connection.off('error', onError);
       connection.on('error', () => undefined);
-      queue.on('error', () => undefined);
+      for (const queue of queues.all) queue.on('error', () => undefined);
       try {
-        await withDeadline(2000, () => queue.close());
+        await withDeadline(2000, () => Promise.all(queues.all.map((queue) => queue.close())));
       } catch {
         // a conexão é derrubada pelo dono
       }

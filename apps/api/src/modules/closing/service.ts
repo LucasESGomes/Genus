@@ -22,6 +22,7 @@ import type { RequestContext } from '../../plugins/request-context';
 import { recordAudit } from '../audit/audit';
 import { findEmployeeInScope } from '../employees/lookup';
 import { addDays, addMonths } from '../rules-common/rules/civil-time';
+import type { DayPostingHook } from '../time-bank/posting-hook';
 import { TimesheetService } from '../timesheets/service';
 import type { closingDto, createClosingBody, mirrorDto } from './schemas';
 
@@ -43,6 +44,8 @@ const toDto = (r: ClosingRow): ClosingDto => ({
 });
 
 export interface ClosingServiceDeps {
+  /** Repassado à apuração: o recálculo lança no banco de horas. */
+  posting?: DayPostingHook;
   db: Database;
   clock: Clock;
   arp: ArpPunchReader;

@@ -31,7 +31,19 @@ export interface ArpPunchReader {
   devicesWithPunches(tenantId: number, deviceIds: readonly number[]): Promise<Set<number>>;
 }
 
-export class PgArpPunchReader implements ArpPunchReader {
+/** Chave de uma marcação no arp, para a apuração automática (o job só traz ids). */
+export interface ArpPunchKey {
+  tenantId: number;
+  establishmentId: number;
+  nsr: number;
+}
+
+export interface ArpPunchLookup {
+  /** null = não há registro tipo 7 com essa chave na conta. */
+  findPunch(key: ArpPunchKey): Promise<{ cpf: string; markedAt: Date } | null>;
+}
+
+export class PgArpPunchReader implements ArpPunchReader, ArpPunchLookup {
   constructor(private readonly pool: Pick<pg.Pool, 'query'>) {}
 
   async listPunches(q: ArpPunchQuery): Promise<ArpPunch[]> {
@@ -50,6 +62,18 @@ export class PgArpPunchReader implements ArpPunchReader {
       markedAt: r.marcado_em,
       offline: r.eh_offline,
     }));
+  }
+
+  async findPunch(key: ArpPunchKey): Promise<{ cpf: string; markedAt: Date } | null> {
+    // PK (estabelecimento_id, nsr); conta_id confere o tenant do job
+    const { rows } = await this.pool.query<{ cpf: string; marcado_em: Date }>(
+      `SELECT cpf, marcado_em
+         FROM registros
+        WHERE conta_id = $1 AND estabelecimento_id = $2 AND nsr = $3 AND tipo = '7'`,
+      [key.tenantId, key.establishmentId, key.nsr],
+    );
+    const row = rows[0];
+    return row ? { cpf: row.cpf, markedAt: row.marcado_em } : null;
   }
 
   async devicesWithPunches(tenantId: number, deviceIds: readonly number[]): Promise<Set<number>> {

@@ -6,3 +6,5 @@ export * from './job-options.js';
 export * from './payloads.js';
 export * from './publisher.js';
 export * from './queues.js';
+export * from './routing.js';
+export * from './day-recalculation-worker.js';

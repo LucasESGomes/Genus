@@ -1,0 +1,12 @@
+$kind: http-request
+name: 4. Apuração do dia
+description: "Uma linha por colaborador, com contagens por status."
+url: "{{portalUrl}}/portal/timesheets?date={{date}}&establishmentId={{establishmentId}}&page=1&pageSize=25"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      pm.test('Lista com meta e contagens', () => { const b = pm.response.json(); pm.expect(b.data).to.be.an('array'); pm.expect(b.meta.total).to.be.a('number'); pm.expect(b.counts).to.have.property('inconsistente'); });
+    language: text/javascript
+order: 4000

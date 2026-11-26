@@ -127,6 +127,20 @@
       "when": 1795649050088,
       "tag": "0017_regras_convites_usuario",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795660813633,
+      "tag": "0018_banco_horas_criado_por_sistema",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795660815391,
+      "tag": "0019_carga_parametros_legais",
+      "breakpoints": true
     }
   ]
 }

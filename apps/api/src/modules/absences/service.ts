@@ -18,12 +18,15 @@ import { recordAudit } from '../audit/audit';
 import { assertPeriodOpen } from '../closing/period-lock';
 import { findEmployeeInScope, type EmployeeRecord } from '../employees/lookup';
 import type { CivilDate } from '../rules-common/rules/civil-time';
+import type { DayPostingHook } from '../time-bank/posting-hook';
 import { TimesheetService } from '../timesheets/service';
 import type { absenceDto, createAbsenceBody } from './schemas';
 
 type AbsenceDto = z.infer<typeof absenceDto>;
 
 export interface AbsenceServiceDeps {
+  /** Repassado à apuração: o recálculo lança no banco de horas. */
+  posting?: DayPostingHook;
   db: Database;
   clock: Clock;
   arp: ArpPunchReader;

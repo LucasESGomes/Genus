@@ -66,7 +66,7 @@ async function enqueueAll(
   }
 }
 
-async function jobCount(h: WorkerHarness, queue: 'punches' | 'postPunch', state: string): Promise<number> {
+async function jobCount(h: WorkerHarness, queue: 'punches' | 'postPunch' | 'dayRecalculation', state: string): Promise<number> {
   const counts = await h[queue].getJobCounts(state as 'completed');
   return counts[state] ?? 0;
 }
@@ -106,7 +106,7 @@ async function injectOutboxFailure(name: string, condition: string): Promise<() 
 }
 
 describe('worker punches', () => {
-  it('D1: fluxo feliz, 20 entradas viram NSR 1..20, 60 eventos de outbox e 60 jobs em post-punch', async () => {
+  it('D1: fluxo feliz, 20 entradas viram NSR 1..20, 60 eventos de outbox e 60 jobs (40 em post-punch, 20 em day-recalculation)', async () => {
     const { establishmentId, deviceId } = fresh();
     const entries = await seed(20, establishmentId, deviceId);
     harness = await startHarness({ valkeyUrl: valkey.url, pool: core });
@@ -120,7 +120,11 @@ describe('worker punches', () => {
     );
     expect(nsrs.rows.map((r) => Number(r.nsr))).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
     expect(await dbCounts(establishmentId)).toMatchObject({ registros: 20, outbox: 60, processadas: 20 });
-    expect(await jobCount(harness, 'postPunch', 'waiting')).toBe(60);
+    expect(await jobCount(harness, 'postPunch', 'waiting')).toBe(40);
+    expect(await jobCount(harness, 'dayRecalculation', 'waiting')).toBe(20);
+    const recalculations = await harness.dayRecalculation.getJobs(['waiting']);
+    expect(recalculations.every((j) => j.name === 'recalculate-day' && j.id === `recalculate-day-${establishmentId}-${j.data.nsr}`)).toBe(true);
+    expect(recalculations[0]!.opts.removeOnComplete).toEqual({ age: 172_800 });
     expect(await jobCount(harness, 'punches', 'failed')).toBe(0);
     expect(harness.logs.byEvent('punch_processed')).toHaveLength(20);
     expect(harness.logs.byEvent('queue_publish_failed')).toHaveLength(0);
@@ -145,7 +149,8 @@ describe('worker punches', () => {
     await waitFor(async () => (await jobCount(harness!, 'punches', 'completed')) === 2, 'redelivery completed');
 
     expect(await dbCounts(establishmentId)).toMatchObject({ registros: 1, outbox: 3, processadas: 1 });
-    expect(await jobCount(harness, 'postPunch', 'waiting')).toBe(3);
+    expect(await jobCount(harness, 'postPunch', 'waiting')).toBe(2);
+    expect(await jobCount(harness, 'dayRecalculation', 'waiting')).toBe(1);
     const outcomes = harness.logs.byEvent('punch_processed').map((l) => l.outcome);
     expect(outcomes).toEqual(['created', 'already_processed']);
   });
@@ -165,6 +170,7 @@ describe('worker punches', () => {
     expect(await jobCount(harness, 'punches', 'failed')).toBe(0);
     expect(await dbCounts(establishmentId)).toMatchObject({ registros: 2, outbox: 6, outboxPendente: 6, processadas: 2 });
     expect(await jobCount(harness, 'postPunch', 'waiting')).toBe(0);
+    expect(await jobCount(harness, 'dayRecalculation', 'waiting')).toBe(0);
     const warns = harness.logs.byEvent('queue_publish_failed');
     expect(warns).toHaveLength(6);
     expect(warns.every((l) => l.level === 'warn')).toBe(true);

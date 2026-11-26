@@ -6,6 +6,7 @@
  * por isso os módulos vêm por caminho relativo ao fonte (somente leitura, sem alterar nada).
  */
 import {
+  createDayRecalculationQueue,
   createPostPunchQueue,
   createProducerConnection,
   createPunchesQueue,
@@ -152,6 +153,8 @@ export async function postPunch(c: Collector, deviceSequence: number, capturedAt
 export interface Queues {
   punches: Queue<PunchJobData>;
   postPunch: Queue<PostPunchJobData>;
+  /** `recalculate-day` tem fila própria; os outros dois eventos seguem em `post-punch`. */
+  dayRecalculation: Queue<PostPunchJobData>;
   connection: Redis;
   close(): Promise<void>;
 }
@@ -162,15 +165,19 @@ export async function openQueues(valkeyUrl: string, attempts?: number): Promise<
   await waitReady(connection);
   const punches = createPunchesQueue(connection, { attempts });
   const postPunch = createPostPunchQueue(connection, { attempts });
+  const dayRecalculation = createDayRecalculationQueue(connection, { attempts });
+  dayRecalculation.on('error', () => undefined);
   punches.on('error', () => undefined);
   postPunch.on('error', () => undefined);
   return {
     punches,
     postPunch,
+    dayRecalculation,
     connection,
     close: async () => {
       await punches.close().catch(() => undefined);
       await postPunch.close().catch(() => undefined);
+      await dayRecalculation.close().catch(() => undefined);
       connection.disconnect();
     },
   };
@@ -179,6 +186,11 @@ export async function openQueues(valkeyUrl: string, attempts?: number): Promise<
 export async function totalJobs(queue: Queue): Promise<number> {
   const counts = await queue.getJobCounts();
   return Object.values(counts).reduce((a, b) => a + b, 0);
+}
+
+/** Jobs dos eventos pós-batida, somando as duas filas. */
+export async function eventJobs(queues: Queues): Promise<number> {
+  return (await totalJobs(queues.postPunch)) + (await totalJobs(queues.dayRecalculation));
 }
 
 /** Enfileira em `punches` como a API faria (jobId = aparelho-sequência). */
@@ -203,6 +215,7 @@ export function rescueRunner(infra: Infra, queues: Queues): RescueHandle {
         logger: logs.logger,
         punchesQueue: queues.punches,
         postPunchQueue: queues.postPunch,
+        dayRecalculationQueue: queues.dayRecalculation,
         minAgeMs: 30_000,
         postPunchDepthWarn: 10_000,
       }),

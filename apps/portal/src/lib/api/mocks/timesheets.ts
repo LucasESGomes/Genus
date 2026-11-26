@@ -5,10 +5,11 @@
  * Aqui o mock faz o papel do servidor: os minutos, o status e as inconsistências são decididos nele
  * e a tela só mostra. Esta aritmética NÃO existe no portal. Erros no formato da api (mockFail).
  */
-import type { DayRow, DayRowPage, DayRowQuery, EntityId, IssueType, Punch, TimesheetDay, TimesheetIssue } from '../contracts';
+import type { DayRecalculateResult, DayRow, DayRowPage, DayRowQuery, EntityId, IssueType, Punch, TimesheetDay, TimesheetIssue } from '../contracts';
 import type { TimesheetsApi } from '../endpoints/timesheets';
 import { designDayRows, designMirror } from './data/design';
 import { absencesOf } from './absences';
+import { isMockPeriodClosed } from './closings';
 import { clone, delay, matchesQuery, mockFail, mockNotFound, paginate } from './runtime';
 import { departmentIdOf, SEED_EMPLOYEES, seedEmployee, type SeedEmployee } from './seed';
 
@@ -199,6 +200,20 @@ export const mockTimesheetsApi: TimesheetsApi = {
   recalculate: async (employeeId, body) => {
     await delay();
     return clone(daysFor(employeeId, body.from, body.to));
+  },
+  /** Fica de fora quem ainda não tinha escala no dia e todo mundo quando a competência está fechada. */
+  recalculateDay: async ({ establishmentId, date }) => {
+    await delay();
+    const employees = SEED_EMPLOYEES.filter((e) => e.establishmentId === establishmentId && e.status === 'ativo');
+    if (employees.length === 0) throw mockNotFound();
+    const closed = isMockPeriodClosed(establishmentId, date);
+    const result: DayRecalculateResult = { recalculated: 0, skipped: [] };
+    for (const e of employees) {
+      if (date < e.admissionDate) result.skipped.push({ employeeId: e.id, reason: 'sem_escala' });
+      else if (closed) result.skipped.push({ employeeId: e.id, reason: 'periodo_fechado' });
+      else result.recalculated += 1;
+    }
+    return result;
   },
   day: async (q: DayRowQuery): Promise<DayRowPage> => {
     await delay();

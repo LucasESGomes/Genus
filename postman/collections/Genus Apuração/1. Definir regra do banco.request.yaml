@@ -1,0 +1,18 @@
+$kind: http-request
+name: 1. Definir regra do banco
+description: "Cria ou altera a regra a partir de validFrom. Só rh."
+url: "{{portalUrl}}/portal/establishments/{{establishmentId}}/time-bank-policy"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "modality": "individual_6m", "sundayWeight": "1.00", "holidayWeight": "1.00", "validFrom": "{{validFrom}}" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      pm.test('Regra salva', () => pm.expect(pm.response.json().data.modality).to.eql('individual_6m'));
+    language: text/javascript
+order: 1000

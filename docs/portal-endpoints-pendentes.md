@@ -16,6 +16,8 @@ Convenções de sempre (CLAUDE.md): rotas sob `/portal`, `kebab-case`, JSON `cam
 
 ## 2. Apuração e banco de horas
 
+**Feito em 26/11/2026** (itens 6 a 9, mais a regra do banco em `/portal/establishments/:id/time-bank-policy`). A tabela fica como registro do contrato.
+
 | # | Rota | Resposta | Notas |
 |---|---|---|---|
 | 6 | `GET /portal/timesheets?date&establishmentId&departmentId&status&q&page&pageSize` | `DayRowPage` = `Paged<DayRow>` + `counts { todos, inconsistente, falta, calculada }` | `DayRow`: colaborador (nome, matrícula, setor, cargo), marcações, previsto, trabalhado, extra, falta, `status`, `isAbsence`, `issues`. `counts` calculado sobre o filtro sem `status` |

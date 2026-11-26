@@ -4,7 +4,7 @@
  * Ordem de sucesso, que este arquivo preserva:
  *   1. `assignNsr` faz a transação inteira (registro, evidência, sequência, 3 eventos
  *      de outbox e `entradas.status`) e só devolve depois do COMMIT.
- *   2. Só então publica os 3 eventos em `post-punch`, fora de transação. Falha ou prazo
+ *   2. Só então publica os 3 eventos (cada um na sua fila), fora de transação. Falha ou prazo
  *      estourado vira `warn` e NÃO falha o job: o outbox segue `pendente` e o resgate
  *      (apps/jobs) publica depois. Nunca se publica evento cujo COMMIT não aconteceu.
  *   3. Só depois disso o job termina com sucesso.
@@ -12,7 +12,7 @@
  * Portaria 671: nada aqui bloqueia, edita ou apaga marcação. Os UPDATEs de erro mexem
  * apenas em `status` e `tentativas` de `entradas` (colunas que o papel `arp_core` pode alterar).
  */
-import { punchPayloadSchema, PUNCHES_QUEUE, type PostPunchJobData } from '@genus/queue';
+import { punchPayloadSchema, PUNCHES_QUEUE, queueNameForEvent, type PostPunchJobData } from '@genus/queue';
 import { roundMs, startTimer, type Clock, type Logger } from '@genus/shared';
 import { UnrecoverableError, Worker, type Job } from 'bullmq';
 import type { Redis } from 'ioredis';
@@ -112,14 +112,14 @@ async function publishEvents(deps: PunchWorkerDeps, result: AssignNsrResult): Pr
     deps.logger.warn(
       {
         event: 'queue_publish_failed',
-        queue: 'post-punch',
+        queue: ref ? queueNameForEvent(ref.evento) : null,
         outboxEvent: ref?.evento,
         outboxId: ref?.outboxId,
         establishmentId: result.establishmentId,
         nsr: result.nsr,
         err: describeError(outcome.reason),
       },
-      'fila: falha ao publicar em post-punch; o resgate publica depois',
+      'fila: falha ao publicar evento pós-batida; o resgate publica depois',
     );
   });
   return failures;

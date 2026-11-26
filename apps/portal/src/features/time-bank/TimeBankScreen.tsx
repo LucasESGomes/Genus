@@ -1,9 +1,9 @@
 'use client';
 /**
- * [SEM DESIGN] Banco de horas do RH (mapa §4.10). [MOCK] O back só tem GET /me/time-bank (colaborador):
- * saldo por colaborador e extrato não existem para o RH. Com os mocks desligados a tela mostra "Em breve".
+ * [SEM DESIGN] Banco de horas do RH (mapa §4.10): saldos por colaborador, extrato e a regra do
+ * estabelecimento (PolicyPanel, só rh e admin). Saldos e vencimentos vêm calculados da api.
  * Sem KPIs: o contrato não traz totais, e o front não soma saldos entre colaboradores.
- * [A CONFIRMAR] Política do banco (limite, validade) e folga compensatória: sem rota no back.
+ * Folga compensatória: sem rota no back.
  */
 import type { ColumnDef } from '@tanstack/react-table';
 import { Hourglass } from '@phosphor-icons/react';
@@ -30,6 +30,7 @@ import { useSession } from '@/lib/session';
 import { useUrlState } from '@/lib/url-state';
 import { useTextSearch } from '@/lib/use-debounced-value';
 import { COPY, entryLabel } from './copy';
+import { PolicyPanel } from './PolicyPanel';
 
 const PAGE_SIZE = 25;
 
@@ -105,6 +106,7 @@ export function TimeBankScreen() {
         <EmptyState icon={Hourglass} title={COPY.pickEstablishmentTitle} text={COPY.pickEstablishmentText} />
       ) : (
         <>
+        {can(me.role, 'timeBank.viewPolicy') && <PolicyPanel key={establishment.id} />}
         <SearchBar label={COPY.searchLabel} placeholder="Buscar por nome ou matrícula" text={search.text} onTextChange={search.setText} searching={search.typing || q.isPlaceholderData} />
         <QueryView
           query={q}
@@ -166,7 +168,8 @@ function StatementPanel({ employeeId, name, onClose }: { employeeId: EntityId; n
                 { label: 'A vencer em 30 dias', value: d.expiringIn30DaysMinutes > 0 ? <Minutes value={d.expiringIn30DaysMinutes} emphasis="warn" /> : '—' },
               ]}
             />
-            <DataTable caption="Extrato do banco de horas" columns={columns} data={d.entries} getRowId={(e) => `${e.date}-${e.type}-${e.minutes}`} />
+            {/* O ledger pode repetir data, tipo e minutos (recálculos do mesmo dia): a chave é a posição. */}
+            <DataTable caption="Extrato do banco de horas" columns={columns} data={d.entries} getRowId={(e) => String(d.entries.indexOf(e))} />
           </div>
         )}
       </QueryView>

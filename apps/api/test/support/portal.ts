@@ -10,6 +10,7 @@ import { createLogger, FixedClock, SystemClock, type Clock } from '@genus/shared
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import pg from 'pg';
 import { expect } from 'vitest';
+import { TimeBankPoster } from '../../src/modules/time-bank/poster';
 import { PgArpPunchReader, type ArpPunchReader } from '../../src/arp/punch-reader';
 import { buildApp } from '../../src/app';
 import { createDatabase, type DatabaseHandle } from '../../src/db/client';
@@ -150,6 +151,7 @@ export class PortalHarness {
         clock,
         access: new PortalAccess(o.gestorEnabled ?? false),
         arp,
+        posting: new TimeBankPoster({ clock }),
         storage: this.storage,
         engine: o.engine ?? null,
         engineDefaults: { recognitionThreshold: 1.1, livenessThreshold: 0.85 },
@@ -295,13 +297,15 @@ export class PortalHarness {
   }
 
   /** Requisição autenticada no app do harness. */
-  call(cookie: string, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, payload?: unknown, app = this.app): Promise<LightMyRequestResponse> {
+  call(cookie: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', url: string, payload?: unknown, app = this.app): Promise<LightMyRequestResponse> {
     return app.inject({ method, url, headers: { cookie, origin: BASE_URL }, ...(payload !== undefined ? { payload: payload as object } : {}) });
   }
 
   /** Parâmetros legais padrão (conta NULL), a partir da fixture das regras. */
   async seedLegalParameters(): Promise<void> {
     const rows = [...timesheetParams(), ...vacationParams(), ...workweekParams()];
+    // A migration 0019 já carrega o padrão global: o teste troca pela fixture.
+    await this.client.query('DELETE FROM rh.parametros_legais WHERE conta_id IS NULL');
     for (const r of rows) {
       await this.client.query(
         'INSERT INTO rh.parametros_legais (chave, valor, base_legal, vigencia_inicio, vigencia_fim) VALUES ($1, $2::jsonb, $3, $4, $5)',

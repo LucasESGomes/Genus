@@ -11,13 +11,14 @@ Quando alguém bate o ponto:
 2. **A API** (`apps/collector-api`) pede ao `face-engine` para reconhecer o rosto e grava a batida na tabela `entradas` com `status = 'pendente'`. Só depois do `COMMIT` (a gravação definitiva) ela responde `registered` ao aparelho.
 3. **A API publica um aviso na fila `punches`** ("entrada 123 está esperando"). Isso vem depois da resposta ser decidida e é opcional: se a fila estiver fora do ar, a batida continua salva e a resposta continua `registered`.
 4. **O worker do rep-core** (`apps/rep-core`) pega o aviso da fila e roda uma transação no banco `arp`: atribui o NSR (número sequencial de registro), calcula o hash encadeado, grava `registros`, `evidencias`, 3 linhas no `outbox` e marca a entrada como `processado`. Tudo ou nada.
-5. **Depois do `COMMIT`**, o worker publica 3 avisos na fila `post-punch` (PDF do comprovante, cálculo da jornada, QR oficial). Hoje ninguém consome essa fila (seção 10).
+5. **Depois do `COMMIT`**, o worker publica 3 avisos: PDF do comprovante e QR oficial na fila `post-punch` (ainda sem consumidor, seção 10) e o cálculo da jornada (`recalculate-day`) na fila `day-recalculation`, consumida pela api do RH, que apura o dia e lança no banco de horas.
 6. **Se algo falhar no meio do caminho**, o **resgate** (`apps/jobs`) percebe, a cada 20 s, que há entradas `pendente` esquecidas e republica os avisos. Nada se perde, porque a verdade está no banco.
 
 ```
 aparelho -> API -> entradas (pendente) -> fila punches -> worker -> registros + evidencias + outbox (processado)
                                                                        |
                                                                        +-> fila post-punch -> (ninguém consome ainda)
+                                                                       +-> fila day-recalculation -> api do RH (apuração e banco de horas)
                                   resgate (a cada 20 s) republica o que ficou pendente
 ```
 
@@ -41,7 +42,7 @@ No Genus há dois "outboxes":
 | Onde | O que guarda | Quem marca como concluído |
 |---|---|---|
 | `entradas` (`status = 'pendente'`) | batidas ainda sem NSR | o worker do rep-core, ao final da transação |
-| `outbox` (`status = 'pendente'`) | os 3 eventos pós-batida de cada registro | um consumidor futuro de `post-punch` (não existe ainda) |
+| `outbox` (`status = 'pendente'`) | os 3 eventos pós-batida de cada registro | ninguém hoje (só o rep-core escreve no `arp`). Para `recalculate-day`, a marca de processado é o job concluído (seção 9) |
 
 ## 3. O que a fila faz e o que ela NÃO garante
 
@@ -55,7 +56,7 @@ A fila **não garante**:
 
 **A garantia real contra duplicata é a UNIQUE do banco**: `UNIQUE (aparelho_id, sequencia_aparelho)` em `evidencias`, `entrada_id` UNIQUE em `evidencias` e `UNIQUE (evento, chave)` em `outbox`. O `jobId` ajuda, mas não é a garantia (seção 6).
 
-## 4. As duas filas
+## 4. As três filas
 
 Definidas em [constants.ts](packages/queue/src/constants.ts).
 
@@ -63,10 +64,13 @@ Definidas em [constants.ts](packages/queue/src/constants.ts).
 |---|---|---|---|
 | `punches` | API do coletor (após gravar a entrada) e o resgate | worker do rep-core ([punch-worker.ts](apps/rep-core/src/worker/punch-worker.ts)) | só ids: `entryId`, `tenantId`, `establishmentId` |
 | `post-punch` | worker do rep-core (após o `COMMIT`) e o resgate | **ninguém hoje** | só ids: `outboxId`, `tenantId`, `establishmentId`, `nsr` |
+| `day-recalculation` | worker do rep-core, o resgate e o agendamento `close-days` | api do RH (`apps/api/src/modules/timesheets/consumer.ts`) | os mesmos ids; `close-days` não tem payload |
 
 Os payloads só carregam ids: nunca CPF, foto, nome ou dado de saúde (LGPD).
 
-`post-punch` não tem consumidor porque os consumidores dependem de coisas que ainda não existem: gerador do PDF do comprovante, motor de jornada (PTRP), QR oficial e o `signer`. Isso está fora do escopo da rodada atual (SPEC §12) e é proposital: não criamos um consumidor "de mentira" que marcaria o outbox como `processado` sem ter feito o trabalho. Os eventos são os três de `POST_PUNCH_EVENTS`: `generate-receipt-pdf`, `recalculate-day` e `official-qr`.
+`post-punch` não tem consumidor porque os consumidores dependem de coisas que ainda não existem: gerador do PDF do comprovante, QR oficial e o `signer`. Isso está fora do escopo da rodada atual (SPEC §12) e é proposital: não criamos um consumidor "de mentira" que marcaria o outbox como `processado` sem ter feito o trabalho. Os eventos são os três de `POST_PUNCH_EVENTS`: `generate-receipt-pdf`, `recalculate-day` e `official-qr`. `recalculate-day` tem **fila própria** porque tem consumidor, e um worker do BullMQ recebe tudo o que está na fila dele; o roteamento por evento está em [routing.ts](packages/queue/src/routing.ts).
+
+**`close-days`:** falta e fim de dia não geram batida. A api agenda, de hora em hora, um job nessa fila que recalcula, nos últimos 3 dias, os dias encerrados ainda não apurados. Dia **aberto** não acusa falta, atraso nem batida faltando, e não lança no banco de horas.
 
 ## 5. A "ordem de sucesso"
 
@@ -132,7 +136,7 @@ O **jobId** é o "número do recado" na fila. Se você tentar publicar um job co
 - **Entrada já `falhou`**: o worker ignora com aviso (`punch_entry_failed_skipped`) e conclui o job.
 - **Payload inválido**: `punch_payload_invalid`, não recuperável.
 - **O que é `failed`:** é o estado de um job que esgotou as tentativas ou foi marcado como não recuperável. Também chamado de *dead letter* (fila dos mortos) em outros sistemas: o job não some, fica guardado para investigação (`removeOnFail: false`). No banco, `entradas.status = 'falhou'` é reservado a erro não recuperável; erro recuperável esgotado deixa a entrada `pendente`. Falhou **não some e não é apagado**: é um alerta para alguém olhar.
-- A falha em publicar em `post-punch` **nunca** falha o job de `punches`.
+- A falha em publicar em `post-punch` ou `day-recalculation` **nunca** falha o job de `punches`.
 
 ## 8. Idempotência
 
@@ -149,7 +153,8 @@ Também na API: se o aparelho reenviar a mesma batida (mesma sequência), a UNIQ
 O **resgate** ([rescue.ts](apps/jobs/src/rescue.ts), processo `apps/jobs`) é o "faxineiro": a cada `RESCUE_INTERVAL_MS` (padrão 20 000 ms) ele procura no banco:
 
 - `entradas` com `status = 'pendente'` há mais de `RESCUE_MIN_AGE_MS` (padrão 30 000 ms) e republica em `punches`;
-- `outbox` com `status = 'pendente'` há mais de `RESCUE_MIN_AGE_MS` e republica em `post-punch`.
+- `outbox` com `status = 'pendente'` há mais de `RESCUE_MIN_AGE_MS` e republica em `post-punch`;
+- `recalculate-day` pendente com idade entre `RESCUE_MIN_AGE_MS` e **1 h** e republica em `day-recalculation`. Aqui job `completed` **não** é recriado (o concluído, guardado por 48 h, é a marca de processado). Job que falha por mais de 1 h fica `failed`: recalcule o dia pelo portal.
 
 Detalhes:
 
@@ -164,9 +169,9 @@ Detalhes:
 
 ## 10. Por que a `post-punch` acumula jobs sem consumidor
 
-Cada batida processada gera **3 jobs** em `post-punch` e **3 linhas** `pendente` em `outbox`. Como ainda não existem os consumidores (PDF do comprovante, jornada, QR oficial; ver seção 4), eles ficam ali. Isso é **esperado**, não é bug. Os jobs de `post-punch` são mantidos (`removeOnComplete: false`): um consumidor futuro marcará a linha do outbox como `processado` e só então o job sai.
+Cada batida processada gera **2 jobs** em `post-punch` (o terceiro vai para `day-recalculation`) e **3 linhas** `pendente` em `outbox`. Como ainda não existem os consumidores (PDF do comprovante, jornada, QR oficial; ver seção 4), eles ficam ali. Isso é **esperado**, não é bug. Os jobs de `post-punch` são mantidos (`removeOnComplete: false`): um consumidor futuro marcará a linha do outbox como `processado` e só então o job sai.
 
-**Quanto isso cresce:** 1000 batidas por dia são 3000 jobs por dia. Um estabelecimento de 200 pessoas, com 4 batidas por dia, gera cerca de 2400 jobs por dia.
+**Quanto isso cresce:** 1000 batidas por dia são 2000 jobs por dia. Um estabelecimento de 200 pessoas, com 4 batidas por dia, gera cerca de 1600 jobs por dia.
 
 **Limite de aviso:** `POST_PUNCH_DEPTH_WARN` (padrão 10 000). A profundidade é `waiting + delayed + active`. Quando passa, o resgate registra o log `post_punch_depth_high` (nível `warn`) e o `pnpm queue:inspect` imprime uma linha `AVISO`. Isso não bloqueia nada. O que fazer: seção 13, "fila cheia".
 

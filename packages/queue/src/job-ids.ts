@@ -29,7 +29,7 @@ export function parsePunchJobId(jobId: string): { deviceId: number; deviceSequen
   return { deviceId, deviceSequence };
 }
 
-/** `post-punch`: `<evento>-<estabelecimentoId>-<nsr>`. */
+/** Eventos do outbox, em qualquer fila: `<evento>-<estabelecimentoId>-<nsr>`. */
 export function postPunchJobId(event: string, establishmentId: number, nsr: number): string {
   if (!(POST_PUNCH_EVENTS as readonly string[]).includes(event)) {
     throw new RangeError('event desconhecido');

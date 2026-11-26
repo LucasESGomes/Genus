@@ -23,6 +23,7 @@ import { quiesce, resetQueues, startInfra, ToggleProxy, waitFor, type Infra } fr
 import {
   disposer,
   openQueues,
+  eventJobs,
   postPunch,
   rescueRunner,
   SERVER_NOW,
@@ -98,7 +99,7 @@ describe('E3: Valkey fora na hora da batida', () => {
       'entrada processada após o resgate',
       30_000,
     );
-    await waitFor(async () => (await totalJobs(queues.postPunch)) === 3, '3 jobs em post-punch', 15_000);
+    await waitFor(async () => (await eventJobs(queues)) === 3, '3 jobs de eventos', 15_000);
 
     expect(await nsrList(infra.owner, est)).toEqual([1]);
     expect(await countEvidencias(infra.owner, est)).toBe(1);
@@ -137,11 +138,11 @@ describe('E4: Valkey fora só na publicação de post-punch (depois do COMMIT)',
     expect(await entryStatusCounts(infra.owner, est)).toEqual({ processado: 1 });
     expect(await nsrList(infra.owner, est)).toEqual([1]);
     expect(await outboxCounts(infra.owner, est)).toEqual({ pendente: 3 });
-    expect(await totalJobs(queues.postPunch)).toBe(0);
+    expect(await eventJobs(queues)).toBe(0);
     expect(await queues.punches.getJobCounts('failed')).toEqual({ failed: 0 });
     const warns = core.logs.byEvent('queue_publish_failed');
     expect(warns).toHaveLength(3);
-    expect(new Set(warns.map((w) => w['queue']))).toEqual(new Set(['post-punch']));
+    expect(new Set(warns.map((w) => w['queue']))).toEqual(new Set(['post-punch', 'day-recalculation']));
     expect(new Set(warns.map((w) => w['outboxEvent']))).toEqual(
       new Set(['generate-receipt-pdf', 'recalculate-day', 'official-qr']),
     );
@@ -157,13 +158,19 @@ describe('E4: Valkey fora só na publicação de post-punch (depois do COMMIT)',
 
     const tooEarly = await rescue.run(new FixedClock(new Date(dbNow.getTime() + 5_000)));
     expect(tooEarly.outboxReenfileirados).toBe(0);
-    expect(await totalJobs(queues.postPunch)).toBe(0);
+    expect(await eventJobs(queues)).toBe(0);
 
     const round = await rescue.run(new FixedClock(new Date(dbNow.getTime() + 60_000)));
     expect(round.outboxReenfileirados).toBe(3);
     expect(round.entradasReenfileiradas).toBe(0);
-    expect(await queues.postPunch.getJobCounts('waiting')).toEqual({ waiting: 3 });
-    const jobIds = (await queues.postPunch.getJobs(['waiting'])).map((j) => j.id).sort();
+    expect(await queues.postPunch.getJobCounts('waiting')).toEqual({ waiting: 2 });
+    expect(await queues.dayRecalculation.getJobCounts('waiting')).toEqual({ waiting: 1 });
+    const jobIds = [
+      ...(await queues.postPunch.getJobs(['waiting'])),
+      ...(await queues.dayRecalculation.getJobs(['waiting'])),
+    ]
+      .map((j) => j.id)
+      .sort();
     expect(jobIds).toEqual([`generate-receipt-pdf-${est}-1`, `official-qr-${est}-1`, `recalculate-day-${est}-1`]);
 
     // O resgate não escreve no banco: o outbox continua pendente até um consumidor existir.

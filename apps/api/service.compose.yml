@@ -84,7 +84,9 @@ services:
       SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME:-}
       SUPER_ADMIN_PASSWORD_HASH: ${SUPER_ADMIN_PASSWORD_HASH:-}
       MASTER_KEY: ${MASTER_KEY:-}
-      # Sem o Valkey ou o coletor no ar, só os checks de saúde ficam degradados.
+      # Apuração automática: a api consome a fila day-recalculation (e agenda o encerramento dos dias).
+      # Sem o Valkey no ar (compose só desta pasta), o dia só é calculado a pedido; sem ele ou sem o
+      # coletor, os checks de saúde ficam degradados.
       VALKEY_URL: redis://valkey:6379
       VALKEY_PASSWORD: ${VALKEY_PASSWORD:-}
       COLLECTOR_API_URL: http://collector-api:3001
@@ -121,6 +123,9 @@ services:
         - action: sync+restart
           path: ../../packages/shared/src
           target: /repo/packages/shared/src
+        - action: sync+restart
+          path: ../../packages/queue/src
+          target: /repo/packages/queue/src
         - action: rebuild
           path: ./package.json
 

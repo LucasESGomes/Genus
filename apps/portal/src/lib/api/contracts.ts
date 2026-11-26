@@ -375,6 +375,59 @@ export interface RecalculateResult {
   skipped: SkippedDay[];
 }
 
+/** GET /portal/timesheets?date&establishmentId&departmentId&status&q&page&pageSize: apuração do dia de todos. */
+export interface DayRowQuery extends PaginationQuery {
+  /** AAAA-MM-DD */
+  date: string;
+  establishmentId: EntityId;
+  departmentId?: EntityId;
+  status?: TimesheetDayStatus | 'falta';
+  q?: string;
+}
+
+export interface DayRow {
+  employeeId: EntityId;
+  employeeName: string;
+  registrationNumber: string | null;
+  departmentName: string | null;
+  jobTitleName: string | null;
+  /** AAAA-MM-DD */
+  date: string;
+  /** Situação do dia (`DaySituation`; string no back). */
+  situation: string;
+  status: TimesheetDayStatus;
+  /** A api diz se o dia é falta; o front não deduz. */
+  isAbsence: boolean;
+  punches: Punch[];
+  expectedMinutes: number;
+  workedMinutes: number;
+  overtimeMinutes: number;
+  absenceMinutes: number;
+  issues: TimesheetIssue[];
+}
+
+export interface DayRowPage extends Paged<DayRow> {
+  /** Contagens das abas, calculadas pela api sobre o filtro sem `status`. */
+  counts: { todos: number; inconsistente: number; falta: number; calculada: number };
+}
+
+/** Motivo de um colaborador ficar fora do recálculo do dia do estabelecimento. */
+export const DAY_RECALCULATE_SKIP_REASONS = ['sem_escala', 'periodo_fechado'] as const;
+export type DayRecalculateSkipReason = (typeof DAY_RECALCULATE_SKIP_REASONS)[number];
+
+/** POST /portal/timesheets/recalculate (rh): recalcula o dia de todo o estabelecimento. */
+export interface DayRecalculateBody {
+  establishmentId: EntityId;
+  /** AAAA-MM-DD */
+  date: string;
+}
+
+export interface DayRecalculateResult {
+  /** Quantos colaboradores tiveram o dia recalculado. */
+  recalculated: number;
+  skipped: { employeeId: EntityId; reason: DayRecalculateSkipReason }[];
+}
+
 // ---- adjustments (apps/api/src/modules/adjustments) ----
 
 export const ADJUSTMENT_TYPES = ['inclusao_batida', 'justificativa', 'abono'] as const;
@@ -835,6 +888,50 @@ export interface TimeBank {
   entries: TimeBankEntry[];
 }
 
+// ---- time-bank (apps/api/src/modules/time-bank) ----
+
+export interface TimeBankBalanceQuery extends PaginationQuery {
+  establishmentId: EntityId;
+  /** Busca por nome ou matrícula. */
+  q?: string;
+}
+
+/** GET /portal/time-bank?establishmentId&q&page&pageSize: saldos vistos pelo RH. */
+export interface TimeBankBalanceRow {
+  employeeId: EntityId;
+  employeeName: string;
+  departmentName: string | null;
+  balanceMinutes: number;
+  expiringIn30DaysMinutes: number;
+  /** AAAA-MM-DD do vencimento mais próximo. */
+  nextDueDate: string | null;
+}
+
+/** GET /portal/employees/:id/time-bank: mesmo formato do /me/time-bank. */
+export type EmployeeTimeBank = TimeBank;
+
+/** Valores de `regras_banco_horas.modalidade`. */
+export const TIME_BANK_MODALITIES = ['individual_6m', 'coletivo_12m'] as const;
+export type TimeBankModality = (typeof TIME_BANK_MODALITIES)[number];
+
+/** Regra do banco de horas do estabelecimento (GET e PUT /portal/establishments/:id/time-bank-policy). */
+export interface TimeBankPolicy {
+  id: EntityId;
+  establishmentId: EntityId;
+  modality: TimeBankModality;
+  /** Peso como texto com 2 casas, de "1.00" a "9.99". */
+  sundayWeight: string;
+  /** Peso como texto com 2 casas, de "1.00" a "9.99". */
+  holidayWeight: string;
+  /** AAAA-MM-DD */
+  validFrom: string;
+  /** AAAA-MM-DD, inclusivo; null = em aberto. */
+  validTo: string | null;
+}
+
+/** PUT: data posterior encerra a vigência anterior; a mesma data atualiza; anterior → 409 BANCO_REGRA_VIGENCIA. */
+export type SaveTimeBankPolicyBody = Pick<TimeBankPolicy, 'modality' | 'sundayWeight' | 'holidayWeight' | 'validFrom'>;
+
 // ---- facial (apps/api/src/modules/facial) ----
 
 /** Campos do multipart de cadastro facial (as fotos, 1 a 5, vão no campo `photos`). Chegam como texto. */
@@ -917,42 +1014,6 @@ export interface OrgUnit {
   name: string;
 }
 
-/** [MOCK] GET /portal/timesheets?date&establishmentId&departmentId&status&page: apuração do dia de todos. */
-export interface DayRowQuery extends PaginationQuery {
-  /** AAAA-MM-DD */
-  date: string;
-  establishmentId: EntityId;
-  departmentId?: EntityId;
-  status?: TimesheetDayStatus | 'falta';
-  q?: string;
-}
-
-export interface DayRow {
-  employeeId: EntityId;
-  employeeName: string;
-  registrationNumber: string | null;
-  departmentName: string | null;
-  jobTitleName: string | null;
-  /** AAAA-MM-DD */
-  date: string;
-  /** Situação do dia (`DaySituation`; string no back). */
-  situation: string;
-  status: TimesheetDayStatus;
-  /** A api diz se o dia é falta; o front não deduz. */
-  isAbsence: boolean;
-  punches: Punch[];
-  expectedMinutes: number;
-  workedMinutes: number;
-  overtimeMinutes: number;
-  absenceMinutes: number;
-  issues: TimesheetIssue[];
-}
-
-export interface DayRowPage extends Paged<DayRow> {
-  /** Contagens das abas, calculadas pela api sobre o filtro sem `status`. */
-  counts: { todos: number; inconsistente: number; falta: number; calculada: number };
-}
-
 /** [MOCK] GET /portal/vacations/calendar?establishmentId&departmentId&month=AAAA-MM. */
 export interface VacationCalendar {
   /** AAAA-MM */
@@ -985,20 +1046,6 @@ export interface VacationCalendarRow {
   /** Próxima janela livre sugerida pela api, se houver (AAAA-MM-DD). */
   nextFreeStartDate: string | null;
 }
-
-/** [MOCK] GET /portal/time-bank?establishmentId&page: saldos do RH. */
-export interface TimeBankBalanceRow {
-  employeeId: EntityId;
-  employeeName: string;
-  departmentName: string | null;
-  balanceMinutes: number;
-  expiringIn30DaysMinutes: number;
-  /** AAAA-MM-DD do vencimento mais próximo. */
-  nextDueDate: string | null;
-}
-
-/** [MOCK] GET /portal/employees/:id/time-bank: mesmo formato do /me/time-bank. */
-export type EmployeeTimeBank = TimeBank;
 
 // ---- Totens (aparelhos coletores). Contrato real: docs/totem-contrato.md §3.1 ----
 

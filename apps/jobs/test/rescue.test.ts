@@ -4,6 +4,7 @@
  */
 import { startArpTestDatabase, type ArpTestDatabase } from '@genus/db-arp';
 import {
+  createDayRecalculationQueue,
   createPostPunchQueue,
   createProducerConnection,
   createPunchesQueue,
@@ -36,6 +37,7 @@ let reader: pg.Pool;
 let connection: Redis;
 let punches: Queue<PunchJobData>;
 let postPunch: Queue<PostPunchJobData>;
+let dayRecalculation: Queue<PostPunchJobData>;
 let nextEstablishment = 700;
 
 const OLD = '2026-11-20T12:00:00.000Z';
@@ -49,6 +51,7 @@ beforeAll(async () => {
   connection = createProducerConnection({ url: valkey.url, password: undefined, publishTimeoutMs: 5000 });
   punches = createPunchesQueue(connection, { attempts: 1 });
   postPunch = createPostPunchQueue(connection, { attempts: 1 });
+  dayRecalculation = createDayRecalculationQueue(connection, { attempts: 1 });
 });
 
 beforeEach(async () => {
@@ -57,7 +60,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await Promise.all([punches?.close(), postPunch?.close()]);
+  await Promise.all([punches?.close(), postPunch?.close(), dayRecalculation?.close()]);
   connection?.disconnect();
   await Promise.all([owner?.end(), reader?.end()]);
   await Promise.all([db?.stop(), valkey?.stop()]);
@@ -76,6 +79,7 @@ function makeDeps(now: string = NOW, overrides: Partial<RescueDeps> = {}) {
     logger: log.logger,
     punchesQueue: punches,
     postPunchQueue: postPunch,
+    dayRecalculationQueue: dayRecalculation,
     minAgeMs: 30_000,
     postPunchDepthWarn: 10_000,
     ...overrides,
@@ -86,6 +90,16 @@ function makeDeps(now: string = NOW, overrides: Partial<RescueDeps> = {}) {
 async function stateOf(queue: Queue<PunchJobData> | Queue<PostPunchJobData>, jobId: string): Promise<string> {
   const job = await queue.getJob(jobId);
   return job ? await job.getState() : 'absent';
+}
+
+/** Worker que conclui os jobs da fila sem tocar no banco. */
+async function complete(name: string, queue: Queue<PostPunchJobData>, jobId: string): Promise<void> {
+  const workerConn = new Redis(valkey.url, { maxRetriesPerRequest: null });
+  const worker = new Worker(name, async () => undefined, { connection: workerConn });
+  worker.on('error', () => undefined);
+  await waitFor(async () => (await stateOf(queue, jobId)) === 'completed', 'job completed');
+  await worker.close();
+  workerConn.disconnect();
 }
 
 describe('runRescueOnce', () => {
@@ -103,6 +117,7 @@ describe('runRescueOnce', () => {
       waiting: 0, active: 0, delayed: 0, completed: 0, failed: 0,
     });
     expect((await postPunch.getJobCounts('waiting')).waiting).toBe(0);
+    expect((await dayRecalculation.getJobCounts('waiting')).waiting).toBe(0);
   });
 
   it('E2: entrada pendente antiga e sem job vira job em punches com o jobId e o payload certos', async () => {
@@ -128,7 +143,7 @@ describe('runRescueOnce', () => {
     expect((await punches.getJobCounts('waiting')).waiting).toBe(1);
   });
 
-  it('E2b: evento de outbox pendente e antigo vira job em post-punch (nome do job = evento)', async () => {
+  it('E2b: evento de outbox pendente e antigo vira job na fila do evento (nome do job = evento)', async () => {
     const { establishmentId } = fresh();
     const ids = await insertOutbox(owner, { establishmentId, nsr: 5, createdAt: OLD });
     const { deps } = makeDeps();
@@ -136,11 +151,15 @@ describe('runRescueOnce', () => {
     const result = await runRescueOnce(deps);
 
     expect(result.outboxReenfileirados).toBe(3);
-    const job = await postPunch.getJob(postPunchJobId('recalculate-day', establishmentId, 5));
+    const jobId = postPunchJobId('recalculate-day', establishmentId, 5);
+    const job = await dayRecalculation.getJob(jobId);
     expect(job?.name).toBe('recalculate-day');
     expect(job?.data).toMatchObject({ tenantId: 1, establishmentId, nsr: 5 });
+    expect(job?.opts.removeOnComplete).toEqual({ age: 172_800 });
     expect(ids).toContain(job!.data.outboxId);
-    expect((await postPunch.getJobCounts('waiting')).waiting).toBe(3);
+    expect(await postPunch.getJob(jobId)).toBeUndefined();
+    expect((await postPunch.getJobCounts('waiting')).waiting).toBe(2);
+    expect((await dayRecalculation.getJobCounts('waiting')).waiting).toBe(1);
   });
 
   it('E3: job failed preso volta a waiting (retry)', async () => {
@@ -186,7 +205,7 @@ describe('runRescueOnce', () => {
 
   it('E5: evento já publicado e concluído, com a linha de outbox processada, não é republicado', async () => {
     const { establishmentId } = fresh();
-    // nsr 1: linhas já processadas. nsr 2: ainda pendentes, mas com job completed (cai no remove + add).
+    // nsr 1: linhas já processadas, com job completed. nsr 2: pendentes e sem job.
     await insertOutbox(owner, { establishmentId, nsr: 1, createdAt: OLD, status: 'processado' });
     await insertOutbox(owner, { establishmentId, nsr: 2, createdAt: OLD });
     const processedIds = ['generate-receipt-pdf', 'recalculate-day', 'official-qr'].map((e) => postPunchJobId(e, establishmentId, 1));
@@ -206,8 +225,70 @@ describe('runRescueOnce', () => {
     // Só as 3 linhas pendentes do nsr 2 foram publicadas; o nsr 1 ficou como estava.
     expect(result.outboxReenfileirados).toBe(3);
     for (const jobId of processedIds) expect(await stateOf(postPunch, jobId)).toBe('completed');
-    expect((await postPunch.getJobCounts('waiting')).waiting).toBe(3);
+    expect((await postPunch.getJobCounts('waiting')).waiting).toBe(2);
     expect(await stateOf(postPunch, postPunchJobId('official-qr', establishmentId, 2))).toBe('waiting');
+    expect(await stateOf(dayRecalculation, postPunchJobId('recalculate-day', establishmentId, 2))).toBe('waiting');
+  });
+
+  it('E5b: post-punch completed com a linha pendente continua sendo republicado', async () => {
+    const { establishmentId } = fresh();
+    await insertOutbox(owner, { establishmentId, nsr: 1, createdAt: OLD });
+    const jobId = postPunchJobId('official-qr', establishmentId, 1);
+    await postPunch.add('official-qr', { outboxId: 1, tenantId: 1, establishmentId, nsr: 1 }, { jobId });
+    await complete('post-punch', postPunch, jobId);
+
+    await runRescueOnce(makeDeps().deps);
+
+    expect(await stateOf(postPunch, jobId)).toBe('waiting');
+  });
+
+  it('R1: recalculate-day concluído não é republicado, em rodadas seguidas', async () => {
+    const { establishmentId } = fresh();
+    await insertOutbox(owner, { establishmentId, nsr: 1, createdAt: OLD });
+    const jobId = postPunchJobId('recalculate-day', establishmentId, 1);
+    await runRescueOnce(makeDeps().deps);
+    await complete('day-recalculation', dayRecalculation, jobId);
+    const finishedOn = (await dayRecalculation.getJob(jobId))!.finishedOn;
+
+    for (let i = 0; i < 2; i += 1) await runRescueOnce(makeDeps().deps);
+
+    expect(await stateOf(dayRecalculation, jobId)).toBe('completed');
+    expect((await dayRecalculation.getJob(jobId))!.finishedOn).toBe(finishedOn);
+    expect((await dayRecalculation.getJobCounts('waiting')).waiting).toBe(0);
+  });
+
+  it('R2: recalculate-day failed dentro da janela volta a waiting', async () => {
+    const { establishmentId } = fresh();
+    await insertOutbox(owner, { establishmentId, nsr: 1, createdAt: OLD });
+    const jobId = postPunchJobId('recalculate-day', establishmentId, 1);
+    await runRescueOnce(makeDeps().deps);
+    const workerConn = new Redis(valkey.url, { maxRetriesPerRequest: null });
+    const failing = new Worker('day-recalculation', async () => {
+      throw new Error('falha de teste');
+    }, { connection: workerConn });
+    failing.on('error', () => undefined);
+    await waitFor(async () => (await stateOf(dayRecalculation, jobId)) === 'failed', 'job failed');
+    await failing.close();
+    workerConn.disconnect();
+
+    const result = await runRescueOnce(makeDeps().deps);
+
+    expect(await stateOf(dayRecalculation, jobId)).toBe('waiting');
+    expect(result.outboxReenfileirados).toBe(1);
+  });
+
+  it('R3: recalculate-day só entre 30 s e 1 h de idade; os outros eventos não têm limite', async () => {
+    const recent = fresh().establishmentId;
+    const stale = fresh().establishmentId;
+    await insertOutbox(owner, { establishmentId: recent, nsr: 1, createdAt: '2026-11-20T11:10:00.000Z' }); // exatamente 1 h
+    await insertOutbox(owner, { establishmentId: stale, nsr: 1, createdAt: '2026-11-20T11:09:59.000Z' });
+
+    await runRescueOnce(makeDeps().deps);
+
+    expect(await stateOf(dayRecalculation, postPunchJobId('recalculate-day', recent, 1))).toBe('waiting');
+    expect(await stateOf(dayRecalculation, postPunchJobId('recalculate-day', stale, 1))).toBe('absent');
+    expect(await stateOf(postPunch, postPunchJobId('recalculate-day', stale, 1))).toBe('absent');
+    expect(await stateOf(postPunch, postPunchJobId('official-qr', stale, 1))).toBe('waiting');
   });
 
   it('E6: o resgate nunca escreve no banco (arp_reader recusa UPDATE com 42501)', async () => {
@@ -248,13 +329,13 @@ describe('runRescueOnce', () => {
   it('avisa quando a profundidade de post-punch passa do limite', async () => {
     const { establishmentId } = fresh();
     await insertOutbox(owner, { establishmentId, nsr: 1, createdAt: OLD });
-    const { deps, log } = makeDeps(NOW, { postPunchDepthWarn: 2 });
+    const { deps, log } = makeDeps(NOW, { postPunchDepthWarn: 1 });
 
     await runRescueOnce(deps);
 
     const warn = log.byEvent('post_punch_depth_high');
     expect(warn).toHaveLength(1);
-    expect(warn[0]).toMatchObject({ level: 'warn', depth: 3, threshold: 2 });
+    expect(warn[0]).toMatchObject({ level: 'warn', depth: 2, threshold: 1 });
   });
 
   it('ignora linha de outbox com chave inválida, sem derrubar a rodada', async () => {
