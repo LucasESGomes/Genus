@@ -176,6 +176,10 @@ pnpm -r test
 
 `pnpm -r test` exige o Docker em execução. Os testes de banco sobem um Postgres temporário com Testcontainers. Ele não usa o Compose do projeto.
 
+### CI/CD (GitHub Actions)
+
+`.github/workflows/ci-cd.yml` roda os mesmos comandos em todo PR para a `main` e em todo push nela (o pytest da engine só quando `services/face-engine/` muda). No push para a `main`, se os testes passarem, dispara o deploy no Easypanel **só dos serviços cuja imagem mudou**: cada serviço Node depende da própria pasta em `apps/` e de `packages/shared`, `packages/queue`, `db/arp`, `docker/node.Dockerfile` e do lockfile; o portal, de `apps/portal` e do lockfile; a engine, de `services/face-engine`. Os gatilhos ficam nos segredos `EASYPANEL_DEPLOY_<SERVIÇO>` do repositório (`API`, `COLLECTOR_API`, `FACE_ENGINE`, `JOBS`, `PORTAL`, `REP_CORE`). Para refazer o deploy de tudo: Actions → CI/CD → Run workflow com `deploy_all`. No Easypanel, o deploy automático por push precisa ficar desligado, senão todo serviço rebuilda a cada commit.
+
 ## 7. Postman
 
 A coleção está em YAML (Postman Collection v3) em `postman/collections/Genus Coletor/`, com os environments em `postman/environments/*.environment.yaml`. Guia completo: [`conventions/api-testing.md`](conventions/api-testing.md).
