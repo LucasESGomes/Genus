@@ -76,7 +76,36 @@ export async function startArpTestDatabase(): Promise<ArpTestDatabase> {
     readerUrl,
     adminUrl: superuserArpUrl,
     stop: async () => {
+      await waitForClientConnectionsToClose(container.getConnectionUri());
       await container.stop();
     },
   };
+}
+
+/**
+ * Espera as conexões dos testes saírem do Postgres antes de derrubar o container.
+ * `pool.end()` do pg resolve antes de os sockets fecharem; parar o container nesse
+ * intervalo manda `57P01` (terminating connection) a clientes sem ouvinte de erro,
+ * e o Vitest acusa exceção não tratada mesmo com todos os testes passando.
+ */
+export async function waitForClientConnectionsToClose(
+  superuserUrl: string,
+  // Abaixo do hookTimeout padrão do Vitest (10 s): se algo vazar conexão, o afterAll ainda termina.
+  timeoutMs = 3_000,
+): Promise<void> {
+  const admin = new pg.Client({ connectionString: superuserUrl });
+  await admin.connect();
+  try {
+    const pollMs = 50;
+    for (let attempt = 0; attempt * pollMs < timeoutMs; attempt++) {
+      const { rows } = await admin.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE backend_type = 'client backend' AND pid <> pg_backend_pid()`,
+      );
+      if (rows[0]!.n === 0) return;
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+    }
+  } finally {
+    await admin.end();
+  }
 }

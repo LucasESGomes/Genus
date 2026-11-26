@@ -3,6 +3,7 @@
  * banco app aplicadas pelo mesmo runner do contêiner api-migrate.
  */
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { waitForClientConnectionsToClose } from '@genus/db-arp';
 import { runMigrations } from '../../src/db/migrate';
 
 export interface RhTestDatabase {
@@ -18,5 +19,12 @@ export async function startRhTestDatabase(): Promise<RhTestDatabase> {
   const container = await new PostgreSqlContainer(IMAGE).withDatabase('app').start();
   const url = container.getConnectionUri();
   await runMigrations(url);
-  return { url, container, stop: async () => void (await container.stop()) };
+  return {
+    url,
+    container,
+    stop: async () => {
+      await waitForClientConnectionsToClose(url);
+      await container.stop();
+    },
+  };
 }
