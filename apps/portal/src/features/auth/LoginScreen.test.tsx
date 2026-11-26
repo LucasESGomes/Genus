@@ -57,6 +57,14 @@ describe('Login', () => {
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/me'));
   });
 
+  it('super_admin sem 2FA entra e vai ativar o 2FA, sem erro de login', async () => {
+    // `next` não vale aqui: sem 2FA, a única tela que abre é a de ativação.
+    setup({ me: vi.fn(async () => { throw new ApiError('forbidden', 403, 'MFA_REQUIRED', 'Ative a verificação em duas etapas para continuar'); }) }, '/login?next=%2Fadmin');
+    await fillPassword('superadmin@exemplo.test');
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/admin/ativar-2fa'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('com 2FA pede o código e conclui com 6 dígitos', async () => {
     const { fns } = setup({ signIn: vi.fn(async () => ({ twoFactorRequired: true })) });
     await fillPassword('rh2fa@exemplo.test');
