@@ -11,6 +11,7 @@ import { employeeRoutes } from '../employees/routes';
 import { establishmentRoutes } from '../establishments/routes';
 import { facialRoutes } from '../facial/routes';
 import { inviteRoutes } from '../invites/routes';
+import { orgUnitRoutes } from '../org-units/routes';
 import { scheduleRoutes } from '../schedules/routes';
 import { superAdminRoutes } from '../super-admin/routes';
 import { timeBankRoutes } from '../time-bank/routes';
@@ -36,6 +37,7 @@ export const portalRoutes: FastifyPluginAsyncZod<PortalDeps> = async (app, deps)
   await app.register(totemRoutes, deps);
   await app.register(establishmentRoutes, deps);
   await app.register(inviteRoutes, deps);
+  await app.register(orgUnitRoutes, deps);
   // Escopo próprio: a guarda super_admin (onRequest) vale só aqui dentro. O prefixo fica no escopo de
   // fora: os submódulos recebem as mesmas opções, e um `prefix` nelas seria aplicado duas vezes.
   const superAdmin = deps.superAdmin;

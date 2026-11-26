@@ -9,7 +9,7 @@
 import type { AuthApi } from '../endpoints/auth';
 import type { OrgApi } from '../endpoints/org';
 import type { OverviewApi } from '../endpoints/overview';
-import type { Establishment, Me, OrgUnit, Overview, Role } from '../contracts';
+import type { CostCenter, Department, Establishment, JobTitle, Me, OrgUnit, Overview, Role } from '../contracts';
 import { clone, delay, mockFail } from './runtime';
 
 export { useMocks } from './runtime';
@@ -93,8 +93,16 @@ export const JOB_TITLES = ['Operador de colhedora', 'Ordenhadora', 'Trabalhador 
 const units = (names: string[], establishmentId: string, base: number): OrgUnit[] =>
   names.map((name, i) => ({ id: String(base + i), establishmentId, name }));
 
-export const mockDepartments = (establishmentId: string) => units(DEPARTMENTS, establishmentId, 10);
-export const mockJobTitles = (establishmentId: string) => units(JOB_TITLES, establishmentId, 30);
+export const mockDepartments = (establishmentId: string): Department[] =>
+  units(DEPARTMENTS, establishmentId, 10).map((u) => ({ ...u, establishmentId, maxSimultaneousVacations: 2 }));
+export const mockJobTitles = (establishmentId: string): JobTitle[] =>
+  units(JOB_TITLES, establishmentId, 30).map(({ id, name }) => ({ id, name, companyId: '1', cbo: null }));
+
+/** Itens criados no modo mock (somem ao recarregar). */
+const created = { departments: [] as Department[], jobTitles: [] as JobTitle[], costCenters: [] as CostCenter[] };
+let nextMockId = 900;
+const mockCostCenters = (): CostCenter[] =>
+  [['CC 100', 'Campo'], ['CC 200', 'Oficina'], ['CC 300', 'Escritório']].map(([code, name], i) => ({ id: String(50 + i), companyId: '1', code: code!, name: name! }));
 
 export const mockOrgApi: OrgApi = {
   establishments: async () => {
@@ -103,15 +111,51 @@ export const mockOrgApi: OrgApi = {
   },
   departments: async (establishmentId) => {
     await delay();
-    return mockDepartments(establishmentId);
+    return [...mockDepartments(establishmentId), ...created.departments.filter((d) => d.establishmentId === establishmentId)];
+  },
+  createDepartment: async (body) => {
+    await delay();
+    const d: Department = { id: String(nextMockId++), establishmentId: body.establishmentId, name: body.name, maxSimultaneousVacations: body.maxSimultaneousVacations ?? 1 };
+    created.departments.push(d);
+    return clone(d);
+  },
+  updateDepartment: async (id, body) => {
+    await delay();
+    const d = created.departments.find((x) => x.id === id) ?? { ...mockDepartments('1').find((x) => x.id === id)!, establishmentId: '1' };
+    Object.assign(d, body);
+    return clone(d);
   },
   jobTitles: async (establishmentId) => {
     await delay();
-    return mockJobTitles(establishmentId);
+    return [...mockJobTitles(establishmentId), ...created.jobTitles];
   },
-  costCenters: async (establishmentId) => {
+  createJobTitle: async (body) => {
     await delay();
-    return units(['CC 100 · Campo', 'CC 200 · Oficina', 'CC 300 · Escritório'], establishmentId, 50);
+    const j: JobTitle = { id: String(nextMockId++), companyId: '1', name: body.name, cbo: body.cbo ?? null };
+    created.jobTitles.push(j);
+    return clone(j);
+  },
+  updateJobTitle: async (id, body) => {
+    await delay();
+    const j = created.jobTitles.find((x) => x.id === id) ?? mockJobTitles('1').find((x) => x.id === id)!;
+    Object.assign(j, body);
+    return clone(j);
+  },
+  costCenters: async () => {
+    await delay();
+    return [...mockCostCenters(), ...created.costCenters];
+  },
+  createCostCenter: async (body) => {
+    await delay();
+    const c: CostCenter = { id: String(nextMockId++), companyId: '1', code: body.code, name: body.name };
+    created.costCenters.push(c);
+    return clone(c);
+  },
+  updateCostCenter: async (id, body) => {
+    await delay();
+    const c = created.costCenters.find((x) => x.id === id) ?? mockCostCenters().find((x) => x.id === id)!;
+    Object.assign(c, body);
+    return clone(c);
   },
 };
 

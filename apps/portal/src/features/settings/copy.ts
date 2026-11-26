@@ -18,9 +18,10 @@ export const COPY = {
   toleranceHint: 'Parâmetro da empresa; regras legais ficam no servidor. [A CONFIRMAR] o limite legal da tolerância.',
 } as const;
 
-export type SettingsTab = 'usuarios' | 'parametros' | 'feriados';
+export type SettingsTab = 'estrutura' | 'usuarios' | 'parametros' | 'feriados';
 
 export const TABS: { value: SettingsTab; label: string }[] = [
+  { value: 'estrutura', label: 'Estrutura' },
   { value: 'usuarios', label: 'Usuários e escopo' },
   { value: 'parametros', label: 'Parâmetros da empresa' },
   { value: 'feriados', label: 'Feriados' },

@@ -1,0 +1,35 @@
+$kind: collection
+name: Genus - Cadastros, escalas, feriados, visão geral e usuários (api do RH)
+description: |-
+  Módulos do portal de RH em `apps/api`: setores, cargos e centros de custo (G1), escalas e trocas de turno (G2), feriados (G3), visão geral (G11), usuários e configurações da empresa.
+
+  **MANUAL: esta coleção NÃO roda no `pnpm postman:test`.** Entre no portal como usuário `rh` (ou `admin`, para usuários), abra `GET {{portalUrl}}/auth/token` no mesmo navegador e ponha o JWT em `rhToken` (secret). Preencha os ids com dados fictícios. **Não rode em prod:** as requisições criam e alteram dados.
+variables:
+  portalUrl: http://localhost:3002
+  rhToken: ""
+  establishmentId: ""
+  employeeId: ""
+  scheduleId: ""
+  departmentId: ""
+  from: "2026-11-01"
+  to: "2026-11-30"
+  year: "2026"
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{rhToken}}"
+scripts:
+  - type: http:afterResponse
+    code: |-
+      let corpo = null;
+      pm.test('Corpo é JSON', () => { corpo = pm.response.json(); });
+      pm.test('Envelope: { data } em sucesso; { error, code } em erro', () => {
+        if (pm.response.code < 400) pm.expect(corpo).to.have.property('data');
+        else {
+          pm.expect(corpo.error).to.be.a('string');
+          pm.expect(corpo.code).to.match(/^[A-Z][A-Z0-9_]*$/);
+        }
+      });
+      pm.test('Sem CPF nem hash na resposta', () => pm.expect(pm.response.text()).to.not.match(/"(cpf|hash)[A-Za-z]*":/i));
+    language: text/javascript

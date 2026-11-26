@@ -1,0 +1,17 @@
+$kind: http-request
+name: 4. Criar cargo
+description: "Cargo da empresa do estabelecimento; CBO opcional."
+url: "{{portalUrl}}/portal/job-titles"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "establishmentId": {{establishmentId}}, "name": "Cargo Postman {{$timestamp}}", "cbo": "641015" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+    language: text/javascript
+order: 4000

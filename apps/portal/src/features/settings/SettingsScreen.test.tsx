@@ -14,7 +14,7 @@ const setup = (role: Exclude<Role, 'super_admin'> = 'rh', route = '/rh/configura
 describe('Configurações (prévia)', () => {
   it('admin e rh veem a página; usuários em leitura e "Convidar usuário" desabilitado', async () => {
     for (const role of ['admin', 'rh'] as const) {
-      const { container, unmount } = setup(role);
+      const { container, unmount } = setup(role, '/rh/configuracoes?aba=usuarios');
       expect(await screen.findByText('Lúcia Martins')).toBeInTheDocument();
       expect(screen.getAllByText('Todos').length).toBeGreaterThan(0);
       expect(screen.getByRole('button', { name: 'Convidar usuário' })).toBeDisabled();
@@ -69,18 +69,18 @@ describe('Configurações (prévia)', () => {
 
   it('erro mostra "Tentar de novo" e busca de novo', async () => {
     const users = vi.fn(async () => { throw new ApiError('server', 503, 'HTTP_503', 'x'); });
-    setup('rh', '/rh/configuracoes', { users });
+    setup('rh', '/rh/configuracoes?aba=usuarios', { users });
     await userEvent.click(await screen.findByRole('button', { name: /Tentar de novo/ }));
     await waitFor(() => expect(users).toHaveBeenCalledTimes(2));
   });
 
   it('lista vazia de usuários mostra o estado vazio', async () => {
-    setup('rh', '/rh/configuracoes', { users: async () => [] });
+    setup('rh', '/rh/configuracoes?aba=usuarios', { users: async () => [] });
     expect(await screen.findByText('Nenhum usuário cadastrado')).toBeInTheDocument();
   });
 
   it('403 da api mostra o mesmo estado de "não encontrado"', async () => {
-    setup('rh', '/rh/configuracoes', { users: async () => { throw new ApiError('forbidden', 403, 'FORBIDDEN', 'x'); } });
+    setup('rh', '/rh/configuracoes?aba=usuarios', { users: async () => { throw new ApiError('forbidden', 403, 'FORBIDDEN', 'x'); } });
     expect(await screen.findByText(/não tem acesso/i)).toBeInTheDocument();
   });
 

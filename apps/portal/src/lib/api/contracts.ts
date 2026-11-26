@@ -1007,12 +1007,40 @@ export interface Overview {
 // Os contratos abaixo são PROPOSTAS para o back (docs/portal-endpoints-pendentes.md).
 // Enquanto não existem, só respondem com NEXT_PUBLIC_USE_MOCKS=true; com false, a tela mostra "Em breve".
 
-/** [MOCK] GET /portal/departments|job-titles|cost-centers?establishmentId= (hoje o vínculo só traz ids). */
+/** Item de cadastro para seletores e nomes (setor, cargo ou centro de custo). */
 export interface OrgUnit {
   id: EntityId;
-  establishmentId: EntityId;
+  /** Só o setor é do estabelecimento; cargo e centro de custo são da empresa. */
+  establishmentId?: EntityId;
   name: string;
 }
+
+/** GET /portal/departments?establishmentId= */
+export interface Department extends OrgUnit {
+  establishmentId: EntityId;
+  /** Quantas pessoas do setor podem estar de férias ao mesmo tempo (mínimo 1). */
+  maxSimultaneousVacations: number;
+}
+
+/** GET /portal/job-titles?establishmentId= (cargos da empresa do estabelecimento). */
+export interface JobTitle extends OrgUnit {
+  companyId: EntityId;
+  /** CBO com 6 dígitos, opcional. */
+  cbo: string | null;
+}
+
+/** GET /portal/cost-centers?establishmentId= (centros de custo da empresa do estabelecimento). */
+export interface CostCenter extends OrgUnit {
+  companyId: EntityId;
+  code: string;
+}
+
+export interface CreateDepartmentBody { establishmentId: EntityId; name: string; maxSimultaneousVacations?: number }
+export type UpdateDepartmentBody = Partial<Pick<Department, 'name' | 'maxSimultaneousVacations'>>;
+export interface CreateJobTitleBody { establishmentId: EntityId; name: string; cbo?: string | null }
+export type UpdateJobTitleBody = Partial<Pick<JobTitle, 'name' | 'cbo'>>;
+export interface CreateCostCenterBody { establishmentId: EntityId; code: string; name: string }
+export type UpdateCostCenterBody = Partial<Pick<CostCenter, 'code' | 'name'>>;
 
 /** [MOCK] GET /portal/vacations/calendar?establishmentId&departmentId&month=AAAA-MM. */
 export interface VacationCalendar {

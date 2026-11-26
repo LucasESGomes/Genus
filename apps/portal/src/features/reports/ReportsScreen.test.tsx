@@ -45,7 +45,7 @@ describe('Relatórios (prévia)', () => {
   });
 
   it('o setor vem de api.org.departments do estabelecimento da sessão', async () => {
-    const departments = vi.fn(async () => [{ id: '10', establishmentId: '1', name: 'Colheita' }]);
+    const departments = vi.fn(async () => [{ id: '10', establishmentId: '1', name: 'Colheita', maxSimultaneousVacations: 1 }]);
     renderWithSession(<ReportsScreen />, { api: { org: { departments } }, establishments: undefined });
     await userEvent.click(screen.getByRole('button', { name: /Férias/ }));
     await waitFor(() => expect(departments).toHaveBeenCalledWith('1', expect.anything()));

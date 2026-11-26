@@ -1,0 +1,18 @@
+$kind: http-request
+name: 7. Setor com nome repetido (409)
+description: "Repete o nome do setor criado no passo 1."
+url: "{{portalUrl}}/portal/departments"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "establishmentId": {{establishmentId}}, "name": "Colheita" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('409 ou 201 (se ainda não existia)', () => pm.expect([201, 409]).to.include(pm.response.code));
+      if (pm.response.code === 409) pm.test('NOME_DUPLICADO', () => pm.expect(pm.response.json().code).to.eql('NOME_DUPLICADO'));
+    language: text/javascript
+order: 7000

@@ -25,6 +25,7 @@ import { formatDate, todayCivil } from '@/lib/format';
 import { useApiQuery } from '@/lib/query/hooks';
 import { useSession } from '@/lib/session';
 import { oneOf, useUrlState } from '@/lib/url-state';
+import { OrgUnitsSection } from '@/features/org-units/OrgUnitsSection';
 import { COPY, HOLIDAY_SCOPE, TABS, type SettingsTab } from './copy';
 import { settingsFormSchema } from './schemas';
 
@@ -33,7 +34,7 @@ const TAB_VALUES = TABS.map((t) => t.value);
 export function SettingsScreen() {
   const { me, establishment } = useSession();
   const [url, setUrl] = useUrlState(['aba'] as const);
-  const tab = oneOf<SettingsTab>(url.aba, TAB_VALUES, 'usuarios');
+  const tab = oneOf<SettingsTab>(url.aba, TAB_VALUES, 'estrutura');
 
   if (!can(me.role, 'nav.settings')) {
     return <PageHeader title={COPY.title}><ForbiddenState screen={COPY.title} establishment={establishment.name} /></PageHeader>;
@@ -49,6 +50,7 @@ export function SettingsScreen() {
       </Card>
       <CountTabs items={TABS} value={tab} onChange={(v) => setUrl({ aba: v })} label={COPY.tabsLabel} />
       <div role="tabpanel" aria-label={TABS.find((t) => t.value === tab)?.label} className="flex flex-col gap-4">
+        {tab === 'estrutura' && <OrgUnitsSection />}
         {tab === 'usuarios' && <UsersTab />}
         {tab === 'parametros' && <ParamsTab />}
         {tab === 'feriados' && <HolidaysTab />}
