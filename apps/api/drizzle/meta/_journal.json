@@ -148,6 +148,13 @@
       "when": 1795721446579,
       "tag": "0020_escalas_eh_ativo",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795722854536,
+      "tag": "0021_carga_feriados_nacionais",
+      "breakpoints": true
     }
   ]
 }

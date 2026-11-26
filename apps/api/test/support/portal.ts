@@ -58,6 +58,11 @@ export interface HarnessOptions {
   healthCipher?: HealthDataCipher | null;
   /** Troca dependências do painel do super_admin (padrão: stubs vazios, sem Valkey, sem probes, com MASTER_KEY de teste). */
   superAdmin?: Partial<SuperAdminDeps>;
+  /**
+   * Mantém os feriados nacionais da migration 0021. Padrão: apaga, para os testes de apuração não
+   * dependerem do calendário (cada teste que precisa de feriado o cadastra).
+   */
+  keepNationalHolidays?: boolean;
 }
 
 /** KEK fictícia (64 hex), só para teste. */
@@ -116,6 +121,7 @@ export class PortalHarness {
     this.arpDb = arpDb;
     this.client = new pg.Client({ connectionString: rh.url });
     await this.client.connect();
+    if (!this.o.keepNationalHolidays) await this.client.query('DELETE FROM rh.feriados WHERE conta_id IS NULL');
     this.handle = createDatabase(rh.url, createLogger({ level: 'silent', service: 'test' }), 6);
     this.users = new UserService({ db: this.handle.db });
     this.app = await this.newApp();

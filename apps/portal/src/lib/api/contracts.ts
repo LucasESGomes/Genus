@@ -1261,10 +1261,37 @@ export interface CompanySettings {
   punchToleranceMinutes: number;
 }
 
+export type HolidayScope = 'nacional' | 'estadual' | 'municipal';
+export type HolidayTreatment = 'pagar_100' | 'banco_horas';
+
+/** GET /portal/holidays?establishmentId&year: oficiais e da conta, com a regra do estabelecimento. */
 export interface Holiday {
   id: EntityId;
   /** AAAA-MM-DD */
   date: string;
   name: string;
-  scope: 'nacional' | 'estadual' | 'municipal' | 'empresa';
+  scope: HolidayScope;
+  uf: string | null;
+  municipalityIbge: string | null;
+  /** Facultativo não muda a apuração. */
+  isOptional: boolean;
+  /** Cadastrado pela conta (edita e remove); os demais são do catálogo oficial. */
+  isOwn: boolean;
+  /** O estabelecimento da consulta trabalha nesse feriado? */
+  isWorked: boolean;
+  treatment: HolidayTreatment | null;
+}
+
+/** Feriado da conta. `nacional` = todos os estabelecimentos da conta; os outros usam a UF/município do estabelecimento. */
+export interface CreateHolidayBody {
+  establishmentId: EntityId;
+  date: string;
+  name: string;
+  scope: HolidayScope;
+  isOptional?: boolean;
+}
+export type UpdateHolidayBody = Partial<Pick<Holiday, 'date' | 'name' | 'isOptional'>>;
+export interface SetEstablishmentHolidayBody {
+  isWorked: boolean;
+  treatment?: HolidayTreatment | null;
 }

@@ -27,9 +27,8 @@ export const TABS: { value: SettingsTab; label: string }[] = [
   { value: 'feriados', label: 'Feriados' },
 ];
 
-export const HOLIDAY_SCOPE: Record<'nacional' | 'estadual' | 'municipal' | 'empresa', string> = {
+export const HOLIDAY_SCOPE: Record<'nacional' | 'estadual' | 'municipal', string> = {
   nacional: 'Nacional',
   estadual: 'Estadual',
   municipal: 'Municipal',
-  empresa: 'Da empresa',
 };

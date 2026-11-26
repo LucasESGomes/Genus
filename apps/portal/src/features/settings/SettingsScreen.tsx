@@ -3,30 +3,29 @@
  * [SEM DESIGN] Configurações (usuários e escopo, parâmetros da empresa, feriados), prévia sem back.
  * Tudo é leitura: convidar, salvar e adicionar ficam desabilitados com a dica "Aguardando back".
  */
-import { CalendarBlank, Info, UsersThree, type Icon } from '@phosphor-icons/react';
+import { Info, UsersThree, type Icon } from '@phosphor-icons/react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Controller } from 'react-hook-form';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { CountTabs } from '@/components/ui/CountTabs';
 import { DataTable } from '@/components/ui/DataTable';
-import { SelectField, SwitchField, TextInput } from '@/components/ui/Fields';
+import { SwitchField, TextInput } from '@/components/ui/Fields';
 import { PendingBackTooltip } from '@/components/ui/PendingBackTooltip';
 import { QueryView } from '@/components/ui/QueryView';
 import { EmptyState, ForbiddenState, Skeleton } from '@/components/ui/States';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useZodForm } from '@/components/ui/useZodForm';
-import type { CompanySettings, Holiday, PortalUser } from '@/lib/api/contracts';
+import type { CompanySettings, PortalUser } from '@/lib/api/contracts';
 import { can, ROLE_LABEL } from '@/lib/auth/permissions';
-import { useClock } from '@/lib/clock-context';
-import { formatDate, todayCivil } from '@/lib/format';
 import { useApiQuery } from '@/lib/query/hooks';
 import { useSession } from '@/lib/session';
 import { oneOf, useUrlState } from '@/lib/url-state';
 import { OrgUnitsSection } from '@/features/org-units/OrgUnitsSection';
-import { COPY, HOLIDAY_SCOPE, TABS, type SettingsTab } from './copy';
+import { HolidaysTab } from './HolidaysTab';
+import { COPY, TABS, type SettingsTab } from './copy';
 import { settingsFormSchema } from './schemas';
 
 const TAB_VALUES = TABS.map((t) => t.value);
@@ -160,45 +159,5 @@ function ParamsForm({ settings }: { settings: CompanySettings }) {
         </div>
       </form>
     </Card>
-  );
-}
-
-function HolidaysTab() {
-  const { establishment } = useSession();
-  const clock = useClock();
-  const thisYear = Number(todayCivil(clock).slice(0, 4));
-  const [year, setYear] = useState(thisYear);
-  const q = useApiQuery(
-    'admin',
-    { holidays: true, year },
-    (api, signal) => api.admin.holidays(establishment.id, year, signal),
-  );
-  const years = [thisYear - 1, thisYear, thisYear + 1].map((y) => ({ value: String(y), label: String(y) }));
-  const columns = useMemo<ColumnDef<Holiday, never>[]>(() => [
-    { header: 'Data', id: 'date', cell: ({ row }) => formatDate(row.original.date, 'medium') },
-    { header: 'Nome', accessorKey: 'name' },
-    { header: 'Abrangência', id: 'scope', cell: ({ row }) => HOLIDAY_SCOPE[row.original.scope] },
-  ] as ColumnDef<Holiday, never>[], []);
-
-  return (
-    <>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="w-40">
-          <SelectField label="Ano" value={String(year)} onValueChange={(v) => setYear(Number(v))} options={years} />
-        </div>
-        <PendingBackTooltip text={COPY.pending}>
-          <Button variant="primary" disabled>{COPY.addHoliday}</Button>
-        </PendingBackTooltip>
-      </div>
-      <QueryView
-        query={q}
-        what="os feriados"
-        loading={<TableSkeleton />}
-        isEmpty={(d) => d.length === 0}
-        empty={<EmptyState icon={CalendarBlank as Icon} title={`Nenhum feriado em ${year}`} text="Os feriados cadastrados para este estabelecimento aparecem aqui." />}
-      >
-        {(holidays) => <DataTable caption={`Feriados de ${year}`} columns={columns} data={holidays} getRowId={(h) => h.id} />}
-      </QueryView>
-    </>
   );
 }

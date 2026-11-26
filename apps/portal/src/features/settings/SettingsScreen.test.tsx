@@ -46,12 +46,12 @@ describe('Configurações (prévia)', () => {
     expect(screen.getByText(/\[A CONFIRMAR\]/)).toBeInTheDocument();
   });
 
-  it('feriados: lista nacionais e o municipal de Rio Verde, troca de ano busca de novo', async () => {
+  it('feriados: lista nacionais e o municipal de Rio Verde, admin adiciona, troca de ano busca de novo', async () => {
     const holidays = vi.fn(mockAdminApi.holidays);
     setup('admin', '/rh/configuracoes?aba=feriados', { holidays });
     expect(await screen.findByText('Tiradentes')).toBeInTheDocument();
     expect(screen.getByText('Aniversário de Rio Verde')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Adicionar feriado' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Adicionar feriado' })).toBeEnabled();
     expect(holidays).toHaveBeenCalledWith('1', 2026, expect.anything());
     await userEvent.click(screen.getByRole('combobox', { name: /Ano/ }));
     await userEvent.click(await screen.findByRole('option', { name: '2027' }));

@@ -1,0 +1,13 @@
+$kind: http-request
+name: 1. Feriados do ano
+description: "Oficiais (migration 0021) e da conta, com a regra do estabelecimento."
+url: "{{portalUrl}}/portal/holidays?establishmentId={{establishmentId}}&year={{year}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      const natal = pm.response.json().data.find((h) => h.date.endsWith('-12-25'));
+      if (natal) pm.collectionVariables.set('holidayId', natal.id);
+    language: text/javascript
+order: 1000
