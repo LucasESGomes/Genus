@@ -39,8 +39,8 @@ describe('createTenantBody', () => {
   });
 
   it('overrides substituem campos de topo', () => {
-    const body = createTenantBody({ n: 2, admin: { name: 'Ana Teste', email: 'ana@cliente.teste.dev' } });
-    expect(body.admin).toEqual({ name: 'Ana Teste', email: 'ana@cliente.teste.dev' });
+    const body = createTenantBody({ n: 2, admin: { name: 'Ana Teste', email: 'ana@cliente.teste.dev', cpf: '52998224725' } });
+    expect(body.admin).toEqual({ name: 'Ana Teste', email: 'ana@cliente.teste.dev', cpf: '52998224725' });
   });
 });
 

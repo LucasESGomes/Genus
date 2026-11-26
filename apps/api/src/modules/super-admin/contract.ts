@@ -9,6 +9,7 @@
  */
 import { z } from 'zod';
 import { isoInstant, listMeta, pagination, positiveId, reasonText } from '../../http/schemas';
+import { inviteDto } from '../invites/schemas';
 
 // ---------------------------------------------------------------- comum
 
@@ -49,7 +50,8 @@ export const createTenantBody = z.object({
     uf: z.string().regex(/^[A-Z]{2}$/),
     municipalityIbge: z.string().regex(/^\d{7}$/),
   }),
-  admin: z.object({ name: z.string().trim().min(1).max(200), email: z.email().max(254) }),
+  /** Vira um convite (link com confirmação de CPF); o usuário só nasce no aceite. */
+  admin: z.object({ name: z.string().trim().min(1).max(200), email: z.email().max(254), cpf: z.string().trim().min(1).max(20) }),
 });
 
 export const updateTenantBody = z.object({ name: z.string().trim().min(2).max(120) });
@@ -78,13 +80,9 @@ export const tenantDetailDto = tenantDto.extend({
 
 export const tenantListResponse = z.strictObject({ data: z.array(tenantDto), meta: listMeta });
 export const tenantResponse = z.strictObject({ data: tenantDetailDto });
-/** `temporaryPassword` aparece SÓ nesta resposta; não é guardada em claro nem logada. */
+/** `token` do convite do admin: aparece SÓ nesta resposta; o banco guarda só o hash. */
 export const createdTenantResponse = z.strictObject({
-  data: z.strictObject({
-    tenant: tenantDetailDto,
-    admin: z.strictObject({ id: z.number(), name: z.string(), email: z.string() }),
-    temporaryPassword: z.string(),
-  }),
+  data: z.strictObject({ tenant: tenantDetailDto, invite: inviteDto, token: z.string() }),
 });
 
 // ---------------------------------------------------------------- audit

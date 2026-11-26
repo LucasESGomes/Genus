@@ -1,5 +1,5 @@
 $kind: collection
 description: |-
-  Contas (tenants) da plataforma: criar (com empresa, estabelecimento e admin), listar, detalhar, renomear, suspender e reativar. Cada escrita é auditada (`tenant` criacao/alteracao, `tenant_admin` criacao).
-  Ordem importa: a criação preenche `tenantId` e `adminUserId`; suspender e reativar usam a mesma conta.
+  Contas (tenants) da plataforma: criar (com empresa, estabelecimento e admin), listar, detalhar, renomear, suspender e reativar. Cada escrita é auditada (`tenant` criacao/alteracao, `user_invite` criacao).
+  Ordem importa: a criação preenche `tenantId` (para revogar sessões por usuário, preencha `adminUserId` depois do aceite do convite); suspender e reativar usam a mesma conta.
 order: 1000

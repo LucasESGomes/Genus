@@ -71,32 +71,34 @@ export class InviteService {
   }
 
   async create(actor: InviteActor, body: z.infer<typeof createInviteBody>): Promise<{ invite: InviteDto; token: string }> {
+    await this.assertTenant(actor.tenantId);
+    return this.d.db.transaction((tx) => this.createIn(tx, actor, body));
+  }
+
+  /** A criação dentro de uma transação já aberta (conta nova + convite do admin). Quem chama garante a conta. */
+  async createIn(tx: Transaction, actor: InviteActor, body: z.infer<typeof createInviteBody>): Promise<{ invite: InviteDto; token: string }> {
     const cpf = normalizeCpf(body.cpf);
     if (!isValidCpf(cpf)) throw new HttpError(400, 'CPF_INVALIDO', 'CPF inválido', [{ path: 'cpf', message: 'dígito verificador não confere' }]);
-    await this.assertTenant(actor.tenantId);
 
     const { token, tokenHash } = generateInviteToken();
     const now = this.d.clock.now();
-    const row = await this.d.db.transaction(async (tx) => {
-      if (await this.repo.emailExists(tx, body.email)) throw emailInUse();
-      // Um pendente por (conta, e-mail): o anterior deixa de valer, mesmo já vencido.
-      for (const id of await this.repo.revokePendingByEmail(tx, actor.tenantId, body.email)) {
-        await this.audit(tx, { ...actor, entityId: id, action: 'alteracao', before: { status: 'pendente' }, after: { status: 'revogado' } });
-      }
-      const created = await this.repo.insert(tx, {
-        tenantId: actor.tenantId,
-        email: body.email,
-        name: body.name,
-        role: body.role,
-        cpfHash: hashInviteCpf(this.d.cpfHashKey, cpf),
-        tokenHash,
-        expiresAt: inviteExpiresAt(now),
-        createdById: actor.userId,
-        createdAt: now,
-      });
-      await this.audit(tx, { ...actor, entityId: created.id, action: 'criacao', after: { role: body.role, expiresAt: created.expiresAt } });
-      return created;
+    if (await this.repo.emailExists(tx, body.email)) throw emailInUse();
+    // Um pendente por (conta, e-mail): o anterior deixa de valer, mesmo já vencido.
+    for (const id of await this.repo.revokePendingByEmail(tx, actor.tenantId, body.email)) {
+      await this.audit(tx, { ...actor, entityId: id, action: 'alteracao', before: { status: 'pendente' }, after: { status: 'revogado' } });
+    }
+    const row = await this.repo.insert(tx, {
+      tenantId: actor.tenantId,
+      email: body.email,
+      name: body.name,
+      role: body.role,
+      cpfHash: hashInviteCpf(this.d.cpfHashKey, cpf),
+      tokenHash,
+      expiresAt: inviteExpiresAt(now),
+      createdById: actor.userId,
+      createdAt: now,
     });
+    await this.audit(tx, { ...actor, entityId: row.id, action: 'criacao', after: { role: body.role, expiresAt: row.expiresAt } });
     return { invite: toDto(row, now), token };
   }
 

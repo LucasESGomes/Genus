@@ -8,7 +8,7 @@ Só o coordenador muda estes três arquivos.
 
 - Rotas sob `/portal/super-admin`. Guarda `authorize('super_admin')` no **escopo** (`onRequest`): toda rota, antes da validação. Cliente (admin, rh, gestor, contador, colaborador) → 403. super_admin sem 2FA → 403. Sem sessão → 401.
 - `tenantId` de outra conta só por parâmetro de rota ou query validados. Nunca do corpo.
-- Respostas são `strictObject`. Nunca saem CPF, nome de colaborador, batida individual, dado de saúde, biometria, `_hash`, `_cifrado`, `email_hash`, token ou segredo. Única exceção: `temporaryPassword`, só na resposta de `POST /tenants`.
+- Respostas são `strictObject`. Nunca saem CPF, nome de colaborador, batida individual, dado de saúde, biometria, `_hash`, `_cifrado`, `email_hash`, token ou segredo. Única exceção: o `token` do convite do admin, só na resposta de `POST /tenants` (e na criação de convites).
 - Reconhecimento: **só agregados** de `arp.entradas` (04 §1.4). `notRecognized`, `livenessFailed`, `latencyP50Ms` e `latencyP95Ms` são sempre `null`, porque o arp não guarda tentativas falhas nem latência (depende do coletor).
 - Toda escrita é auditada na mesma transação. Toda leitura entre contas (auditoria, acessos, reconhecimento, stats por conta) grava uma linha `leitura_sensivel` por requisição, com os filtros em `dados_depois`.
 - Suspender = `contas.ativo = false` + `motivo_suspensao`; derruba as sessões da conta. Os totens continuam registrando batidas **[A CONFIRMAR]**.
@@ -18,7 +18,7 @@ Só o coordenador muda estes três arquivos.
 | Método e rota | Query / corpo | Resposta (`data`) |
 |---|---|---|
 | `GET /tenants` | `q, status=ativa\|suspensa, page, pageSize` | `TenantDto[]` + `meta` |
-| `POST /tenants` | `createTenantBody` | `{ tenant, admin, temporaryPassword }` (201) |
+| `POST /tenants` | `createTenantBody` (o `admin` leva `cpf`) | `{ tenant, invite, token }` (201): o admin recebe um convite, não uma senha |
 | `GET /tenants/:tenantId` | | `TenantDetailDto` |
 | `PATCH /tenants/:tenantId` | `{ name }` | `TenantDetailDto` |
 | `POST /tenants/:tenantId/suspend` | `{ reason }` | `TenantDetailDto` |
@@ -68,7 +68,7 @@ Drizzle: `tenants` ganha `suspensionReason`, `suspendedAt`, `suspendedById`, `up
 
 - `tenant` + `criacao`.
 - `tenant` + `alteracao` (PATCH; suspender e reativar com `motivo`).
-- `tenant_admin` + `criacao`.
+- `user_invite` + `criacao` (convite do primeiro admin; o usuário nasce no aceite).
 - `session` + `exclusao` (revogação, com `motivo`).
 - `super_admin` + `criacao`/`alteracao` (bootstrap, `tenantId` null).
 - Leituras: `audit_log`, `access_log`, `recognition_stats`, `tenant_stats` + `leitura_sensivel`. `entidade_id` é o `tenantId` filtrado, ou `0` para todas as contas.

@@ -452,7 +452,7 @@ O quadro marca o módulo como "MVP / Fase 2" sem dividir. **Decidido em 18/11/20
 | Área | Método e caminho | Uso |
 |---|---|---|
 | Contas | `GET /tenants` | Lista com `q`, `status` (`ativa` \| `suspensa`) e paginação |
-| | `POST /tenants` | Cria conta, empresa, estabelecimento e admin numa transação; 201 com `temporaryPassword` (uma vez) |
+| | `POST /tenants` | Cria conta, empresa, estabelecimento e o convite do admin numa transação; 201 com o `token` do link (uma vez) |
 | | `GET /tenants/:tenantId` | Detalhe: empresas, admins (sem `colaborador_id`), `hasCompanyKey` |
 | | `PATCH /tenants/:tenantId` | Renomeia a conta |
 | | `POST /tenants/:tenantId/suspend` | Suspende com motivo |
@@ -480,7 +480,7 @@ O quadro marca o módulo como "MVP / Fase 2" sem dividir. **Decidido em 18/11/20
 - Criar conta: CNPJ com dígito verificador (400 `CNPJ_INVALIDO`); e-mail do admin já existente na plataforma (409 `EMAIL_IN_USE`); sem `MASTER_KEY` no ambiente (503 `MASTER_KEY_AUSENTE`). A DEK da empresa é criada e guardada cifrada pela `MASTER_KEY`.
 - Revogar sessão exige motivo e grava `session` + `exclusao`.
 - **Sinalização de IP:** `flagged` por `muitas_falhas` ou `muitas_contas` (contas distintas tentadas a partir do mesmo IP). Os limiares e a janela padrão são **[A CONFIRMAR]**. Sinalizar não bloqueia nenhum IP nem login.
-- Toda resposta é `strictObject`: nenhum CPF, nome de colaborador, batida individual, biometria, `_hash`, `_cifrado`, `email_hash`, token ou segredo. Única exceção: `temporaryPassword`, só na criação da conta.
+- Toda resposta é `strictObject`: nenhum CPF, nome de colaborador, batida individual, biometria, `_hash`, `_cifrado`, `email_hash`, token ou segredo. Única exceção: `token do convite`, só na criação da conta.
 
 **Auditoria:** `tenant` + `criacao`/`alteracao` (suspender e reativar com motivo); `tenant_admin` + `criacao`; `session` + `exclusao` (com motivo); `super_admin` + `criacao`/`alteracao` no bootstrap (`tenantId` nulo). Toda escrita é auditada na mesma transação.
 - **Leituras entre contas** (`audit_log`, `access_log`, `recognition_stats`, `tenant_stats`) gravam `leitura_sensivel` por requisição, com os filtros em `dados_depois`. `entidade_id` é o `tenantId` filtrado, ou `0` quando a consulta é de todas as contas.

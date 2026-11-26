@@ -1,17 +1,19 @@
 'use client';
 /** Criar e editar empresa e estabelecimento de uma conta (super_admin). */
 import { useState, type ReactNode } from 'react';
+import { Controller } from 'react-hook-form';
 import { Button } from '@/components/ui/Button';
 import { SelectField, TextInput } from '@/components/ui/Fields';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/shadcn/dialog';
 import { applyApiErrors, useZodForm } from '@/components/ui/useZodForm';
 import type { EntityId } from '@/lib/api/contracts';
 import { REGISTRATION_TYPES, type Company, type CompanyEstablishment } from '@/lib/api/organization-contracts';
-import { formatCnpj } from '@/lib/cnpj';
+import { formatCnpj, isValidCnpj, onlyDigits } from '@/lib/cnpj';
 import { COPY } from './copy';
 import { useSaveCompany, useSaveEstablishment } from './hooks';
-import { companyInput, companyPatch, companySchema, establishmentInput, establishmentPatch, establishmentSchema, type CompanyValues, type EstablishmentValues } from './organization-rules';
+import { companyInput, companyPatch, companySchema, establishmentInput, establishmentPatch, establishmentSchema, needsBranchCnpj, type CompanyValues, type EstablishmentValues } from './organization-rules';
 import { friendlyError } from './parts';
+import { CnpjInput, maskRegistration, MunicipalityField, RegistrationInput, UfField, useLegalNameFromCnpj } from './registration-fields';
 
 const c = COPY.organization;
 const TYPE_OPTIONS = REGISTRATION_TYPES.map((t) => ({ value: t, label: t }));
@@ -56,8 +58,14 @@ export function CompanyDialog({ tenantId, target, onClose }: { tenantId: EntityI
 function CompanyForm({ tenantId, company, onClose }: { tenantId: EntityId; company: Company | null; onClose: () => void }) {
   const save = useSaveCompany();
   const form = useZodForm(companySchema, { legalName: company?.legalName ?? '', cnpj: company ? formatCnpj(company.cnpj) : '' });
-  const { register, handleSubmit, formState: { errors } } = form;
+  const { control, register, handleSubmit, setValue, getValues, watch, formState: { errors, isSubmitted } } = form;
   const [formError, setFormError] = useState<string | null>(null);
+  const lookupHint = useLegalNameFromCnpj({
+    cnpj: watch('cnpj'),
+    savedCnpj: company?.cnpj,
+    getLegalName: () => getValues('legalName'),
+    onFound: (legalName) => setValue('legalName', legalName, { shouldValidate: isSubmitted }),
+  });
 
   const submit = async (v: CompanyValues) => {
     setFormError(null);
@@ -78,8 +86,14 @@ function CompanyForm({ tenantId, company, onClose }: { tenantId: EntityId; compa
   return (
     <Shell title={company ? c.editCompany : c.newCompany} description={company ? company.legalName : c.newCompanyHint}>
       <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-4">
+        <Controller
+          control={control}
+          name="cnpj"
+          render={({ field }) => (
+            <CnpjInput label={COPY.create.fields.cnpj} required hint={lookupHint} error={errors.cnpj?.message} name={field.name} ref={field.ref} onBlur={field.onBlur} value={field.value} onValueChange={field.onChange} />
+          )}
+        />
         <TextInput label={COPY.create.fields.legalName} required autoComplete="off" error={errors.legalName?.message} {...register('legalName')} />
-        <TextInput label={COPY.create.fields.cnpj} required inputMode="numeric" autoComplete="off" error={errors.cnpj?.message} {...register('cnpj')} />
         <Actions error={formError} pending={save.isPending} submitLabel={company ? c.save : c.createCompany} onCancel={onClose} />
       </form>
     </Shell>
@@ -105,17 +119,26 @@ function EstablishmentForm({ tenantId, company, establishment, onClose }: Establ
   const form = useZodForm(establishmentSchema, {
     name: establishment?.name ?? '',
     registrationType: establishment?.registrationType ?? 'CNPJ',
-    registration: establishment?.registration ?? '',
+    registration: establishment ? maskRegistration(establishment.registrationType, establishment.registration) : '',
     uf: establishment?.uf ?? '',
     municipalityIbge: establishment?.municipalityIbge ?? '',
   });
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = form;
+  const { control, register, handleSubmit, setValue, watch, formState: { errors, isSubmitted } } = form;
   const [formError, setFormError] = useState<string | null>(null);
   const registrationType = watch('registrationType');
+  const uf = watch('uf');
+  const revalidate = { shouldValidate: isSubmitted };
+  // Com CNPJ, só a filial informa número: a matriz usa o CNPJ da empresa.
+  const branch = needsBranchCnpj(company, establishment);
+  const showRegistration = registrationType !== 'CNPJ' || branch;
   const f = COPY.create.fields;
 
   const submit = async (v: EstablishmentValues) => {
     setFormError(null);
+    if (v.registrationType === 'CNPJ' && branch && !isValidCnpj(onlyDigits(v.registration))) {
+      form.setError('registration', { type: 'validate', message: 'Informe um CNPJ válido para a filial.' }, { shouldFocus: true });
+      return;
+    }
     try {
       if (!establishment) await save.mutateAsync({ tenantId, companyId: company.id, create: establishmentInput(v, company.cnpj) });
       else {
@@ -125,7 +148,7 @@ function EstablishmentForm({ tenantId, company, establishment, onClose }: Establ
       onClose();
     } catch (e) {
       const err = friendlyError(e);
-      if (err.code === 'INSCRICAO_DUPLICADA') form.setError('registration', { type: 'server', message: err.message }, { shouldFocus: true });
+      if (err.code === 'INSCRICAO_DUPLICADA' && showRegistration) form.setError('registration', { type: 'server', message: err.message }, { shouldFocus: true });
       else setFormError(applyApiErrors(form, err));
     }
   };
@@ -138,12 +161,32 @@ function EstablishmentForm({ tenantId, company, establishment, onClose }: Establ
           label={f.registrationType}
           required
           value={registrationType}
-          onValueChange={(v) => setValue('registrationType', v as EstablishmentValues['registrationType'], { shouldValidate: true })}
+          onValueChange={(v) => {
+            setValue('registration', '');
+            setValue('registrationType', v as EstablishmentValues['registrationType'], revalidate);
+          }}
           options={TYPE_OPTIONS}
         />
-        <TextInput label={f.registration} hint={registrationType === 'CNPJ' ? f.registrationHint : undefined} inputMode="numeric" autoComplete="off" error={errors.registration?.message} {...register('registration')} />
-        <TextInput label={f.uf} required maxLength={2} autoComplete="off" error={errors.uf?.message} {...register('uf')} />
-        <TextInput label={f.municipalityIbge} required inputMode="numeric" maxLength={7} autoComplete="off" error={errors.municipalityIbge?.message} {...register('municipalityIbge')} />
+        {showRegistration && (
+          <Controller
+            control={control}
+            name="registration"
+            render={({ field }) => <RegistrationInput type={registrationType} error={errors.registration?.message} value={field.value} onValueChange={field.onChange} />}
+          />
+        )}
+        <UfField
+          value={uf}
+          error={errors.uf?.message}
+          onValueChange={(v) => {
+            setValue('municipalityIbge', '');
+            setValue('uf', v, revalidate);
+          }}
+        />
+        <Controller
+          control={control}
+          name="municipalityIbge"
+          render={({ field }) => <MunicipalityField uf={uf} error={errors.municipalityIbge?.message} value={field.value} onValueChange={field.onChange} />}
+        />
         <div className="flex flex-col gap-4 sm:col-span-2">
           <Actions error={formError} pending={save.isPending} submitLabel={establishment ? c.save : c.createEstablishment} onCancel={onClose} />
         </div>

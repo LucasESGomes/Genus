@@ -17,6 +17,24 @@ export function isValidCnpj(value: string): boolean {
   return first === d[12] && check(d.slice(0, 12) + first) === d[13];
 }
 
+/** Máscara enquanto digita: 00.000.000/0000-00. */
+export const maskCnpj = (value: string) =>
+  onlyDigits(value)
+    .slice(0, 14)
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2}\.\d{3})(\d)/, '$1.$2')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\/\d{4})(\d)/, '$1-$2');
+
+/** CAEPF: 000.000.000/000-00. */
+export const maskCaepf = (value: string) =>
+  onlyDigits(value)
+    .slice(0, 14)
+    .replace(/^(\d{3})(\d)/, '$1.$2')
+    .replace(/^(\d{3}\.\d{3})(\d)/, '$1.$2')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\/\d{3})(\d)/, '$1-$2');
+
 export function formatCnpj(value: string): string {
   const d = onlyDigits(value);
   return d.length === 14 ? `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}` : value;

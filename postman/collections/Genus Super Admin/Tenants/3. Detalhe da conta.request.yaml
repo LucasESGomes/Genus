@@ -10,10 +10,9 @@ scripts:
       const d = pm.response.json().data;
       pm.test('Id da conta criada', () => pm.expect(String(d.id)).to.eql(pm.collectionVariables.get('tenantId')));
       pm.test('Empresa com o CNPJ enviado, sem pontuação', () => pm.expect(d.companies.map((c) => c.cnpj)).to.include(pm.collectionVariables.get('tenantCnpj')));
-      pm.test('Admin listado sem colaborador_id, só campos do contrato', () => {
-        const admin = d.admins.find((a) => String(a.id) === pm.collectionVariables.get('adminUserId'));
-        pm.expect(admin).to.be.an('object');
-        pm.expect(Object.keys(admin).sort()).to.eql(['email', 'id', 'isActive', 'mfaEnabled', 'name', 'role'].sort());
+      // O admin só vira usuário quando aceita o convite: antes disso a lista vem vazia.
+      pm.test('Admins só com campos do contrato (sem colaborador_id)', () => {
+        d.admins.forEach((a) => pm.expect(Object.keys(a).sort()).to.eql(['email', 'id', 'isActive', 'mfaEnabled', 'name', 'role'].sort()));
       });
       pm.test('hasCompanyKey é booleano', () => pm.expect(d.hasCompanyKey).to.be.a('boolean'));
     language: text/javascript

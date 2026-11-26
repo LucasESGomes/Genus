@@ -62,14 +62,19 @@ describe('Empresas: nova empresa', () => {
     await type(/^Razão social/, 'Fazenda Nova Aurora Ltda');
     await type(/^CNPJ/, over.cnpj ?? '11222333000181');
     await type(/^Nome do estabelecimento/, 'Sede');
-    await type(/^UF/, 'go');
-    await type(/^Município/, '5218805');
+    await userEvent.click(within(dialog).getByRole('combobox', { name: /^UF/ }));
+    await userEvent.click(await screen.findByRole('option', { name: 'GO · Goiás' }));
+    const city = within(dialog).getByRole('combobox', { name: /^Município/ });
+    await waitFor(() => expect(city).toBeEnabled());
+    await userEvent.click(city);
+    await userEvent.click(await screen.findByRole('option', { name: 'Rio Verde' }));
     await type(/^Nome do administrador/, 'Teresa Campos');
     await type(/^E-mail do administrador/, over.email ?? 'teresa@exemplo.test');
+    await type(/^CPF do administrador/, '52998224725');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Criar empresa' }));
   }
 
-  it('mostra a senha provisória uma vez, com aviso, e ela some ao fechar (nunca no cache)', async () => {
+  it('mostra o link do convite do admin uma vez, e ele some ao fechar (nunca no cache)', async () => {
     const create = vi.fn(mockSuperAdminApi.tenants.create);
     const { queryClient } = render(<TenantsScreen />, { create });
     await fill();
@@ -77,19 +82,30 @@ describe('Empresas: nova empresa', () => {
       name: 'Fazenda Nova Aurora',
       company: { legalName: 'Fazenda Nova Aurora Ltda', cnpj: '11222333000181' },
       establishment: { name: 'Sede', registrationType: 'CNPJ', registration: '11222333000181', uf: 'GO', municipalityIbge: '5218805' },
-      admin: { name: 'Teresa Campos', email: 'teresa@exemplo.test' },
+      admin: { name: 'Teresa Campos', email: 'teresa@exemplo.test', cpf: '52998224725' },
     });
-    const pwd = (await screen.findByTestId('temporary-password')).textContent ?? '';
-    expect(pwd.length).toBeGreaterThanOrEqual(12);
-    expect(screen.getByText(/Esta senha aparece só agora/)).toBeInTheDocument();
-    expect(JSON.stringify(queryClient.getQueryCache().getAll().map((q) => q.state.data))).not.toContain(pwd);
+    const link = (await screen.findByTestId('invite-link')).textContent ?? '';
+    const token = link.split('#')[1] ?? '';
+    expect(link).toContain('/convite#');
+    expect(token.length).toBeGreaterThanOrEqual(32);
+    expect(JSON.stringify(queryClient.getQueryCache().getAll().map((q) => q.state.data))).not.toContain(token);
     expect(screen.getByRole('button', { name: 'Fechar' })).toBeDisabled();
-    await userEvent.click(screen.getByRole('checkbox', { name: /Já guardei a senha/ }));
+    await userEvent.click(screen.getByRole('checkbox'));
     await userEvent.click(screen.getByRole('button', { name: 'Fechar' }));
-    await waitFor(() => expect(screen.queryByTestId('temporary-password')).toBeNull());
-    expect(document.body.textContent).not.toContain(pwd);
-    expect(JSON.stringify(queryClient.getQueryCache().getAll().map((q) => q.state.data))).not.toContain(pwd);
+    await waitFor(() => expect(screen.queryByTestId('invite-link')).toBeNull());
+    expect(document.body.textContent).not.toContain(token);
     expect(await screen.findByText('Fazenda Nova Aurora')).toBeInTheDocument();
+  });
+  it('CNPJ com máscara preenche a razão social vazia e não pede número de inscrição', async () => {
+    render(<TenantsScreen />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Nova empresa' }));
+    const dialog = await screen.findByRole('dialog');
+    const cnpj = within(dialog).getByLabelText(/^CNPJ/);
+    await userEvent.type(cnpj, '11222333000181');
+    expect(cnpj).toHaveValue('11.222.333/0001-81');
+    await waitFor(() => expect(within(dialog).getByLabelText(/^Razão social/)).toHaveValue('Empresa Fictícia Ltda'));
+    expect(within(dialog).queryByLabelText(/^CNPJ da filial/)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('combobox', { name: /^Município/ })).toBeDisabled();
   });
   it('valida o CNPJ no formulário antes de chamar a api', async () => {
     const create = vi.fn(mockSuperAdminApi.tenants.create);
@@ -103,7 +119,7 @@ describe('Empresas: nova empresa', () => {
     await fill({ email: 'lucia@exemplo.test' });
     expect(await screen.findByText('Este e-mail já está em uso na plataforma.')).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.queryByTestId('temporary-password')).toBeNull();
+    expect(screen.queryByTestId('invite-link')).toBeNull();
   });
 });
 
