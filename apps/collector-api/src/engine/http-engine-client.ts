@@ -144,6 +144,9 @@ export class HttpEngineClient implements EngineClient {
       timing.processingMs = body.processing_ms;
       timing.stages = body.timings_ms ?? null;
 
+      if (body.status === 'liveness_failed') {
+        return { kind: 'fallback', reason: 'liveness_failed', livenessScore: body.liveness_combined_raw ?? null, timing };
+      }
       if (body.status !== 'identified') return fallback(STATUS_TO_REASON[body.status]);
 
       const employeeId = Number(body.person_id);

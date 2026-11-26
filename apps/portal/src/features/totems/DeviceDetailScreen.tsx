@@ -72,7 +72,12 @@ export function DeviceDetailScreen({ rawId }: { rawId: string }) {
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link href="/rh/totens" className="w-fit text-sm font-semibold text-brand underline">{COPY.back}</Link>
-        <OpenTotemLink />
+        <div className="flex flex-wrap items-center gap-3">
+          {device && tab !== 'calibracao' && (
+            <Button onClick={() => setUrl({ aba: 'calibracao' })}>{COPY.calibration.start}</Button>
+          )}
+          <OpenTotemLink />
+        </div>
       </div>
       <p className="m-0 max-w-[720px] text-xs text-muted">{COPY.openTotem.hint}</p>
       <QueryView

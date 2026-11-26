@@ -4,6 +4,8 @@
  */
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { createLogger, FixedClock, type Logger } from '@genus/shared';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/app';
@@ -69,6 +71,8 @@ export async function createTestApp(opts: TestAppOptions): Promise<TestApp> {
     DEV_TENANT_ID: '1',
     DEV_ESTABLISHMENT_ID: '10',
     DEV_DEVICE_ID: '100',
+    // Fora do repositório: os testes de liveness_failed não sujam apps/collector-api/data.
+    FRAUD_FRAMES_DIR: path.join(tmpdir(), `genus-fraudes-${randomBytes(8).toString('hex')}`),
     ...opts.env,
   });
   const log = memoryLog();

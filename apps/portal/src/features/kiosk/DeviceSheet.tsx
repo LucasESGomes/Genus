@@ -8,7 +8,6 @@ import type { KioskContext } from '@/lib/api/kiosk';
 import { useMocks } from '@/lib/api/mocks/runtime';
 import { kioskMockControls } from '@/lib/api/mocks/kiosk';
 import { COPY } from './copy';
-import { BIG_BUTTON } from './KioskFrame';
 
 /** "Aparelho": o que este totem é, só o começo da chave, e "Desconectar". A chave inteira nunca aparece. */
 export function DeviceSheet({ open, onOpenChange, context, prefix, onDisconnect }: {
@@ -46,7 +45,7 @@ export function DeviceSheet({ open, onOpenChange, context, prefix, onDisconnect 
               </Button>
             </div>
           )}
-          <Button variant="danger" className={BIG_BUTTON} onClick={() => setConfirming(true)}>{COPY.sheet.disconnect}</Button>
+          <Button variant="danger" className="h-14 w-full text-lg" onClick={() => setConfirming(true)}>{COPY.sheet.disconnect}</Button>
         </DialogContent>
       </Dialog>
       <ConfirmDialog

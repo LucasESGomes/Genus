@@ -112,17 +112,23 @@ export function useTotemCamera() {
     return lum;
   }, []);
 
-  /** Quadro atual como JPEG (lado maior limitado a `maxSide`). Sem espelhar: a prévia espelhada é só visual. */
+  /**
+   * Quadro atual como JPEG (lado maior limitado a `maxSide`). Sem espelhar: a prévia espelhada é só visual.
+   * Aplica o mesmo recorte central do `object-cover`: quem não aparece na prévia não vai na foto.
+   */
   const captureJpeg = useCallback(async (maxSide = 1280, quality = 0.9): Promise<Blob | null> => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return null;
-    const scale = Math.min(1, maxSide / Math.max(video.videoWidth, video.videoHeight));
+    const boxAspect = (video.clientWidth || video.videoWidth) / (video.clientHeight || video.videoHeight);
+    const sw = Math.min(video.videoWidth, video.videoHeight * boxAspect);
+    const sh = Math.min(video.videoHeight, video.videoWidth / boxAspect);
+    const scale = Math.min(1, maxSide / Math.max(sw, sh));
     const canvas = document.createElement('canvas');
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.width = Math.round(sw * scale);
+    canvas.height = Math.round(sh * scale);
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, (video.videoWidth - sw) / 2, (video.videoHeight - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
     canvas.width = 0;
     canvas.height = 0;

@@ -126,6 +126,8 @@ export type RecognizeResult =
   | {
       kind: 'fallback';
       reason: FallbackReason;
+      /** Só em `liveness_failed`: `liveness_combined_raw`, quando a engine manda. */
+      livenessScore?: number | null;
       timing: EngineTiming;
     };
 

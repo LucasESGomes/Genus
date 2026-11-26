@@ -21,6 +21,7 @@ export const CONTEXT = {
 export function makeApi(over: Partial<KioskApi> = {}): KioskApi {
   return {
     context: vi.fn(async () => CONTEXT),
+    verifyIdentity: vi.fn(async () => ({ firstName: 'Ana', alreadyEnrolled: false })),
     enroll: vi.fn(async () => ({ enrolledAt: KIOSK_NOW, imagesProcessed: 3 })),
     submitCalibration: vi.fn(async () => ({ status: 'calculada' as const })),
     punch: vi.fn(async () => ({
@@ -40,6 +41,10 @@ export function memoryKeyStore(initial: string | null = null): KioskKeyStore & {
   let v = initial;
   return { get: () => v, set: (k) => void (v = k), clear: () => void (v = null), value: () => v };
 }
+
+// jsdom não toca áudio.
+window.HTMLMediaElement.prototype.play = async () => undefined;
+window.HTMLMediaElement.prototype.pause = () => undefined;
 
 export function renderKiosk(ui: ReactElement) {
   const Wrapper = ({ children }: { children: ReactNode }) => (

@@ -54,6 +54,11 @@ export function createMockKioskApi(opts: KioskClientOptions = {}): KioskApi {
       if (!ok) throw toApiError(401, { code: 'CPF_OU_PIN_INVALIDO', error: 'CPF ou PIN inválido.' });
       return { enrolledAt: clock.now().toISOString(), imagesProcessed: photos.length };
     },
+    async verifyIdentity({ cpf, pin }) {
+      await guard();
+      if (cpf !== MOCK_KIOSK_CPF || pin !== MOCK_KIOSK_PIN) throw toApiError(401, { code: 'CPF_OU_PIN_INVALIDO', error: 'CPF ou PIN inválido.' });
+      return { firstName: 'João', alreadyEnrolled: false };
+    },
     async submitCalibration(form) {
       await guard();
       if (form.get('sessionId') !== SESSION_ID) throw toApiError(404, { code: 'NOT_FOUND' });

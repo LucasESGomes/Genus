@@ -164,6 +164,12 @@ function computedResult(row: Row): CalibrationSessionResult {
       'Refaça a calibração se a iluminação do local mudar.',
     ],
     distanceHistogram: histogram(),
+    recommendedProfile: 'balanced',
+    profiles: [
+      { profile: 'conservative', label: 'Conservador', recognitionThreshold: 0.85, genuineAcceptRate: 0.92, impostorRejectRate: 1, interpretation: 'Mais rígido: quase ninguém de fora passa, e algumas pessoas conhecidas precisam tentar de novo.' },
+      { profile: 'balanced', label: 'Balanceado', recognitionThreshold: 0.95, genuineAcceptRate: 0.97, impostorRejectRate: 0.99, interpretation: 'Meio-termo entre reconhecer de primeira e barrar quem é de fora.' },
+      { profile: 'liberal', label: 'Liberal', recognitionThreshold: 1.08, genuineAcceptRate: 1, impostorRejectRate: 0.93, interpretation: 'Mais folgado: reconhece com facilidade e deixa passar mais gente de fora.' },
+    ],
   };
 }
 

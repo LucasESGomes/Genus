@@ -14,6 +14,18 @@ export interface Thresholds {
   livenessThreshold: number;
 }
 
+export type CalibrationProfileName = NonNullable<EngineRecognitionCalibration['recommended_profile']>;
+
+export interface CalibrationProfile {
+  profile: CalibrationProfileName;
+  label: string;
+  recognitionThreshold: number;
+  /** 0 a 1. */
+  genuineAcceptRate: number;
+  impostorRejectRate: number;
+  interpretation: string;
+}
+
 export interface CalibrationResult {
   current: Thresholds;
   proposed: Thresholds;
@@ -22,10 +34,14 @@ export interface CalibrationResult {
   recommendations: string[];
   /** `bucket` = início da faixa de distância (menor = mais parecido). */
   distanceHistogram: { bucket: number; genuine: number; impostor: number }[];
+  /** Ausentes em sessões antigas. */
+  recommendedProfile?: CalibrationProfileName;
+  profiles?: CalibrationProfile[];
 }
 
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const round = (v: number, digits: number) => Number(v.toFixed(digits));
+const recognitionValue = (v: number) => round(clamp(v, RECOGNITION_RANGE.min, RECOGNITION_RANGE.max), 2);
 
 export function buildCalibrationResult(input: {
   current: Thresholds;
@@ -34,7 +50,7 @@ export function buildCalibrationResult(input: {
 }): CalibrationResult {
   const { recognition, liveness, current } = input;
   const proposed: Thresholds = {
-    recognitionThreshold: round(clamp(recognition.recommended_threshold, RECOGNITION_RANGE.min, RECOGNITION_RANGE.max), 2),
+    recognitionThreshold: recognitionValue(recognition.recommended_threshold),
     livenessThreshold: round(clamp(liveness.suggested_thresholds.liveness, LIVENESS_RANGE.min, LIVENESS_RANGE.max), 2),
   };
 
@@ -62,6 +78,19 @@ export function buildCalibrationResult(input: {
     qualityScore: clamp(qualityScore, 0, 100),
     recommendations,
     distanceHistogram: recognition.chart_data.histogram.map((b) => ({ bucket: round(b.range_start, 2), genuine: b.genuine_count, impostor: b.impostor_count })),
+    ...(recognition.options?.length && recognition.recommended_profile
+      ? {
+          recommendedProfile: recognition.recommended_profile,
+          profiles: recognition.options.map((o) => ({
+            profile: o.profile,
+            label: o.profile_label,
+            recognitionThreshold: recognitionValue(o.threshold),
+            genuineAcceptRate: o.genuine_accept_rate,
+            impostorRejectRate: o.impostor_reject_rate,
+            interpretation: o.interpretation,
+          })),
+        }
+      : {}),
   };
 }
 

@@ -5,7 +5,7 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { PortalDeps } from '../portal/deps';
-import { FacialEnrollmentService } from '../facial/enrollment';
+import { FacialEnrollmentService, identityBody, identityResponse } from '../facial/enrollment';
 import { sanitizeAppVersion, TotemService } from './service';
 
 const tags = ['Totem'];
@@ -29,6 +29,15 @@ export const totemRoutes: FastifyPluginAsyncZod<PortalDeps> = async (app, deps) 
     '/totem/context',
     { preHandler: [auth], schema: { tags, summary: 'Contexto do aparelho (e da calibração à espera); registra a conexão', response: { 200: contextResponse } } },
     async (req) => ({ data: await service.context(req.device!, sanitizeAppVersion(req.headers['x-totem-version'])) }),
+  );
+
+  app.post(
+    '/totem/facial/identity',
+    {
+      preHandler: [auth],
+      schema: { tags, summary: 'Confere CPF e PIN antes das fotos (mesmo limite de tentativas do cadastro)', body: identityBody, response: { 200: identityResponse } },
+    },
+    async (req) => ({ data: await service.identify(req.device!, req.ip, req.body) }),
   );
 
   app.post(

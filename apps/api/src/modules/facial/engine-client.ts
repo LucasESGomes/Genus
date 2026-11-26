@@ -46,6 +46,20 @@ export const engineRecognitionCalibrationSchema = z.object({
   dprime: z.number(),
   confidence: z.enum(['low', 'medium', 'high']),
   warning: z.string().nullable().optional(),
+  // opções de limiar por perfil (conservador, balanceado, liberal) e o recomendado
+  recommended_profile: z.enum(['conservative', 'balanced', 'liberal']).optional(),
+  options: z
+    .array(
+      z.object({
+        profile: z.enum(['conservative', 'balanced', 'liberal']),
+        profile_label: z.string(),
+        threshold: z.number(),
+        genuine_accept_rate: z.number(),
+        impostor_reject_rate: z.number(),
+        interpretation: z.string(),
+      }),
+    )
+    .optional(),
   chart_data: z.object({
     histogram: z.array(z.object({ range_start: z.number(), range_end: z.number(), genuine_count: z.number(), impostor_count: z.number() })),
   }),

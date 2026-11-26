@@ -59,6 +59,16 @@ export interface KioskContext {
   serverTime: string;
 }
 
+export interface IdentityInput {
+  cpf: string;
+  pin: string;
+}
+
+export interface IdentityResult {
+  firstName: string;
+  alreadyEnrolled: boolean;
+}
+
 export interface EnrollmentResult {
   enrolledAt: string;
   imagesProcessed: number;
@@ -101,6 +111,8 @@ export interface CalibrationSubmitResult {
 
 export interface KioskApi {
   context(signal?: AbortSignal): Promise<KioskContext>;
+  /** Confere CPF + PIN antes do consentimento e das fotos. JSON: CPF e PIN só no corpo. */
+  verifyIdentity(input: IdentityInput): Promise<IdentityResult>;
   /** multipart: `cpf`, `pin`, `consentAccepted`, `consentTextVersion`, `photos` (1–5). CPF e PIN só no corpo. */
   enroll(form: FormData): Promise<EnrollmentResult>;
   /** multipart: `sessionId`, `genuine` (p1_1.jpg…), `impostor`, `attack`. */
@@ -134,7 +146,7 @@ export function createKioskApi(opts: KioskClientOptions = {}): KioskApi {
   const { fetcher = (...a: Parameters<typeof fetch>) => fetch(...a), keyStore = kioskKeyStore, clock = systemClock, version = TOTEM_VERSION, onKeyRejected } = opts;
   let lastSequence = 0;
 
-  async function call<T>(path: string, init: { method?: 'GET' | 'POST'; form?: FormData; signal?: AbortSignal } = {}): Promise<T> {
+  async function call<T>(path: string, init: { method?: 'GET' | 'POST'; form?: FormData; json?: unknown; signal?: AbortSignal } = {}): Promise<T> {
     const key = keyStore.get();
     if (!key) {
       onKeyRejected?.();
@@ -146,8 +158,13 @@ export function createKioskApi(opts: KioskClientOptions = {}): KioskApi {
         method: init.method ?? 'GET',
         // Sem cookie: o totem é identificado só pela chave.
         credentials: 'omit',
-        headers: { accept: 'application/json', 'X-Device-Key': key, 'X-Totem-Version': version },
-        body: init.form,
+        headers: {
+          accept: 'application/json',
+          'X-Device-Key': key,
+          'X-Totem-Version': version,
+          ...(init.json === undefined ? {} : { 'content-type': 'application/json' }),
+        },
+        body: init.json === undefined ? init.form : JSON.stringify(init.json),
         signal: init.signal,
       });
     } catch (e) {
@@ -155,7 +172,11 @@ export function createKioskApi(opts: KioskClientOptions = {}): KioskApi {
       throw new ApiError('network', 0, 'NETWORK', NETWORK_MESSAGE);
     }
     if (!res.ok) {
-      const err = toApiError(res.status, await res.json().catch(() => null));
+      const failure: unknown = await res.json().catch(() => null);
+      const mapped = toApiError(res.status, failure);
+      // Muitas tentativas: a mensagem do servidor diz quanto esperar, então chega à tela.
+      const said = (failure as { error?: unknown } | null)?.error;
+      const err = res.status === 429 && typeof said === 'string' ? new ApiError(mapped.kind, 429, mapped.code, said) : mapped;
       if (isKeyRejected(err)) onKeyRejected?.();
       throw err;
     }
@@ -166,6 +187,7 @@ export function createKioskApi(opts: KioskClientOptions = {}): KioskApi {
 
   return {
     context: (signal) => call<KioskContext>('/portal/totem/context', { signal }),
+    verifyIdentity: ({ cpf, pin }) => call<IdentityResult>('/portal/totem/facial/identity', { method: 'POST', json: { cpf, pin } }),
     enroll: (form) => call<EnrollmentResult>('/portal/totem/facial/enrollments', { method: 'POST', form }),
     submitCalibration: (form) => call<CalibrationSubmitResult>('/portal/totem/calibration', { method: 'POST', form }),
     punch: (image, signal) => {

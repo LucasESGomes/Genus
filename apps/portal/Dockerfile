@@ -19,6 +19,8 @@ WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /repo/apps/portal/.next/standalone ./
 COPY --from=build /repo/apps/portal/.next/static ./apps/portal/.next/static
+# O standalone não leva a pasta public (sons do totem).
+COPY --from=build /repo/apps/portal/public ./apps/portal/public
 USER node
 EXPOSE 3000
 CMD ["node", "apps/portal/server.js"]

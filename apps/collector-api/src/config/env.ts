@@ -60,6 +60,8 @@ const rawSchema = z.object({
   FAKE_CANDIDATES_ENABLED: strictBool('FAKE_CANDIDATES_ENABLED'),
   FAKE_CANDIDATES_COUNT: positiveInt('FAKE_CANDIDATES_COUNT').default(20),
   DEV_GALLERY_PATH: z.string().optional(),
+  // Imagens de `liveness_failed`, cifradas. Relativo a apps/collector-api ou absoluto.
+  FRAUD_FRAMES_DIR: z.string().default('data/fraudes'),
   EXPOSE_TIMINGS: strictBool('EXPOSE_TIMINGS').default(false),
   DEV_TENANT_ID: positiveInt('DEV_TENANT_ID'),
   DEV_ESTABLISHMENT_ID: positiveInt('DEV_ESTABLISHMENT_ID'),
@@ -98,6 +100,7 @@ export interface Env {
   fakeCandidatesEnabled: boolean;
   fakeCandidatesCount: number;
   devGalleryPath: string | undefined;
+  fraudFramesDir: string;
   exposeTimings: boolean;
   devTenantId: number;
   devEstablishmentId: number;
@@ -191,6 +194,7 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     fakeCandidatesEnabled: raw.FAKE_CANDIDATES_ENABLED,
     fakeCandidatesCount: raw.FAKE_CANDIDATES_COUNT,
     devGalleryPath: raw.DEV_GALLERY_PATH,
+    fraudFramesDir: raw.FRAUD_FRAMES_DIR,
     exposeTimings: raw.EXPOSE_TIMINGS,
     devTenantId: raw.DEV_TENANT_ID,
     devEstablishmentId: raw.DEV_ESTABLISHMENT_ID,

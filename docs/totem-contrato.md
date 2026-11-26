@@ -6,11 +6,11 @@ Decisões do Otávio (25/11): o totem web **também registra ponto** (reconhecim
 
 1. O RH cadastra o colaborador com todos os dados, **sem rosto** (já existe; o cadastro devolve o PIN inicial, mostrado uma vez).
 2. O RH/admin cria o totem no painel (`/rh/totens`) e recebe a **chave do aparelho** uma única vez.
-3. No aparelho (celular/tablet/PC com câmera) abre-se `/totem`, **página pública** (sem login), que pede a chave na primeira vez e a guarda no `localStorage` do próprio aparelho (é a credencial dele; exceção documentada à regra de storage, como na Visage). Botão "Desconectar este aparelho" apaga a chave.
+3. No aparelho (celular/tablet/PC com câmera) abre-se `/totem`, **página pública** (sem login), que pede a chave na primeira vez e a guarda no `localStorage` do próprio aparelho (é a credencial dele; exceção documentada à regra de storage, como na Visage). 5 toques na marca Genus abrem a folha "Aparelho" (sem botão visível); "Desconectar este aparelho" apaga a chave.
 4. Tela inicial do totem (mobile first): relógio grande, logo Genus, nome do estabelecimento, botão principal **"Registrar ponto"** e botão secundário **"Cadastrar meu rosto"**.
-5. **Cadastrar meu rosto**: CPF → PIN → termo de consentimento (LGPD art. 11) → captura guiada de 3 fotos (frente, levemente à esquerda, levemente à direita) → envio → "Pronto, seu rosto foi cadastrado".
+5. **Cadastrar meu rosto**: CPF e PIN, conferidos na hora (`POST /totem/facial/identity`) → confirmação do nome → termo de consentimento (LGPD art. 11) → captura guiada de 3 fotos (frente, levemente à esquerda, levemente à direita) → envio → "Pronto, seu rosto foi cadastrado".
 6. **Registrar ponto**: câmera → captura → `collector-api` reconhece e registra → mostra nome e horário (ou orientação clara se não reconheceu). O sistema **nunca bloqueia** a marcação por regra (Portaria 671); a orientação é só sobre a foto.
-7. **Calibração**: o admin clica "Calibrar" no painel → a sessão fica "aguardando o totem". O totem, ao consultar o contexto, entra no **assistente de calibração** (passo a passo, linguagem simples, uma captura por vez): pessoa 1 (3 fotos), pessoa 2 (3 fotos), "outra pessoa olha para a câmera" (3 fotos de pessoas diferentes), "mostre uma foto de rosto na tela do celular" (2 fotos). Ao terminar, envia tudo de uma vez; a api calcula com a engine e a sessão vira "calculada". As fotos **não são guardadas** (só em memória no aparelho e no processamento). O admin vê no painel os valores atuais × propostos e **aplica** ou **descarta**.
+7. **Calibração**: o admin clica "Calibrar totem" no painel → a sessão fica "aguardando o totem". O totem, ao consultar o contexto, entra no **assistente de calibração** (orientações e captura automática como na Visage): de 2 a 6 pessoas conhecidas com 3 fotos cada, 3 a 20 fotos de pessoas de fora e 1 a 20 fotos de rosto mostrado em tela. Ao terminar, envia tudo de uma vez; a api calcula com a engine e a sessão vira "calculada". As fotos da calibração (e as do cadastro facial) **não são guardadas** (só em memória no aparelho e no processamento); a única imagem guardada é a de tentativa de fraude (§4.1). O admin vê no painel os valores atuais × propostos, escolhe um perfil de limiar (Conservador, Balanceado ou Liberal; o recomendado vem pré-selecionado) e **aplica** ou **descarta**.
 
 ## 2. Banco `app` (migration Drizzle em `apps/api`)
 
@@ -64,7 +64,9 @@ Erros `{ error, code }`, 404 fora do escopo, `tenantId` sempre da sessão/aparel
 
 `DeviceCalibrationSettings`: `{ recognitionThreshold, livenessThreshold, effectiveRecognitionThreshold, effectiveLivenessThreshold, isCalibrated, calibratedAt, calibrationSourceDeviceId, calibrationSourceName }` (efetivo = próprio ?? padrão da engine, valores padrão em configuração da api).
 
-`CalibrationSession`: `{ id, status, startedAt, computedAt, result: { current: { recognitionThreshold, livenessThreshold }, proposed: { recognitionThreshold, livenessThreshold }, qualityScore, recommendations: string[], distanceHistogram: { bucket, genuine, impostor }[] } | null }`.
+`CalibrationSession`: `{ id, status, startedAt, computedAt, result: { current: { recognitionThreshold, livenessThreshold }, proposed: { recognitionThreshold, livenessThreshold }, qualityScore, recommendations: string[], distanceHistogram: { bucket, genuine, impostor }[], recommendedProfile?, profiles? } | null }`.
+
+`recommendedProfile`: `conservative` · `balanced` · `liberal`. `profiles[]`: `{ profile, label, recognitionThreshold, genuineAcceptRate, impostorRejectRate, interpretation }` (taxas de 0 a 1; limiar com o mesmo limite e arredondamento de `proposed`), vindos de `options` e `recommended_profile` da engine. Sessões antigas não têm os dois campos: o painel aplica `proposed`. Aplicar um perfil usa o `PUT .../calibration/settings` com o `recognitionThreshold` dele e a `livenessThreshold` proposta.
 
 ### 3.2 Totem (autenticação por `X-Device-Key`, sem sessão de usuário)
 
@@ -73,6 +75,7 @@ Plugin novo: lê `X-Device-Key`, busca por `chave_hash`, aparelho ativo → `req
 | Rota | Corpo | Resposta `data` |
 |---|---|---|
 | `GET /totem/context` | | `{ device: { id, name }, establishment: { id, name }, calibration: { sessionId, status } \| null, serverTime }`; grava `ultima_conexao_em` e `versao_app` |
+| `POST /totem/facial/identity` | JSON `{ cpf, pin }` | `{ firstName, alreadyEnrolled }`; confere CPF + PIN antes das fotos, com a mesma conferência, o mesmo 401 `CPF_OU_PIN_INVALIDO` e o mesmo limite de tentativas do cadastro (429 `MUITAS_TENTATIVAS`). Não grava consentimento; CPF e PIN nunca vão para log |
 | `POST /totem/facial/enrollments` | multipart: `cpf`, `pin`, `consentAccepted`, `consentTextVersion`, `photos` (1–5) | `{ enrolledAt, imagesProcessed }` · mesma resposta genérica para CPF/PIN errados (401 `CPF_OU_PIN_INVALIDO`), limite de tentativas; colaborador precisa ser do estabelecimento do totem (senão a mesma resposta genérica) |
 | `POST /totem/calibration` | multipart: `sessionId`, `genuine` (arquivos `p1_1.jpg`, `p1_2.jpg`, `p2_1.jpg`…), `impostor`, `attack` | `{ status: 'calculada' \| 'falhou' }`; chama engine `/calibrate/recognition` (legitimate = genuine, impostor) e `/calibrate/liveness` (real = genuine, attack); grava só o resultado agregado |
 
@@ -95,6 +98,10 @@ O serviço de cadastro facial existente (`modules/facial/enrollment.ts`) é reut
 - `DbCandidateProvider`: embeddings dos colaboradores **ativos** do estabelecimento do aparelho + DEK cifrada da empresa. Substitui o fake quando `FAKE_CANDIDATES_ENABLED=false`.
 - O cliente da engine envia `recognition_threshold`/`liveness_threshold` do aparelho quando não forem NULL.
 - Portaria 671: a regra atual da primeira entrega sobre não identificado continua; nada novo bloqueia marcação.
+
+### 4.1 Imagens de tentativa de fraude
+
+Quando a engine responde `liveness_failed` (rotas `/coletor/batidas` e `/coletor/totem/batidas`), a api grava a imagem **cifrada** (AES-256-GCM; chave por HKDF da `MASTER_KEY`, info `genus:fraud-frames:v1`; arquivo = IV de 12 bytes, tag de 16 bytes, cifrado) em `FRAUD_FRAMES_DIR/<tenantId>/<AAAA-MM-DD de capturedAt, UTC>/<deviceId>-<deviceSequence>.jpg.enc`, com um `.json` de metadados (`tenantId`, `establishmentId`, `deviceId`, `deviceSequence`, `capturedAt`, `receivedAt`, `traceId`, `livenessScore`, `mime`, `sha256`, `sizeBytes`). O reenvio não regrava. Falha ao gravar não muda a resposta (só log, sem imagem). Nada é apagado automaticamente: prazo de retenção, base legal e aviso ao titular **[A CONFIRMAR]**. Acesso só por quem opera o servidor: `pnpm fraud:frames --tenant <id> [--date AAAA-MM-DD] [--out <pasta>]`. No Docker a pasta fica no volume `collector-fraudes`; trocar a `MASTER_KEY` torna as imagens antigas ilegíveis.
 
 ## 5. Front (`apps/portal`)
 

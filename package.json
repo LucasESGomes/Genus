@@ -19,6 +19,7 @@
     "setup:dev": "node scripts/setup-dev.mjs",
     "dev:up": "node scripts/dev-up.mjs",
     "dev:punch": "pnpm --filter @genus/collector-api dev:punch",
+    "fraud:frames": "pnpm --filter @genus/collector-api fraud:frames",
     "dev:rep-core": "pnpm --filter @genus/rep-core start",
     "dev:jobs": "pnpm --filter @genus/jobs start",
     "queue:inspect": "node scripts/queue-inspect.mjs",

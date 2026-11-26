@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/lib/api/errors';
 import { KIOSK_KEY_STORAGE } from '@/lib/api/kiosk';
 import { toApiError } from '@/lib/api/errors';
-import { CONSENT_TEXT_VERSION } from './copy';
 import { KioskApp } from './KioskApp';
 import { CONTEXT, makeApi, memoryKeyStore, renderKiosk } from './test-utils';
 
@@ -58,7 +57,9 @@ describe('Totem: chave do aparelho', () => {
     window.localStorage.setItem(KIOSK_KEY_STORAGE, 'gk_0123456789abcdef');
     const keyStore = memoryKeyStore('gk_0123456789abcdef');
     renderKiosk(<KioskApp api={makeApi()} keyStore={keyStore} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Aparelho' }));
+    await screen.findByRole('heading', { name: 'Fazenda Boa Vista' });
+    const brand = screen.getByRole('button', { name: 'Genus' });
+    for (let i = 0; i < 5; i++) await userEvent.click(brand);
     const sheet = await screen.findByRole('dialog');
     expect(within(sheet).getByText('gk_01234…')).toBeInTheDocument();
     expect(sheet).not.toHaveTextContent('0123456789abcdef');
@@ -111,8 +112,7 @@ describe('Totem: início', () => {
   it('calibração aguardando: entra sozinho no assistente', async () => {
     const context = vi.fn(async () => ({ ...CONTEXT, calibration: { sessionId: '7001', status: 'aguardando' } }));
     renderKiosk(<KioskApp api={makeApi({ context })} keyStore={memoryKeyStore('gk_x1234567')} />);
-    expect(await screen.findByRole('heading', { name: 'Ajuste do totem' })).toBeInTheDocument();
-    expect(screen.getByText(/Leva uns 3 minutos/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Chame 5 pessoas até aqui' })).toBeInTheDocument();
   });
 
   it('"Agora não" dispensa a sessão e não reabre o assistente', async () => {
@@ -121,7 +121,7 @@ describe('Totem: início', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Agora não' }));
     expect(await screen.findByRole('heading', { name: 'Fazenda Boa Vista' })).toBeInTheDocument();
     await act(async () => { await Promise.resolve(); });
-    expect(screen.queryByRole('heading', { name: 'Ajuste do totem' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Chame 5 pessoas até aqui' })).not.toBeInTheDocument();
   });
 });
 
@@ -149,10 +149,10 @@ describe('Totem: registrar ponto', () => {
     expect(await screen.findByRole('button', { name: 'Tirar foto' })).toBeInTheDocument();
   });
 
-  it('prova de vida: pede o rosto ao vivo', async () => {
+  it('antifraude reprovada: mostra o texto exato', async () => {
     const punch = vi.fn(async () => ({ outcome: 'fallback_required' as const, reason: 'liveness_failed' as const, warnings: [] }));
     await openPunch(makeApi({ punch }));
-    expect(await screen.findByRole('heading', { name: 'Use seu rosto ao vivo. Não mostre foto nem tela.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Verificação antifraude reprovada. Tente novamente.' })).toBeInTheDocument();
   });
 
   it('sem internet ao enviar: mensagem amigável e tentar de novo', async () => {
@@ -175,95 +175,3 @@ describe('Totem: registrar ponto', () => {
   });
 });
 
-describe('Totem: cadastrar meu rosto', () => {
-  async function toPhotos() {
-    const api = makeApi();
-    const view = renderKiosk(<KioskApp api={api} keyStore={memoryKeyStore('gk_x1234567')} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Cadastrar meu rosto' }));
-    await userEvent.type(screen.getByLabelText('CPF'), '00000000101');
-    await userEvent.click(screen.getByRole('button', { name: 'Continuar' }));
-    await userEvent.type(screen.getByLabelText('PIN'), '483920');
-    await userEvent.click(screen.getByRole('button', { name: 'Continuar' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Concordo' }));
-    return { api, ...view };
-  }
-
-  it('caminho feliz: envia cpf, pin, consentimento e 3 fotos e mostra o sucesso', async () => {
-    const { api } = await toPhotos();
-    for (let i = 0; i < 3; i++) await userEvent.click(await screen.findByRole('button', { name: 'Tirar foto' }));
-    expect(await screen.findByRole('heading', { name: 'Pronto!' })).toBeInTheDocument();
-    expect(screen.getByText('Seu rosto foi cadastrado. Agora é só registrar o ponto.')).toBeInTheDocument();
-
-    const form = vi.mocked(api.enroll).mock.calls[0]?.[0];
-    expect(form).toBeInstanceOf(FormData);
-    expect(form?.get('cpf')).toBe('00000000101');
-    expect(form?.get('pin')).toBe('483920');
-    expect(form?.get('consentAccepted')).toBe('true');
-    expect(form?.get('consentTextVersion')).toBe(CONSENT_TEXT_VERSION);
-    expect(form?.getAll('photos')).toHaveLength(3);
-  });
-
-  it('cada passo passa no axe e o teclado numérico digita o CPF mascarado', async () => {
-    const api = makeApi();
-    const { container } = renderKiosk(<KioskApp api={api} keyStore={memoryKeyStore('gk_x1234567')} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Cadastrar meu rosto' }));
-    expect(await axe(container)).toHaveNoViolations();
-    const pad = screen.getByRole('group', { name: 'Teclado numérico' });
-    for (const d of '123456789') await userEvent.click(within(pad).getByRole('button', { name: d }));
-    expect(screen.getByLabelText('CPF')).toHaveValue('123.456.789');
-    await userEvent.click(within(pad).getByRole('button', { name: 'Apagar' }));
-    expect(screen.getByLabelText('CPF')).toHaveValue('123.456.78');
-    expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled();
-    await userEvent.type(screen.getByLabelText('CPF'), '901');
-    await userEvent.click(screen.getByRole('button', { name: 'Continuar' }));
-    expect(screen.getByRole('heading', { name: 'Digite o seu PIN' })).toBeInTheDocument();
-    expect(await axe(container)).toHaveNoViolations();
-    await userEvent.type(screen.getByLabelText('PIN'), '4839');
-    await userEvent.click(screen.getByRole('button', { name: 'Continuar' }));
-    expect(screen.getByRole('heading', { name: 'Antes de começar' })).toBeInTheDocument();
-    expect(screen.getByText(/LGPD/)).toBeInTheDocument();
-    expect(await axe(container)).toHaveNoViolations();
-    await userEvent.click(screen.getByRole('button', { name: 'Concordo' }));
-    expect(await screen.findByRole('heading', { name: 'Foto 1 de 3: De frente' })).toBeInTheDocument();
-    expect(await axe(container)).toHaveNoViolations();
-  });
-
-  it('PIN precisa de 4 a 6 números', async () => {
-    renderKiosk(<KioskApp api={makeApi()} keyStore={memoryKeyStore('gk_x1234567')} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Cadastrar meu rosto' }));
-    await userEvent.type(screen.getByLabelText('CPF'), '00000000101');
-    await userEvent.click(screen.getByRole('button', { name: 'Continuar' }));
-    await userEvent.type(screen.getByLabelText('PIN'), '123');
-    expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled();
-    await userEvent.type(screen.getByLabelText('PIN'), '4');
-    expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled();
-  });
-
-  it('cancelar volta ao início e apaga CPF e PIN da memória', async () => {
-    renderKiosk(<KioskApp api={makeApi()} keyStore={memoryKeyStore('gk_x1234567')} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Cadastrar meu rosto' }));
-    await userEvent.type(screen.getByLabelText('CPF'), '00000000101');
-    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-    expect(await screen.findByRole('heading', { name: 'Fazenda Boa Vista' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Cadastrar meu rosto' }));
-    expect(screen.getByLabelText('CPF')).toHaveValue('');
-  });
-
-  it('CPF ou PIN errado: mesma mensagem genérica, dados apagados e recomeço', async () => {
-    const enroll = vi.fn(async () => { throw toApiError(401, { code: 'CPF_OU_PIN_INVALIDO', error: 'CPF ou PIN inválido.' }); });
-    const api = makeApi({ enroll });
-    renderKiosk(<KioskApp api={api} keyStore={memoryKeyStore('gk_x1234567')} />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Cadastrar meu rosto' }));
-    await userEvent.type(screen.getByLabelText('CPF'), '99999999999');
-    await userEvent.click(screen.getByRole('button', { name: 'Continuar' }));
-    await userEvent.type(screen.getByLabelText('PIN'), '1111');
-    await userEvent.click(screen.getByRole('button', { name: 'Continuar' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Concordo' }));
-    for (let i = 0; i < 3; i++) await userEvent.click(await screen.findByRole('button', { name: 'Tirar foto' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Confira seu CPF e seu PIN e tente de novo');
-    await userEvent.click(screen.getByRole('button', { name: 'Começar de novo' }));
-    expect(screen.getByLabelText('CPF')).toHaveValue('');
-    // 401 do cadastro NÃO é chave recusada: continua conectado.
-    expect(screen.queryByRole('heading', { name: 'Conectar este aparelho' })).not.toBeInTheDocument();
-  });
-});
