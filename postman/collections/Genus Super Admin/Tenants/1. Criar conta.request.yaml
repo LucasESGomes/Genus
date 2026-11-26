@@ -1,6 +1,6 @@
 $kind: http-request
 name: 1. Criar conta
-description: "POST /portal/super-admin/tenants. Cria conta, empresa, estabelecimento e o primeiro admin do cliente. Responde 201 com `temporaryPassword`, a única vez em que ela aparece (não é guardada nem logada). Erros: `CNPJ_INVALIDO` (400), `EMAIL_IN_USE` (409), `MASTER_KEY_AUSENTE` (503). Quem pode: super_admin com 2FA."
+description: "POST /portal/super-admin/tenants. Cria conta, empresa, estabelecimento e o convite do primeiro admin do cliente. Responde 201 com o `token` do link, a única vez em que ele aparece (o banco guarda só o hash). Erros: `CNPJ_INVALIDO` e `CPF_INVALIDO` (400), `EMAIL_IN_USE` (409), `MASTER_KEY_AUSENTE` (503). Quem pode: super_admin com 2FA."
 url: "{{portalUrl}}/portal/super-admin/tenants"
 method: POST
 headers:
@@ -18,7 +18,7 @@ body:
         "uf": "SP",
         "municipalityIbge": "3550308"
       },
-      "admin": { "name": "Administrador Postman", "email": "{{adminEmail}}" }
+      "admin": { "name": "Administrador Postman", "email": "{{adminEmail}}", "cpf": "52998224725" }
     }
 scripts:
   - type: beforeRequest
@@ -47,9 +47,8 @@ scripts:
       pm.test('Conta nasce ativa, sem suspensão', () => pm.expect(d.tenant).to.include({ status: 'ativa', suspendedAt: null, suspensionReason: null }));
       pm.test('Contagens são números', () => pm.expect(d.tenant.counts).to.include.keys('employees', 'devices', 'users', 'establishments'));
       pm.test('Conta com chave de dados criada', () => pm.expect(d.tenant.hasCompanyKey).to.eql(true));
-      pm.test('temporaryPassword vem uma vez', () => pm.expect(d.temporaryPassword).to.be.a('string').and.not.empty);
-      pm.test('Admin criado com o e-mail enviado', () => pm.expect(d.admin.email).to.eql(pm.collectionVariables.get('adminEmail')));
+      pm.test('token do convite vem uma vez', () => pm.expect(d.token).to.be.a('string').and.not.empty);
+      pm.test('Convite de admin para o e-mail enviado', () => pm.expect(d.invite).to.include({ role: 'admin', status: 'pendente', email: pm.collectionVariables.get('adminEmail') }));
       pm.collectionVariables.set('tenantId', String(d.tenant.id));
-      pm.collectionVariables.set('adminUserId', String(d.admin.id));
     language: text/javascript
 order: 1000

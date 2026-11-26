@@ -61,7 +61,7 @@ export function createTenantBody(overrides: Partial<CreateTenantBody> & { n?: nu
       uf: 'SP',
       municipalityIbge: '3550308',
     },
-    admin: { name: `Administrador ${n}`, email: `admin.${n}@cliente.teste.dev` },
+    admin: { name: `Administrador ${n}`, email: `admin.${n}@cliente.teste.dev`, cpf: '52998224725' },
     ...rest,
   };
 }

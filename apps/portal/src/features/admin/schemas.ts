@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isValidCnpj, onlyDigits } from '@/lib/cnpj';
+import { cpfLooksValid } from '@/lib/cpf';
 
 export const createTenantSchema = z.object({
   name: z.string().trim().min(2, 'Informe o nome da conta (mínimo de 2 letras).').max(120, 'O nome pode ter até 120 caracteres.'),
@@ -8,10 +9,11 @@ export const createTenantSchema = z.object({
   establishmentName: z.string().trim().min(2, 'Informe o nome do estabelecimento.').max(120, 'O nome pode ter até 120 caracteres.'),
   registrationType: z.enum(['CNPJ', 'CPF', 'CAEPF']),
   registration: z.string().trim().max(20, 'Número de registro longo demais.'),
-  uf: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, 'Informe a sigla da UF (2 letras).'),
-  municipalityIbge: z.string().trim().regex(/^\d{7}$/, 'O código IBGE tem 7 números.'),
+  uf: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, 'Selecione a UF.'),
+  municipalityIbge: z.string().trim().regex(/^\d{7}$/, 'Selecione o município.'),
   adminName: z.string().trim().min(2, 'Informe o nome do administrador.').max(120, 'O nome pode ter até 120 caracteres.'),
   adminEmail: z.string().trim().min(1, 'Informe o e-mail.').email('Informe um e-mail válido.'),
+  adminCpf: z.string().refine((v) => cpfLooksValid(onlyDigits(v)), 'CPF inválido. Confira os 11 dígitos.'),
 }).superRefine((v, ctx) => {
   if (v.registrationType !== 'CNPJ' && onlyDigits(v.registration).length === 0) {
     ctx.addIssue({ code: 'custom', path: ['registration'], message: 'Informe o número do registro.' });

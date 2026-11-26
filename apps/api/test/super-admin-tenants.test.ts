@@ -21,39 +21,66 @@ const post = (body: unknown, cookie = root.cookie) => h.call(cookie, 'POST', BAS
 const signIn = (email: string, password: string) =>
   h.app.inject({ method: 'POST', url: '/auth/sign-in/email', headers: { origin: BASE_URL }, payload: { email, password } });
 
+const ADMIN_PASSWORD = 'senha-ficticia-do-admin-123';
+const ADMIN_CPF = '52998224725';
+
+type Created = { tenant: { id: number }; invite: { id: number; email: string; role: string; status: string }; token: string };
+
+/** Aceita o convite pela rota pública: só então o admin da conta nasce. */
+const accept = (token: string) =>
+  h.app.inject({ method: 'POST', url: '/portal/public/invites/accept', headers: { origin: BASE_URL }, payload: { token, cpf: ADMIN_CPF, password: ADMIN_PASSWORD } });
+
+/** Conta nova com o admin já criado pelo convite. */
 async function createTenant(over: Parameters<typeof createTenantBody>[0] = {}) {
   n += 1;
   const res = await post(createTenantBody({ n, ...over }));
   expect(res.statusCode).toBe(201);
-  return { body: res.json().data as { tenant: { id: number }; admin: { id: number; email: string }; temporaryPassword: string }, n };
+  const data = res.json().data as Created;
+  expect((await accept(data.token)).statusCode).toBe(201);
+  return { body: { ...data, admin: { email: data.invite.email }, password: ADMIN_PASSWORD }, n };
 }
 
 describe('POST /tenants', () => {
-  it('cria conta, empresa, estabelecimento, DEK e admin numa transação; o admin entra com a senha temporária', async () => {
-    const { body, n: k } = await createTenant();
+  it('cria conta, empresa, estabelecimento, DEK e o convite do admin; o usuário nasce no aceite', async () => {
+    n += 1;
+    const k = n;
+    const res = await post(createTenantBody({ n: k }));
+    expect(res.statusCode).toBe(201);
+    expect(res.headers['cache-control']).toBe('no-store');
+    const body = res.json().data as Created;
     const tenantId = body.tenant.id;
-    expect(body.temporaryPassword).toHaveLength(16);
-    expect(findSensitiveKeys(body, ['temporaryPassword'])).toEqual([]);
+    expect(body.token.length).toBeGreaterThanOrEqual(32);
+    expect(body.invite).toMatchObject({ email: `admin.${k}@cliente.teste.dev`, role: 'admin', status: 'pendente' });
+    expect(findSensitiveKeys(body, ['token'])).toEqual([]);
 
     const keys = await h.one<{ c: string }>('SELECT count(*) c FROM rh.chaves_empresa WHERE conta_id = $1 AND eh_ativa', [tenantId]);
     expect(Number(keys.c)).toBe(1);
     expect(await h.one('SELECT 1 x FROM rh.estabelecimentos WHERE conta_id = $1', [tenantId])).toBeTruthy();
-    const dto = body.tenant as unknown as { hasCompanyKey: boolean; companies: { cnpj: string }[]; admins: { role: string; email: string; mfaEnabled: boolean }[]; counts: Record<string, number>; status: string };
-    expect(dto).toMatchObject({ status: 'ativa', hasCompanyKey: true, counts: { employees: 0, devices: 0, users: 1, establishments: 1 } });
+    const dto = body.tenant as unknown as { companies: { cnpj: string }[] };
+    expect(dto).toMatchObject({ status: 'ativa', hasCompanyKey: true, admins: [], counts: { employees: 0, devices: 0, users: 0, establishments: 1 } });
     expect(dto.companies[0]!.cnpj).toBe(validCnpj(k));
-    expect(dto.admins).toEqual([expect.objectContaining({ role: 'admin', email: `admin.${k}@cliente.teste.dev`, mfaEnabled: false })]);
-
-    const login = await signIn(body.admin.email, body.temporaryPassword);
-    expect(login.statusCode).toBe(200);
 
     const audits = await h.client.query('SELECT entidade, acao, usuario_id FROM rh.auditorias WHERE conta_id = $1 ORDER BY id', [tenantId]);
     expect(audits.rows).toEqual([
       { entidade: 'tenant', acao: 'criacao', usuario_id: String(root.userId) },
-      { entidade: 'tenant_admin', acao: 'criacao', usuario_id: String(root.userId) },
+      { entidade: 'user_invite', acao: 'criacao', usuario_id: String(root.userId) },
     ]);
-    // senha temporária nunca em claro no banco nem no log
-    expect(JSON.stringify((await h.client.query('SELECT dados_depois FROM rh.auditorias WHERE conta_id = $1', [tenantId])).rows)).not.toContain(body.temporaryPassword);
-    h.expectLogsWithout(body.temporaryPassword);
+    // token e CPF nunca em claro no banco nem no log
+    const stored = JSON.stringify((await h.client.query('SELECT dados_depois FROM rh.auditorias WHERE conta_id = $1', [tenantId])).rows);
+    expect(stored).not.toContain(body.token);
+    expect(stored).not.toContain(ADMIN_CPF);
+    h.expectLogsWithout(body.token, ADMIN_CPF);
+
+    expect((await accept(body.token)).statusCode).toBe(201);
+    expect((await signIn(body.invite.email, ADMIN_PASSWORD)).statusCode).toBe(200);
+  });
+
+  it('400 CPF_INVALIDO não deixa conta pela metade', async () => {
+    const before = Number((await h.one<{ c: string }>('SELECT count(*) c FROM rh.contas')).c);
+    const res = await post(createTenantBody({ n: 902, admin: { name: 'Outro', email: 'cpf.ruim@cliente.teste.dev', cpf: '11111111111' } }));
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('CPF_INVALIDO');
+    expect(Number((await h.one<{ c: string }>('SELECT count(*) c FROM rh.contas')).c)).toBe(before);
   });
 
   it('503 MASTER_KEY_AUSENTE sem a chave mestra', async () => {
@@ -74,7 +101,7 @@ describe('POST /tenants', () => {
 
     const { body, n: k } = await createTenant();
     const before = Number((await h.one<{ c: string }>('SELECT count(*) c FROM rh.contas')).c);
-    const dup = await post(createTenantBody({ n: 950, admin: { name: 'Outro', email: body.admin.email } }));
+    const dup = await post(createTenantBody({ n: 950, admin: { name: 'Outro', email: body.admin.email, cpf: ADMIN_CPF } }));
     expect(dup.statusCode).toBe(409);
     expect(dup.json().code).toBe('EMAIL_IN_USE');
     expect(Number((await h.one<{ c: string }>('SELECT count(*) c FROM rh.contas')).c)).toBe(before);
@@ -147,7 +174,7 @@ describe('suspender e reativar', () => {
   it('derruba sessões, recusa sessão e login novo, e volta ao reativar; 409 nos estados errados', async () => {
     const { body } = await createTenant();
     const id = body.tenant.id;
-    const login = await signIn(body.admin.email, body.temporaryPassword);
+    const login = await signIn(body.admin.email, body.password);
     const cookie = login.headers['set-cookie'] ? (Array.isArray(login.headers['set-cookie']) ? login.headers['set-cookie'] : [login.headers['set-cookie']]).map((c) => c.split(';')[0]).join('; ') : '';
     expect((await h.call(cookie, 'GET', '/me')).statusCode).toBe(200);
 
@@ -163,7 +190,7 @@ describe('suspender e reativar', () => {
 
     const dead = await h.call(cookie, 'GET', '/me');
     expect(dead.statusCode).toBe(401);
-    const refused = await signIn(body.admin.email, body.temporaryPassword);
+    const refused = await signIn(body.admin.email, body.password);
     expect(refused.statusCode).toBe(401);
     expect(refused.json().code).toBe('ACCOUNT_SUSPENDED');
 
@@ -172,7 +199,7 @@ describe('suspender e reativar', () => {
     const re = await h.call(root.cookie, 'POST', `${BASE}/${id}/reactivate`, { reason: 'pagou a fatura' });
     expect(re.statusCode).toBe(200);
     expect(re.json().data).toMatchObject({ status: 'ativa', suspendedAt: null, suspensionReason: null });
-    expect((await signIn(body.admin.email, body.temporaryPassword)).statusCode).toBe(200);
+    expect((await signIn(body.admin.email, body.password)).statusCode).toBe(200);
 
     const audits = await h.client.query("SELECT motivo FROM rh.auditorias WHERE conta_id = $1 AND entidade = 'tenant' AND acao = 'alteracao' ORDER BY id", [id]);
     expect(audits.rows.map((r) => r.motivo)).toEqual(['contrato encerrado', 'pagou a fatura']);
@@ -206,7 +233,7 @@ describe('migration 0015', () => {
   it('trigger apaga as sessões da conta ao desativar; tentativas_login é só INSERT', async () => {
     const { body } = await createTenant();
     const id = body.tenant.id;
-    await signIn(body.admin.email, body.temporaryPassword);
+    await signIn(body.admin.email, body.password);
     expect(Number((await h.one<{ c: string }>('SELECT count(*) c FROM rh.sessoes WHERE conta_id = $1', [id])).c)).toBe(1);
     await h.client.query("UPDATE rh.contas SET ativo = false, suspensa_em = now(), motivo_suspensao = 'x' WHERE id = $1", [id]);
     expect(Number((await h.one<{ c: string }>('SELECT count(*) c FROM rh.sessoes WHERE conta_id = $1', [id])).c)).toBe(0);

@@ -1,7 +1,7 @@
 /**
  * Painel do super_admin (apps/api, docs/prompts/super-admin-contrato.md). Rotas sob /portal/super-admin.
  * Respostas só com agregados e metadados: nada de CPF, batida individual, dado de saúde ou hash.
- * `temporaryPassword` (criação de conta) e os códigos de recuperação do 2FA aparecem uma vez e nunca são guardados aqui.
+ * O token do convite (criação de conta) e os códigos de recuperação do 2FA aparecem uma vez e nunca são guardados aqui.
  */
 import { qs, type ApiClient } from '../client';
 import type { EntityId, Envelope, ListMeta } from '../contracts';

@@ -9,7 +9,7 @@ const input = (over: Partial<CreateTenantInput> = {}): CreateTenantInput => ({
   name: 'Fazenda Nova Aurora',
   company: { legalName: 'Fazenda Nova Aurora Ltda', cnpj: '11.222.333/0001-81' },
   establishment: { name: 'Sede', registrationType: 'CNPJ', registration: '11222333000181', uf: 'GO', municipalityIbge: '5218805' },
-  admin: { name: 'Teresa Campos', email: 'teresa@exemplo.test' },
+  admin: { name: 'Teresa Campos', email: 'teresa@exemplo.test', cpf: '52998224725' },
   ...over,
 });
 
@@ -22,17 +22,17 @@ describe('mock do super admin: empresas', () => {
     expect((await api.tenants.list({ status: 'suspensa' })).data).toHaveLength(1);
     expect((await api.tenants.list({ q: 'AGROPECUARIA' })).data.map((t) => t.id)).toEqual(['1']);
   });
-  it('cria empresa: aparece na lista e a senha provisória vem só na resposta', async () => {
+  it('cria empresa: aparece na lista e o token do convite vem só na resposta', async () => {
     const created = await api.tenants.create(input());
-    expect(created.temporaryPassword.length).toBeGreaterThanOrEqual(12);
+    expect(created.token.length).toBeGreaterThanOrEqual(32);
+    expect(created.invite).toMatchObject({ email: 'teresa@exemplo.test', role: 'admin', status: 'pendente' });
     expect(created.tenant.status).toBe('ativa');
-    expect(created.admin.email).toBe('teresa@exemplo.test');
-    expect(JSON.stringify(await api.tenants.get(created.tenant.id))).not.toContain(created.temporaryPassword);
+    expect(JSON.stringify(await api.tenants.get(created.tenant.id))).not.toContain(created.token);
     expect((await api.tenants.list({})).data.some((t) => t.id === created.tenant.id)).toBe(true);
   });
   it('recusa CNPJ inválido (400) e e-mail em uso (409)', async () => {
     await expect(api.tenants.create(input({ company: { legalName: 'X Ltda', cnpj: '11222333000182' } }))).rejects.toMatchObject({ status: 400, code: 'CNPJ_INVALIDO' });
-    await expect(api.tenants.create(input({ admin: { name: 'Outra', email: 'LUCIA@exemplo.test' } }))).rejects.toMatchObject({ status: 409, code: 'EMAIL_IN_USE' });
+    await expect(api.tenants.create(input({ admin: { name: 'Outra', email: 'LUCIA@exemplo.test', cpf: '52998224725' } }))).rejects.toMatchObject({ status: 409, code: 'EMAIL_IN_USE' });
   });
   it('suspender guarda o motivo, derruba as sessões e audita; repetir dá 409', async () => {
     const t = await api.tenants.suspend('1', ' Pedido do contratante ');

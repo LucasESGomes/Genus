@@ -4,9 +4,10 @@
  *
  * IDs viram `EntityId` (string) na borda, como no resto do portal (lib/api/ids.ts).
  * Enumerações ficam em português, como na api. Nenhum tipo aqui carrega CPF, batida individual,
- * dado de saúde, biometria, hash ou token. A única exceção é `temporaryPassword`, só na criação.
+ * dado de saúde, biometria, hash ou token. A única exceção é o `token` do convite, só na criação.
  */
 import type { EntityId, ListMeta } from './contracts';
+import type { Invite } from './organization-contracts';
 
 export type StatsWindow = '24h' | '7d' | '30d';
 export const STATS_WINDOWS: readonly StatsWindow[] = ['24h', '7d', '30d'];
@@ -72,13 +73,13 @@ export interface CreateTenantInput {
   name: string;
   company: { legalName: string; cnpj: string };
   establishment: { name: string; registrationType: 'CNPJ' | 'CPF' | 'CAEPF'; registration: string; uf: string; municipalityIbge: string };
-  admin: { name: string; email: string };
+  admin: { name: string; email: string; cpf: string };
 }
 export interface CreatedTenant {
   tenant: TenantDetail;
-  admin: { id: EntityId; name: string; email: string };
-  /** Mostrada uma vez; nunca guardar no estado global, em log ou em storage. */
-  temporaryPassword: string;
+  invite: Invite;
+  /** Token do link do convite: mostrado uma vez; nunca guardar no estado global, em log ou em storage. */
+  token: string;
 }
 
 // ---- audit

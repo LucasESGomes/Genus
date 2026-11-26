@@ -16,6 +16,12 @@ type SA = NonNullable<ApiOverrides['superAdmin']>;
 const render = (access: Partial<typeof mockSuperAdminApi.access> = {}, route = '/admin/acessos') =>
   renderWithSession(<AccessScreen />, { me: mockMeFor('super_admin'), route, api: { superAdmin: { access: { ...mockSuperAdminApi.access, ...access } } as SA } });
 
+/** Abre o menu da primeira linha que casa com `trigger` e escolhe a ação. */
+async function openAction(trigger: RegExp, action: string) {
+  await userEvent.click((await screen.findAllByRole('button', { name: trigger }))[0]!);
+  await userEvent.click(await screen.findByRole('menuitem', { name: action }));
+}
+
 describe('Acessos: sessões', () => {
   it('lista as sessões com navegador resumido, sem violação de acessibilidade', async () => {
     const { container } = render();
@@ -52,7 +58,7 @@ describe('Acessos: sessões', () => {
   it('revogar exige motivo de 3 caracteres, chama a api e avisa', async () => {
     const revokeSession = vi.fn(mockSuperAdminApi.access.revokeSession);
     render({ revokeSession });
-    await userEvent.click(await screen.findByRole('button', { name: /Revogar sessão de lucia@exemplo.test/ }));
+    await openAction(/Ações da sessão de lucia@exemplo.test/, 'Revogar esta sessão');
     const dialog = await screen.findByRole('alertdialog');
     const confirm = within(dialog).getByRole('button', { name: 'Revogar' });
     expect(confirm).toBeDisabled();
@@ -68,7 +74,7 @@ describe('Acessos: sessões', () => {
   it('revogar todas as sessões do usuário', async () => {
     const revokeUserSessions = vi.fn(mockSuperAdminApi.access.revokeUserSessions);
     render({ revokeUserSessions });
-    await userEvent.click(await screen.findByRole('button', { name: /Revogar todas as sessões de paulo@exemplo.test/ }));
+    await openAction(/Ações da sessão de paulo@exemplo.test/, 'Revogar todas do usuário');
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.type(within(dialog).getByLabelText(/^Motivo/), 'conta comprometida');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Revogar' }));
@@ -77,7 +83,7 @@ describe('Acessos: sessões', () => {
 
   it('erro ao revogar fica no diálogo, com o diálogo aberto', async () => {
     render({ revokeSession: vi.fn(async () => { throw new ApiError('not_found', 404, 'NOT_FOUND', 'x'); }) });
-    await userEvent.click(await screen.findByRole('button', { name: /Revogar sessão de lucia@exemplo.test/ }));
+    await openAction(/Ações da sessão de lucia@exemplo.test/, 'Revogar esta sessão');
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.type(within(dialog).getByLabelText(/^Motivo/), 'teste');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Revogar' }));

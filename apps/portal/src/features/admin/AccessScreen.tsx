@@ -1,8 +1,9 @@
 'use client';
 /** Acessos e IPs (/admin/acessos): sessões (com revogação), tentativas de login e IPs sinalizados. Só sinaliza, nunca bloqueia. */
-import { Globe, ShieldWarning, UsersThree } from '@phosphor-icons/react';
+import { DotsThreeVertical, Globe, ShieldWarning, UsersThree } from '@phosphor-icons/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/shadcn/dropdown-menu';
 import { PageHeader } from '@/components/shell/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -68,14 +69,22 @@ function SessionsPanel({ url, setUrl, onResult }: { url: Url; setUrl: SetUrl; on
       id: 'actions',
       header: () => <span className="sr-only">Ações</span>,
       cell: ({ row }) => (
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" disabled={!row.original.isActive} aria-label={`Revogar sessão de ${row.original.userEmail} (${row.original.id})`} onClick={() => setPending({ kind: 'session', session: row.original })}>
-            Revogar sessão
-          </Button>
-          <Button variant="secondary" size="sm" aria-label={`Revogar todas as sessões de ${row.original.userEmail}`} onClick={() => setPending({ kind: 'user', session: row.original })}>
-            Revogar todas do usuário
-          </Button>
-        </div>
+        // Menu: dois botões por linha não cabem na tabela e saíam da área visível.
+        <span className="flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" aria-label={`Ações da sessão de ${row.original.userEmail} (${row.original.id})`} icon={<DotsThreeVertical size={18} weight="bold" aria-hidden />} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem disabled={!row.original.isActive} onSelect={() => setPending({ kind: 'session', session: row.original })}>
+                Revogar esta sessão
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setPending({ kind: 'user', session: row.original })}>
+                Revogar todas do usuário
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </span>
       ),
     },
   ], []);

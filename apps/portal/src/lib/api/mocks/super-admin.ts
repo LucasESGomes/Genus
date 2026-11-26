@@ -9,10 +9,11 @@ import type { EntityId } from '../contracts';
 import type { SuperAdminApi } from '../endpoints/super-admin';
 import type {
   AuditLog, AuditLogDetail, CursorPage, FlaggedIp, GrowthPoint, LoginAttempt, ModuleUsage, Paged, PortalSession, RecognitionDevice,
-  RecognitionSeriesPoint, RecognitionSummary, StatsOverview, StatsWindow, SystemHealth, Tenant, TenantAdmin, TenantCompany, TenantDetail,
+  RecognitionSeriesPoint, RecognitionSummary, StatsOverview, StatsWindow, SystemHealth, Tenant, TenantCompany, TenantDetail,
   TenantStats,
 } from '../super-admin-contracts';
 import { MOCK_TOTP_CODE } from './index';
+import { mockInvitesApi } from './invites';
 import { clone, delay, matchesQuery, mockFail, mockId, mockNotFound, paginate } from './runtime';
 
 /** Instante fixo do mock (mesmo dia de referência do portal). */
@@ -254,11 +255,6 @@ const inRange = (iso: string, from?: string, to?: string) => (!from || iso >= fr
 
 const detailOf = (t: TenantRow): TenantDetail => ({ ...summarize(t), companies: clone(t.companies), admins: clone(t.admins), hasCompanyKey: t.hasCompanyKey });
 
-function randomPassword(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-  return Array.from({ length: 16 }, (_, i) => alphabet[(i * 7 + db.audit.length * 3 + 11) % alphabet.length]).join('');
-}
-
 export const mockSuperAdminApi: SuperAdminApi = {
   tenants: {
     list: async (q): Promise<Paged<Tenant>> => {
@@ -276,16 +272,16 @@ export const mockSuperAdminApi: SuperAdminApi = {
       if (!isValidCnpj(input.company.cnpj)) throw mockFail(400, 'CNPJ_INVALIDO', 'CNPJ inválido');
       const email = input.admin.email.trim().toLowerCase();
       if (db.tenants.some((t) => t.admins.some((a) => a.email.toLowerCase() === email))) throw mockFail(409, 'EMAIL_IN_USE', 'E-mail já em uso');
-      const adminId = mockId();
-      const admin: TenantAdmin = { id: adminId, name: input.admin.name.trim(), email, role: 'admin', isActive: true, mfaEnabled: false };
       const company: TenantCompany = { id: mockId(), legalName: input.company.legalName.trim(), cnpj: onlyDigits(input.company.cnpj), isActive: true };
       const row: TenantRow = {
         id: mockId(), name: input.name.trim(), status: 'ativa', createdAt: NOW, updatedAt: NOW, suspendedAt: null, suspensionReason: null,
-        counts: { employees: 0, devices: 0, users: 1, establishments: 1 }, hasCompanyKey: true, companies: [company], admins: [admin],
+        counts: { employees: 0, devices: 0, users: 0, establishments: 1 }, hasCompanyKey: true, companies: [company], admins: [],
       };
+      // O convite vem antes: CPF inválido ou e-mail em uso não deixam conta pela metade.
+      const { invite, token } = await mockInvitesApi.create(row.id, { name: input.admin.name.trim(), email, role: 'admin', cpf: input.admin.cpf });
       db.tenants.unshift(row);
       record({ entity: 'tenant', action: 'criacao', tenantId: row.id, tenantName: row.name, entityId: row.id, after: { nome: row.name } });
-      return { tenant: detailOf(row), admin: { id: adminId, name: admin.name, email }, temporaryPassword: randomPassword() };
+      return { tenant: detailOf(row), invite, token };
     },
     update: async (id, input) => {
       await delay();

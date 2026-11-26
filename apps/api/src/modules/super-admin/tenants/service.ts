@@ -2,10 +2,9 @@
  * Contas (tenants) do painel do super_admin. Toda escrita é auditada na mesma transação.
  *
  * Criar conta = UMA transação: conta, empresa, estabelecimento, chave da empresa (DEK cifrada pela
- * MASTER_KEY) e o primeiro usuário `admin`, com senha temporária devolvida uma única vez (nunca gravada em
- * claro nem logada). Suspender derruba as sessões da conta; reativar limpa a suspensão.
+ * MASTER_KEY) e o convite do primeiro `admin` (link com confirmação de CPF; o token sai só nesta resposta).
+ * Suspender derruba as sessões da conta; reativar limpa a suspensão.
  */
-import { randomBytes } from 'node:crypto';
 import { encryptDek, generateDek, type Clock } from '@genus/shared';
 import type { z } from 'zod';
 import type { Database } from '../../../db/client';
@@ -14,7 +13,8 @@ import { notFound } from '../../../http/access';
 import { HttpError, pgError } from '../../../plugins/error-handler';
 import type { RequestContext } from '../../../plugins/request-context';
 import { recordAudit } from '../../audit/audit';
-import { UserService } from '../../auth/user-service';
+import type { InviteDto } from '../../invites/schemas';
+import { InviteService } from '../../invites/service';
 import { toStoredCompanyKey } from '../../facial/stored-crypto';
 import type { createTenantBody, listTenantsQuery, TenantDto, tenantDetailDto } from '../contract';
 import { TenantRepository, type NewEstablishment, type TenantRow } from './repository';
@@ -28,6 +28,7 @@ export interface TenantServiceDeps {
   db: Database;
   clock: Clock;
   masterKeyHex: string | null;
+  inviteCpfHashKey: Buffer;
 }
 
 export interface ProvisionInput {
@@ -70,11 +71,6 @@ export async function provisionStructure(
   return { tenantId, companyId, establishmentId, createdTenant: existingTenant === undefined };
 }
 
-/** Senha temporária do primeiro admin: 16 caracteres aleatórios (base64url). */
-export function generateTemporaryPassword(): string {
-  return randomBytes(12).toString('base64url');
-}
-
 function toTenantDto(row: TenantRow): TenantDto {
   return {
     id: row.id,
@@ -89,13 +85,13 @@ function toTenantDto(row: TenantRow): TenantDto {
 }
 
 export class TenantService {
-  private readonly users: UserService;
+  private readonly invites: InviteService;
 
   constructor(
     private readonly d: TenantServiceDeps,
     private readonly repo = new TenantRepository(),
   ) {
-    this.users = new UserService({ db: d.db });
+    this.invites = new InviteService({ db: d.db, clock: d.clock, cpfHashKey: d.inviteCpfHashKey });
   }
 
   async list(q: ListQuery): Promise<{ data: TenantDto[]; meta: { page: number; pageSize: number; total: number } }> {
@@ -107,13 +103,11 @@ export class TenantService {
     return this.detail(this.d.db, tenantId);
   }
 
-  async create(ctx: RequestContext, body: CreateBody): Promise<{ tenant: TenantDetail; admin: { id: number; name: string; email: string }; temporaryPassword: string }> {
+  async create(ctx: RequestContext, body: CreateBody): Promise<{ tenant: TenantDetail; invite: InviteDto; token: string }> {
     const masterKeyHex = this.d.masterKeyHex;
     if (masterKeyHex === null) throw new HttpError(503, 'MASTER_KEY_AUSENTE', 'Chave mestra não configurada: não é possível criar contas agora');
     if (!isValidCnpj(body.company.cnpj)) throw new HttpError(400, 'CNPJ_INVALIDO', 'CNPJ inválido: confira os dígitos verificadores');
-    if (await this.repo.emailExists(this.d.db, body.admin.email)) throw emailInUse();
 
-    const temporaryPassword = generateTemporaryPassword();
     try {
       const created = await this.d.db.transaction(async (tx) => {
         const s = await provisionStructure(
@@ -122,22 +116,14 @@ export class TenantService {
           { tenantName: body.name, legalName: body.company.legalName, cnpj: body.company.cnpj, establishment: body.establishment, masterKeyHex },
           { reuse: false },
         );
-        const admin = await this.users.createUser(
-          { tenantId: s.tenantId, email: body.admin.email, name: body.admin.name, role: 'admin', employeeId: null, password: temporaryPassword },
-          tx,
-        );
-        const audit = { tenantId: s.tenantId, userId: ctx.userId };
-        await recordAudit(tx, this.d.clock, { ...audit, entity: 'tenant', entityId: s.tenantId, action: 'criacao', after: { name: body.name } });
-        await recordAudit(tx, this.d.clock, { ...audit, entity: 'tenant_admin', entityId: admin.id, action: 'criacao', after: { role: 'admin' } });
-        return { tenantId: s.tenantId, admin };
+        const actor = { tenantId: s.tenantId, userId: ctx.userId };
+        await recordAudit(tx, this.d.clock, { ...actor, entity: 'tenant', entityId: s.tenantId, action: 'criacao', after: { name: body.name } });
+        // CPF inválido (400) ou e-mail em uso (409) desfazem a conta inteira.
+        const { invite, token } = await this.invites.createIn(tx, actor, { ...body.admin, role: 'admin' });
+        return { tenantId: s.tenantId, invite, token };
       });
-      return {
-        tenant: await this.detail(this.d.db, created.tenantId),
-        admin: { id: created.admin.id, name: created.admin.name, email: created.admin.email },
-        temporaryPassword,
-      };
+      return { tenant: await this.detail(this.d.db, created.tenantId), invite: created.invite, token: created.token };
     } catch (err) {
-      // Corrida: outro cadastro com o mesmo e-mail entre a checagem e o INSERT.
       if (pgError(err)?.constraint === 'usuario_email_key') throw emailInUse();
       throw err;
     }

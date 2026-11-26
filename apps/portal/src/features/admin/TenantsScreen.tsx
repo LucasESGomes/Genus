@@ -23,7 +23,9 @@ import { useTextSearch } from '@/lib/use-debounced-value';
 import { COPY } from './copy';
 import { useTenants } from './hooks';
 import { NewTenantDialog } from './NewTenantDialog';
-import { TemporaryPasswordDialog, type PasswordReveal } from './TemporaryPasswordDialog';
+import { InviteLinkDialog } from '@/features/invites/InviteLinkDialog';
+import type { CreatedInvite } from '@/lib/api/organization-contracts';
+import type { CreatedTenant } from '@/lib/api/super-admin-contracts';
 
 const FILTERS = ['todas', 'ativa', 'suspensa'] as const;
 type Filter = (typeof FILTERS)[number];
@@ -44,7 +46,7 @@ export function TenantsScreen() {
   const search = useTextSearch(() => setPage(1));
   const [creating, setCreating] = useState(false);
   // A senha provisória fica só aqui, em estado de tela: nunca entra no cache de consultas.
-  const [reveal, setReveal] = useState<PasswordReveal | null>(null);
+  const [createdInvite, setCreatedInvite] = useState<CreatedInvite | null>(null);
 
   const query = useTenants({ ...(search.q ? { q: search.q } : {}), ...(status ? { status } : {}), page, pageSize: PAGE_SIZE });
 
@@ -60,8 +62,8 @@ export function TenantsScreen() {
     ];
   }, []);
 
-  const onCreated = (created: { tenant: { name: string }; admin: { email: string }; temporaryPassword: string }) => {
-    setReveal({ tenantName: created.tenant.name, adminEmail: created.admin.email, password: created.temporaryPassword });
+  const onCreated = (created: CreatedTenant) => {
+    setCreatedInvite({ invite: created.invite, token: created.token });
     void qc.invalidateQueries({ queryKey: [...scope, 'admin'] });
   };
 
@@ -105,7 +107,7 @@ export function TenantsScreen() {
         )}
       </QueryView>
       <NewTenantDialog open={creating} onOpenChange={setCreating} onCreated={onCreated} />
-      <TemporaryPasswordDialog reveal={reveal} onDone={() => setReveal(null)} />
+      <InviteLinkDialog created={createdInvite} onDone={() => setCreatedInvite(null)} />
     </PageHeader>
   );
 }

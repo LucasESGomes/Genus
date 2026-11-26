@@ -19,7 +19,7 @@ import { TenantService } from './service';
 const tags = ['Super admin: contas'];
 
 export const tenantRoutes: FastifyPluginAsyncZod<SuperAdminDeps> = async (app, deps) => {
-  const service = new TenantService({ db: deps.db, clock: deps.clock, masterKeyHex: deps.masterKeyHex });
+  const service = new TenantService({ db: deps.db, clock: deps.clock, masterKeyHex: deps.masterKeyHex, inviteCpfHashKey: deps.inviteCpfHashKey });
 
   app.get(
     '/tenants',
@@ -31,12 +31,15 @@ export const tenantRoutes: FastifyPluginAsyncZod<SuperAdminDeps> = async (app, d
     {
       schema: {
         tags,
-        summary: 'Cria conta, empresa, estabelecimento, chave da empresa e o admin; a senha temporária sai só nesta resposta',
+        summary: 'Cria conta, empresa, estabelecimento, chave da empresa e o convite do admin; o token do link sai só nesta resposta',
         body: createTenantBody,
         response: { 201: createdTenantResponse },
       },
     },
-    async (req, reply) => reply.code(201).send({ data: await service.create(req.ctx!, req.body) }),
+    async (req, reply) => {
+      reply.header('cache-control', 'no-store');
+      return reply.code(201).send({ data: await service.create(req.ctx!, req.body) });
+    },
   );
   app.get(
     '/tenants/:tenantId',

@@ -12,7 +12,7 @@ description: |-
   4. **Não rode em prod.** Criar, suspender, reativar e revogar mexem em contas reais. Use homolog.
   5. Os dados criados são fictícios: CNPJ com dígitos verificadores válidos, gerado a cada request, e e-mail `@example.com`.
 
-  **Testes comuns (em todo request):** corpo JSON; envelope `{ data }` em sucesso e `{ error, code }` em erro (`code` em UPPER_SNAKE); nenhuma chave com `cpf`, `hash`, `cifrad`, `token`, `secret`, `senha` ou `embedding`; tempo abaixo de `maxResponseMs`. A única exceção é `temporaryPassword`, que só sai na criação da conta.
+  **Testes comuns (em todo request):** corpo JSON; envelope `{ data }` em sucesso e `{ error, code }` em erro (`code` em UPPER_SNAKE); nenhuma chave com `cpf`, `hash`, `cifrad`, `token`, `secret`, `senha` ou `embedding`; tempo abaixo de `maxResponseMs`. A única exceção é o `token` do convite, que só sai na criação da conta.
 
   Não cobertos aqui: `MFA_REQUIRED` (exige um super_admin sem 2FA, que a coleção não tem) e os exemplos salvos (`*.example.yaml`) do api-testing.md §8.
 variables:
@@ -52,7 +52,7 @@ scripts:
         if (Array.isArray(v)) v.forEach(coletar);
         else if (v && typeof v === 'object') {
           Object.keys(v).forEach((k) => {
-            if (k !== 'temporaryPassword') chaves.push(k);
+            if (k !== 'token') chaves.push(k);
             coletar(v[k]);
           });
         }
