@@ -1,0 +1,8 @@
+$kind: collection
+description: Convites da própria conta. Quem pode, admin sem restrição de estabelecimento.
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: "{{portalToken}}"
+order: 1000

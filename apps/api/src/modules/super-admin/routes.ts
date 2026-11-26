@@ -10,6 +10,8 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { accessLogRoutes } from './access-logs/routes';
 import { auditRoutes } from './audit/routes';
 import type { SuperAdminDeps } from './deps';
+import { tenantInviteRoutes } from './invites/routes';
+import { organizationRoutes } from './organization/routes';
 import { recognitionRoutes } from './recognition-logs/routes';
 import { statsRoutes } from './stats/routes';
 import { systemHealthRoutes } from './system-health/routes';
@@ -19,6 +21,8 @@ export const superAdminRoutes: FastifyPluginAsyncZod<SuperAdminDeps> = async (ap
   app.addHook('onRequest', app.authorize('super_admin') as unknown as onRequestAsyncHookHandler);
 
   await app.register(tenantRoutes, deps);
+  await app.register(organizationRoutes, deps);
+  await app.register(tenantInviteRoutes, deps);
   await app.register(auditRoutes, deps);
   await app.register(accessLogRoutes, deps);
   await app.register(recognitionRoutes, deps);

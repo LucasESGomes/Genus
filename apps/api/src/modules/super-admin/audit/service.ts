@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { HttpError } from '../../../plugins/error-handler';
 import type { RequestContext } from '../../../plugins/request-context';
 import { recordAudit, redactAudit } from '../../audit/audit';
+import { auditTenantId } from '../audit-tenant';
 import type { auditLogDetailDto, auditLogDto, listAuditQuery } from '../contract';
 import type { SuperAdminDeps } from '../deps';
 import { resolvePeriod } from '../period';
@@ -42,7 +43,7 @@ export class SuperAdminAuditService {
     const period = resolvePeriod(this.d.clock.now(), q.from, q.to);
     const rows = await this.repo.list({ tenantId: q.tenantId, userId: q.userId, entity: q.entity, action: q.action, ...period, cursor: q.cursor, limit: q.limit });
     await recordAudit(this.d.db, this.d.clock, {
-      tenantId: q.tenantId ?? null,
+      tenantId: await auditTenantId(this.d.db, q.tenantId),
       userId: ctx.userId,
       entity: 'audit_log',
       entityId: q.tenantId ?? 0,

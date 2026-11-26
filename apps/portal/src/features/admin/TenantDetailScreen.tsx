@@ -1,5 +1,5 @@
 'use client';
-/** Detalhe da empresa (/admin/empresas/[id]): dados, empresas, administradores, uso, edição do nome, suspender e reativar. */
+/** Detalhe da conta (/admin/empresas/[id]): dados, empresas e estabelecimentos, administradores, convites, uso, edição do nome, suspender e reativar. */
 import { ArrowLeft, PencilSimple, WarningCircle } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -16,12 +16,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { applyApiErrors, useZodForm } from '@/components/ui/useZodForm';
 import { parseRouteId } from '@/lib/api/ids';
 import type { StatsWindow, TenantDetail } from '@/lib/api/super-admin-contracts';
-import { formatCnpj } from '@/lib/cnpj';
 import { formatInstant, formatNumber } from '@/lib/format';
 import { ROLE_LABEL } from '@/lib/labels';
 import { MODULE_USAGE_LABEL, WINDOW_LABEL } from '@/lib/labels/super-admin';
+import { InvitesSection } from '@/features/invites/InvitesSection';
 import { COPY } from './copy';
 import { useReactivateTenant, useSuspendTenant, useTenant, useTenantStats, useUpdateTenant } from './hooks';
+import { OrganizationSection } from './OrganizationSection';
 import { BarChart, formatPercent, friendlyError, StatCard, WindowSelect } from './parts';
 import { tenantNameSchema, type TenantNameValues } from './schemas';
 import { TenantStatusBadge } from './TenantsScreen';
@@ -140,33 +141,22 @@ function Body({ tenant }: { tenant: TenantDetail }) {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card as="section" className="flex flex-col gap-3 p-5">
-          <h2 className="m-0 text-base font-bold">{d.data}</h2>
-          <KeyValueList
-            items={[
-              { label: d.kv.status, value: <TenantStatusBadge status={tenant.status} /> },
-              { label: d.kv.createdAt, value: when(tenant.createdAt) },
-              { label: d.kv.updatedAt, value: when(tenant.updatedAt) },
-              { label: d.kv.employees, value: formatNumber(tenant.counts.employees) },
-              { label: d.kv.devices, value: formatNumber(tenant.counts.devices) },
-              { label: d.kv.users, value: formatNumber(tenant.counts.users) },
-              { label: d.kv.establishments, value: formatNumber(tenant.counts.establishments) },
-            ]}
-          />
-        </Card>
-        <Card as="section" className="flex flex-col gap-3 p-5">
-          <h2 className="m-0 text-base font-bold">{d.companies}</h2>
-          <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {tenant.companies.map((co) => (
-              <li key={co.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="min-w-0"><span className="font-semibold">{co.legalName}</span> <span className="text-muted tabular-nums">{formatCnpj(co.cnpj)}</span></span>
-                {!co.isActive && <StatusBadge label={d.companyInactive} tone="neutral" />}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </div>
+      <Card as="section" className="flex flex-col gap-3 p-5">
+        <h2 className="m-0 text-base font-bold">{d.data}</h2>
+        <KeyValueList
+          items={[
+            { label: d.kv.status, value: <TenantStatusBadge status={tenant.status} /> },
+            { label: d.kv.createdAt, value: when(tenant.createdAt) },
+            { label: d.kv.updatedAt, value: when(tenant.updatedAt) },
+            { label: d.kv.employees, value: formatNumber(tenant.counts.employees) },
+            { label: d.kv.devices, value: formatNumber(tenant.counts.devices) },
+            { label: d.kv.users, value: formatNumber(tenant.counts.users) },
+            { label: d.kv.establishments, value: formatNumber(tenant.counts.establishments) },
+          ]}
+        />
+      </Card>
+
+      <OrganizationSection tenantId={tenant.id} />
 
       <Card as="section" className="flex flex-col gap-3 p-5">
         <h2 className="m-0 text-base font-bold">{d.admins}</h2>
@@ -192,6 +182,8 @@ function Body({ tenant }: { tenant: TenantDetail }) {
           </table>
         </div>
       </Card>
+
+      <InvitesSection tenantId={tenant.id} />
 
       <UsageSection id={tenant.id} />
 

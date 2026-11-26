@@ -275,8 +275,19 @@ services:
       CERTIFICATE_AI_OPENAI_BASE_URL: ${CERTIFICATE_AI_OPENAI_BASE_URL:-}
       CERTIFICATE_AI_TIMEOUT_MS: ${CERTIFICATE_AI_TIMEOUT_MS:-20000}
       CERTIFICATE_DATA_KEY: ${CERTIFICATE_DATA_KEY:?}
+      # Painel do super_admin: o usuário nasce na partida; a senha entra só como hash (pnpm rh:hash-password).
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:?}
+      SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME:?}
+      SUPER_ADMIN_PASSWORD_HASH: ${SUPER_ADMIN_PASSWORD_HASH:?}
+      # A mesma do coletor e da engine: cifra a chave de cada empresa criada pelo painel.
+      MASTER_KEY: ${MASTER_KEY:?}
+      # Saúde do sistema no painel.
+      VALKEY_URL: redis://valkey:6379
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD:?}
+      COLLECTOR_API_URL: http://collector-api:3001
     depends_on:
       rh-migrate: { condition: service_completed_successfully }
+      valkey: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/health/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
       interval: 10s

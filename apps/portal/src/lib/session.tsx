@@ -11,8 +11,8 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import type { EntityId, Establishment, Me } from './api/contracts';
 import { createRhApi, type RhApi } from './api/rh';
 
-/** Sem GET /portal/establishments e com escopo da conta inteira: um item sintético "todos". */
-export const ALL_ESTABLISHMENTS: Establishment = { id: '', name: 'Todos os estabelecimentos', subtitle: 'Conta inteira' };
+/** Conta ainda sem estabelecimento e usuário com escopo da conta inteira: um item sintético "todos". */
+export const ALL_ESTABLISHMENTS: Establishment = { id: '', name: 'Todos os estabelecimentos', subtitle: 'Conta inteira', isActive: true };
 
 /** `establishmentId` para query string: undefined quando é "todos". */
 export const establishmentParam = (e: Establishment): EntityId | undefined => (e.id === '' ? undefined : e.id);
@@ -34,8 +34,8 @@ export function scopeEstablishments(me: Me, all: Establishment[]): Establishment
   if (me.establishmentScope === null) return all.length ? all : [ALL_ESTABLISHMENTS];
   const scope = new Set(me.establishmentScope);
   const known = all.filter((e) => scope.has(e.id));
-  // Sem a lista do back: monta pelos ids do escopo (nome genérico, sem inventar dado).
-  return known.length ? known : me.establishmentScope.map((id) => ({ id, name: `Estabelecimento ${id}`, subtitle: '' }));
+  // Lista vazia: monta pelos ids do escopo (nome genérico, sem inventar dado).
+  return known.length ? known : me.establishmentScope.map((id) => ({ id, name: `Estabelecimento ${id}`, subtitle: '', isActive: true }));
 }
 
 function readPreference(me: Me): string | null {
@@ -58,7 +58,8 @@ export function SessionProvider({ me, establishments, api, initialEstablishmentI
   const allowed = useMemo(() => scopeEstablishments(me, establishments), [me, establishments]);
   const [id, setId] = useState<string>(() => {
     const wanted = [initialEstablishmentId, readPreference(me)].find((v) => v != null && allowed.some((e) => e.id === v));
-    return wanted ?? allowed[0]?.id ?? '';
+    // Sem escolha anterior: abre num estabelecimento ativo.
+    return wanted ?? allowed.find((e) => e.isActive)?.id ?? allowed[0]?.id ?? '';
   });
 
   const setEstablishmentId = useCallback(

@@ -1,0 +1,5 @@
+$kind: collection
+description: Rotas sem sessão. O token vai no corpo, nunca na URL.
+auth:
+  type: noauth
+order: 2000

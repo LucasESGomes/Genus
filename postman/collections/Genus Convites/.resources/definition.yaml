@@ -1,0 +1,37 @@
+$kind: collection
+name: Genus - Convites de usuário (api do RH)
+description: |-
+  Convites de `admin` e `rh` por link com confirmação de CPF (`apps/api/src/modules/invites`).
+
+  **MANUAL: esta coleção NÃO roda no `pnpm postman:test`** (ele só roda a coleção do coletor).
+
+  **Como usar**
+  1. `portalToken` (secret): JWT de um `admin` de conta, de `GET /auth/token`. Para a pasta Super Admin, `superAdminToken` (JWT do super_admin com 2FA) e `tenantId`.
+  2. Rode `Admin` em ordem (cria o convite e guarda `inviteToken` e `inviteId`), depois `Público`. A pasta `Super Admin` cria, lista e revoga um convite dela.
+  3. `inviteCpf` (fictício, com dígitos válidos) e `invitePassword` são gerados a cada execução. Nunca commitar valores.
+  4. **Não rode em prod.** Aceitar um convite cria um usuário de verdade.
+variables:
+  portalUrl: http://localhost:3002
+  portalToken: ""
+  superAdminToken: ""
+  tenantId: ""
+  inviteId: ""
+  inviteToken: ""
+  inviteCpf: ""
+  inviteEmail: ""
+  invitePassword: ""
+scripts:
+  - type: http:afterResponse
+    code: |-
+      let corpo = null;
+      pm.test('Corpo é JSON', () => { corpo = pm.response.json(); });
+      pm.test('Envelope: { data } em sucesso; { error, code } em erro', () => {
+        if (pm.response.code < 400) pm.expect(corpo).to.have.property('data');
+        else {
+          pm.expect(corpo.error).to.be.a('string');
+          pm.expect(corpo.code).to.match(/^[A-Z][A-Z0-9_]*$/);
+        }
+      });
+      pm.test('Nenhum CPF, hash ou senha na resposta', () => pm.expect(JSON.stringify(corpo)).to.not.match(/"(cpf|\w*[Hh]ash|password)":/));
+    language: text/javascript
+order: 8000

@@ -13,7 +13,9 @@ import { closingsApi } from './endpoints/closings';
 import { devicesApi } from './endpoints/devices';
 import { employeePortalApi } from './endpoints/employee-portal';
 import { employeesApi } from './endpoints/employees';
+import { invitesApi } from './endpoints/invites';
 import { orgApi } from './endpoints/org';
+import { organizationApi } from './endpoints/organization';
 import { overviewApi } from './endpoints/overview';
 import { schedulesApi } from './endpoints/schedules';
 import { superAdminApi } from './endpoints/super-admin';
@@ -29,6 +31,8 @@ import { mockDevicesApi } from './mocks/devices';
 import { mockEmployeePortalApi } from './mocks/employee-portal';
 import { mockEmployeesApi } from './mocks/employees';
 import { mockAuthApi, mockOrgApi, mockOverviewApi } from './mocks/index';
+import { mockInvitesApi } from './mocks/invites';
+import { mockOrganizationApi } from './mocks/organization';
 import { useMocks } from './mocks/runtime';
 import { mockSchedulesApi } from './mocks/schedules';
 import { mockSuperAdminApi } from './mocks/super-admin';
@@ -54,6 +58,8 @@ export function createRealApi(c: ApiClient = createApiClient()) {
     devices: devicesApi(c),
     admin: adminApi(c),
     superAdmin: superAdminApi(c),
+    organization: organizationApi(c),
+    invites: invitesApi(c),
   };
 }
 
@@ -77,6 +83,8 @@ export function createMockApi(): RhApi {
     devices: mockDevicesApi,
     admin: mockAdminApi,
     superAdmin: mockSuperAdminApi,
+    organization: mockOrganizationApi,
+    invites: mockInvitesApi,
   };
 }
 

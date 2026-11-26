@@ -38,6 +38,15 @@ describe('regras de exibição', () => {
   it('totens: só rh e admin gerenciam', () => {
     expect(ALL.filter((r) => can(r, 'device.manage'))).toEqual(['admin', 'rh']);
   });
+  it('colaborador: rh e admin cadastram, editam e desligam; vínculo segue só do rh', () => {
+    for (const action of ['employee.create', 'employee.edit', 'employee.terminate'] as const) {
+      expect(ALL.filter((r) => can(r, action))).toEqual(['admin', 'rh']);
+    }
+    expect(ALL.filter((r) => can(r, 'assignment.edit'))).toEqual(['rh']);
+  });
+  it('usuários: só o admin convida', () => {
+    expect(ALL.filter((r) => can(r, 'nav.users'))).toEqual(['admin']);
+  });
   it('primeira tela por papel', () => {
     expect(homeFor('colaborador')).toBe('/me');
     expect(homeFor('contador')).toBe('/rh/fechamento');

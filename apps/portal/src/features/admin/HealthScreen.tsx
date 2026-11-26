@@ -55,7 +55,7 @@ function ServiceCard({ check }: { check: HealthCheck }) {
   return (
     <Card as="section" className="flex flex-col gap-2 p-5">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="m-0 text-base font-bold">{HEALTH_SERVICE_LABEL[check.service]}</h3>
+        <h2 className="m-0 text-base font-bold">{HEALTH_SERVICE_LABEL[check.service]}</h2>
         <HealthBadge state={check.status} />
       </div>
       <p className="m-0 text-sm text-muted tabular-nums">Latência: {check.latencyMs === null ? '—' : `${formatNumber(check.latencyMs)} ms`}</p>

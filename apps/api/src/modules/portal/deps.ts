@@ -26,6 +26,8 @@ export interface PortalDeps {
   pin: { current: PinPepper; all: readonly PinPepper[] };
   /** Tamanho máximo do arquivo de atestado. */
   maxAttachmentBytes: number;
+  /** Chave do HMAC do CPF dos convites (`deriveInviteCpfKey`, derivada do BETTER_AUTH_SECRET). */
+  inviteCpfHashKey: Buffer;
   /** Análise de atestado (G6): provedores de IA (mock sem configuração) e cifra do dado de saúde (null = sem chave). */
   certificateAi: { registry: CertificateAiRegistry; healthCipher: HealthDataCipher | null };
   /** Painel do super_admin (/portal/super-admin). Ausente = rotas não registradas. */

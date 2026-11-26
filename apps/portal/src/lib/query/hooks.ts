@@ -14,7 +14,7 @@ import { useScopeKey, useSession } from '../session';
 export type CacheModule =
   | 'overview' | 'org' | 'employees' | 'assignments' | 'schedules' | 'timesheets' | 'day' | 'adjustments' | 'absences'
   | 'certificates' | 'analyses' | 'vacations' | 'vacationCalendar' | 'closings' | 'mirrors' | 'timeBank'
-  | 'me' | 'devices' | 'calibration' | 'admin';
+  | 'me' | 'devices' | 'calibration' | 'admin' | 'invites';
 
 export function useApiQuery<T>(
   module: CacheModule,

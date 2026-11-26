@@ -47,7 +47,10 @@ export function serializeRequest(req: { method?: string; url?: string; ip?: stri
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const logger = deps.logger.child({}, { serializers: { req: serializeRequest } });
-  const app = Fastify({ loggerInstance: logger as FastifyBaseLogger });
+  // Em produção a api só é alcançada pelo proxy do portal, na rede interna: sem confiar nele, `req.ip` seria o do
+  // proxy, e o limite de tentativas por IP bloquearia todo mundo junto. Em dev (Swagger ligado) o cabeçalho é
+  // ignorado, para ninguém se passar por 127.0.0.1.
+  const app = Fastify({ loggerInstance: logger as FastifyBaseLogger, trustProxy: deps.apiDocs ? false : 'loopback, uniquelocal' });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   registerErrorHandling(app);

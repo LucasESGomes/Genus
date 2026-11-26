@@ -70,13 +70,40 @@ describe('POST /portal/employees', () => {
     expect(dup.body).not.toContain(body.cpf);
   });
 
-  it('admin, contador e colaborador não cadastram → 403', async () => {
+  it('contador e colaborador não cadastram, não alteram e não desligam → 403', async () => {
     const emp = await h.createEmployee(org);
-    for (const [role, extra] of [['admin', {}], ['contador', {}], ['colaborador', { employeeId: emp.id }]] as const) {
+    for (const [role, extra] of [['contador', {}], ['colaborador', { employeeId: emp.id }]] as const) {
       const { cookie } = await h.loginAs(org, role, extra);
-      const res = await h.call(cookie, 'POST', '/portal/employees', newEmployee());
-      expect(res.statusCode, role).toBe(403);
+      expect((await h.call(cookie, 'POST', '/portal/employees', newEmployee())).statusCode, role).toBe(403);
+      expect((await h.call(cookie, 'PATCH', `/portal/employees/${emp.id}`, { name: 'X Y' })).statusCode, role).toBe(403);
+      const end = { terminationDate: '2026-10-31', reason: 'Motivo qualquer' };
+      expect((await h.call(cookie, 'POST', `/portal/employees/${emp.id}/terminate`, end)).statusCode, role).toBe(403);
     }
+  });
+
+  it('admin cadastra, altera e desliga (auditado); vínculo continua só do rh', async () => {
+    const admin = await h.loginAs(org, 'admin');
+    const created = await h.call(admin.cookie, 'POST', '/portal/employees', newEmployee());
+    expect(created.statusCode).toBe(201);
+    const id = created.json().data.id as number;
+    expect((await h.call(admin.cookie, 'PATCH', `/portal/employees/${id}`, { name: 'Nome pelo Admin' })).statusCode).toBe(200);
+    const assignment = { jobTitleId: org.jobTitleId, departmentId: org.departmentId, contractType: 'indeterminado', validFrom: '2024-02-01' };
+    expect((await h.call(admin.cookie, 'POST', `/portal/employees/${id}/assignments`, assignment)).statusCode).toBe(403);
+    const end = { terminationDate: '2026-10-31', reason: 'Fim do contrato' };
+    expect((await h.call(admin.cookie, 'POST', `/portal/employees/${id}/terminate`, end)).statusCode).toBe(200);
+    const audit = await h.one<{ n: number }>(
+      "SELECT count(*)::int AS n FROM rh.auditorias WHERE entidade = 'colaboradores' AND entidade_id = $1 AND usuario_id = $2",
+      [id, admin.userId],
+    );
+    expect(audit.n).toBe(3);
+  });
+
+  it('admin de outra conta não alcança o colaborador → 404', async () => {
+    const emp = await h.createEmployee(org);
+    const outsider = (await h.loginAs(await h.createOrg(), 'admin')).cookie;
+    expect((await h.call(outsider, 'PATCH', `/portal/employees/${emp.id}`, { name: 'X Y' })).statusCode).toBe(404);
+    const end = { terminationDate: '2026-10-31', reason: 'Motivo qualquer' };
+    expect((await h.call(outsider, 'POST', `/portal/employees/${emp.id}/terminate`, end)).statusCode).toBe(404);
   });
 
   it('estabelecimento de outra conta → 400 REFERENCIA_INVALIDA', async () => {
@@ -170,8 +197,6 @@ describe('PATCH /portal/employees/:id', () => {
     expect(res.json().data.name).toBe('Nome Novo');
     expect(res.json().data.cpf).toBe(emp.cpf);
     expect((await h.call(rh, 'PATCH', `/portal/employees/${emp.id}`, {})).statusCode).toBe(400);
-    const admin = (await h.loginAs(org, 'admin')).cookie;
-    expect((await h.call(admin, 'PATCH', `/portal/employees/${emp.id}`, { name: 'X Y' })).statusCode).toBe(403);
   });
 });
 
@@ -258,10 +283,8 @@ describe('POST /portal/employees/:id/terminate', () => {
     expect(again.json().code).toBe('COLABORADOR_DESLIGADO');
   });
 
-  it('sem motivo → 400; admin → 403', async () => {
+  it('sem motivo → 400', async () => {
     const emp = await h.createEmployee(org);
     expect((await h.call(rh, 'POST', `/portal/employees/${emp.id}/terminate`, { terminationDate: '2026-10-31' })).statusCode).toBe(400);
-    const admin = (await h.loginAs(org, 'admin')).cookie;
-    expect((await h.call(admin, 'POST', `/portal/employees/${emp.id}/terminate`, { terminationDate: '2026-10-31', reason: 'Motivo qualquer' })).statusCode).toBe(403);
   });
 });

@@ -10,3 +10,4 @@ export * from './biometrics';
 export * from './auth';
 export * from './totem';
 export * from './super-admin';
+export * from './invites';

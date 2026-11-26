@@ -1,6 +1,6 @@
 /** Menu do painel de RH (ordem do design + Totens). Cada item some se o papel não tem `nav.*`. */
 import {
-  CalendarCheck, ChartBar, DeviceTabletCamera, FirstAidKit, GearSix, HourglassMedium, LockSimple, PencilSimpleLine, SquaresFour, SunHorizon, Users,
+  CalendarCheck, ChartBar, DeviceTabletCamera, FirstAidKit, GearSix, HourglassMedium, LockSimple, PencilSimpleLine, SquaresFour, SunHorizon, UserPlus, Users,
   type Icon,
 } from '@phosphor-icons/react';
 import type { Action } from '@/lib/auth/permissions';
@@ -27,6 +27,7 @@ export const RH_NAV: NavItem[] = [
   { href: '/rh/fechamento', label: 'Fechamento', icon: LockSimple, action: 'nav.closings' },
   { href: '/rh/relatorios', label: 'Relatórios', icon: ChartBar, action: 'nav.reports' },
   { href: '/rh/totens', label: 'Totens', icon: DeviceTabletCamera, action: 'nav.devices' },
+  { href: '/rh/usuarios', label: 'Usuários', icon: UserPlus, action: 'nav.users' },
   { href: '/rh/configuracoes', label: 'Configurações', icon: GearSix, action: 'nav.settings' },
 ];
 

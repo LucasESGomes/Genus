@@ -1,0 +1,37 @@
+$kind: http-request
+name: 1. Criar empresa
+description: "POST /companies com `{ legalName, cnpj }`. Responde 201 com a empresa, sem estabelecimentos, e gera a chave de dados dela. Erros: `CNPJ_INVALIDO` (400), `CNPJ_DUPLICADO` (409), `MASTER_KEY_AUSENTE` (503). Quem pode: super_admin com 2FA."
+url: "{{portalUrl}}/portal/super-admin/tenants/{{tenantId}}/companies"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "legalName": "Empresa Postman Ltda", "cnpj": "{{companyCnpj}}" }
+scripts:
+  - type: beforeRequest
+    code: |-
+      // CNPJ fictício com dígitos verificadores válidos.
+      const pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      const pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+      const dv = (base, pesos) => {
+        const soma = base.split('').reduce((s, d, i) => s + Number(d) * pesos[i], 0);
+        const resto = soma % 11;
+        return resto < 2 ? 0 : 11 - resto;
+      };
+      let base = '2';
+      while (base.length < 12) base += Math.floor(Math.random() * 10);
+      pm.collectionVariables.set('companyCnpj', base + dv(base, pesos1) + dv(base + dv(base, pesos1), pesos2));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Status 201', () => pm.response.to.have.status(201));
+      const d = pm.response.json().data;
+      pm.test('Empresa ativa, sem estabelecimentos', () => {
+        pm.expect(d.isActive).to.eql(true);
+        pm.expect(d.establishments).to.be.an('array').and.empty;
+      });
+      pm.collectionVariables.set('companyId', String(d.id));
+    language: text/javascript
+order: 1000

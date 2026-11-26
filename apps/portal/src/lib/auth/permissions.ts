@@ -26,11 +26,13 @@ const RULES = {
   'nav.devices': ['admin', 'rh'],
   'nav.settings': ['admin', 'rh'],
   'nav.schedules': ['admin', 'rh'],
+  /** Usuários do portal: convidar e revogar (invites/routes.ts). */
+  'nav.users': ['admin'],
 
   // Colaboradores (employees/routes.ts)
-  'employee.create': ['rh'],
-  'employee.edit': ['rh'],
-  'employee.terminate': ['rh'],
+  'employee.create': ['rh', 'admin'],
+  'employee.edit': ['rh', 'admin'],
+  'employee.terminate': ['rh', 'admin'],
   'employee.viewFullCpf': ['rh', 'admin'],
   /** [A CONFIRMAR] back: rh e admin (SALARY_ROLES); security-lgpd.md §1 diz "só RH". */
   'employee.viewSalary': ['rh', 'admin'],

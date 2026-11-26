@@ -1,6 +1,7 @@
 'use client';
 import { keepPreviousData } from '@tanstack/react-query';
 import type { EntityId } from '@/lib/api/contracts';
+import type { CreateCompanyInput, CreateEstablishmentInput, UpdateCompanyInput, UpdateEstablishmentInput } from '@/lib/api/organization-contracts';
 import type { ListTenantsQuery, StatsWindow, TenantStats } from '@/lib/api/super-admin-contracts';
 import { useApiMutation, useApiQuery } from '@/lib/query/hooks';
 
@@ -30,3 +31,20 @@ export const useSuspendTenant = () =>
   useApiMutation((api, v: { id: EntityId; reason: string }) => api.superAdmin.tenants.suspend(v.id, v.reason), { invalidates: ['admin'] });
 export const useReactivateTenant = () =>
   useApiMutation((api, v: { id: EntityId; reason: string }) => api.superAdmin.tenants.reactivate(v.id, v.reason), { invalidates: ['admin'] });
+
+export const useCompanies = (tenantId: EntityId) =>
+  useApiQuery('admin', { sa: 'companies', tenantId }, (api, signal) => api.organization.companies(tenantId, signal));
+
+type SaveCompany = { tenantId: EntityId } & ({ create: CreateCompanyInput } | { id: EntityId; patch: UpdateCompanyInput });
+export const useSaveCompany = () =>
+  useApiMutation(
+    (api, v: SaveCompany) => ('create' in v ? api.organization.createCompany(v.tenantId, v.create) : api.organization.updateCompany(v.tenantId, v.id, v.patch)),
+    { invalidates: ['admin'] },
+  );
+
+type SaveEstablishment = { tenantId: EntityId } & ({ companyId: EntityId; create: CreateEstablishmentInput } | { id: EntityId; patch: UpdateEstablishmentInput });
+export const useSaveEstablishment = () =>
+  useApiMutation(
+    (api, v: SaveEstablishment) => ('create' in v ? api.organization.createEstablishment(v.tenantId, v.companyId, v.create) : api.organization.updateEstablishment(v.tenantId, v.id, v.patch)),
+    { invalidates: ['admin'] },
+  );

@@ -1,0 +1,18 @@
+$kind: http-request
+name: 4. Alterar empresa
+description: "PATCH /companies/:companyId com `{ legalName?, cnpj?, isActive? }`. Mudar o `cnpj` de empresa com colaborador: `REGISTRO_EM_USO` (409)."
+url: "{{portalUrl}}/portal/super-admin/tenants/{{tenantId}}/companies/{{companyId}}"
+method: PATCH
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    { "legalName": "Empresa Postman Atualizada Ltda" }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 200', () => pm.response.to.have.status(200));
+      pm.test('Razão social atualizada', () => pm.expect(pm.response.json().data.legalName).to.eql('Empresa Postman Atualizada Ltda'));
+    language: text/javascript
+order: 4000

@@ -105,16 +105,34 @@ describe('Colaboradores: lista', () => {
     await waitFor(() => expect(list).toHaveBeenCalledWith(expect.objectContaining({ status: 'desligado' }), expect.anything()));
   });
 
-  it('só o rh vê "Novo colaborador" e o menu de ações', async () => {
-    for (const role of ['admin', 'gestor', 'contador'] as R[]) {
+  it('só rh e admin veem "Novo colaborador" e o menu de ações', async () => {
+    for (const role of ['gestor', 'contador'] as R[]) {
       const { unmount } = setup(role);
       await screen.findByText('Antônio Carlos Ferreira');
       expect(screen.queryByRole('button', { name: 'Novo colaborador' })).toBeNull();
-      if (role !== 'admin') expect(screen.queryByRole('button', { name: /^Ações de/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: /^Ações de/ })).toBeNull();
       unmount();
     }
-    setup('rh');
-    expect(await screen.findByRole('button', { name: 'Novo colaborador' })).toBeInTheDocument();
+    for (const role of ['rh', 'admin'] as R[]) {
+      const { unmount } = setup(role);
+      expect(await screen.findByRole('button', { name: 'Novo colaborador' })).toBeInTheDocument();
+      expect((await screen.findAllByRole('button', { name: /^Ações de/ })).length).toBeGreaterThan(0);
+      unmount();
+    }
+  });
+
+  it('o cadastro só oferece estabelecimento ativo', async () => {
+    renderWithSession(<EmployeesScreen />, {
+      establishments: [
+        { id: '9', name: 'Fazenda Desativada', subtitle: '', isActive: false },
+        { id: '1', name: 'Fazenda Santa Helena', subtitle: '', isActive: true },
+      ],
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Novo colaborador' }));
+    const select = within(await screen.findByRole('dialog')).getByRole('combobox', { name: /Estabelecimento/ });
+    expect(select).toHaveTextContent('Fazenda Santa Helena');
+    await userEvent.click(select);
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['Fazenda Santa Helena']);
   });
 
   it('não tem violações de acessibilidade', async () => {
