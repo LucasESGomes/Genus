@@ -38,6 +38,11 @@ class StubEngine implements FacialEngineClient {
       dprime: 3.2,
       confidence: 'high' as const,
       warning: null,
+      recommended_profile: 'conservative' as const,
+      options: [
+        { profile: 'conservative' as const, profile_label: 'Conservador', threshold: 1.04, genuine_accept_rate: 0.95, impostor_reject_rate: 1, interpretation: 'Rígido' },
+        { profile: 'liberal' as const, profile_label: 'Liberal', threshold: 2.7, genuine_accept_rate: 1, impostor_reject_rate: 0.8, interpretation: 'Folgado' },
+      ],
       chart_data: { histogram: [{ range_start: 0.8, range_end: 0.9, genuine_count: 5, impostor_count: 0 }] },
     };
   }
@@ -304,6 +309,51 @@ describe('totem: cadastro facial', () => {
   });
 });
 
+describe('totem: conferência de CPF e PIN', () => {
+  const identity = (key: string | undefined, body: { cpf: string; pin: string }, ip: string) =>
+    totem(key, 'POST', '/facial/identity', { payload: Buffer.from(JSON.stringify(body)), headers: { 'content-type': 'application/json' }, ip });
+
+  it('devolve só o primeiro nome e se já há rosto; não grava consentimento', async () => {
+    const { apiKey } = await createDevice(rh, org.establishmentId, 'Identidade1');
+    const emp = await h.createEmployee(org, { pinHash });
+    await h.client.query("UPDATE rh.colaboradores SET nome = 'Maria de Teste' WHERE id = $1", [emp.id]);
+    const res = await identity(apiKey, { cpf: emp.cpf, pin: PIN }, '10.5.0.1');
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ data: { firstName: 'Maria', alreadyEnrolled: false } });
+    const { rows } = await h.client.query('SELECT 1 FROM rh.consentimentos_biometricos WHERE colaborador_id = $1', [emp.id]);
+    expect(rows).toHaveLength(0);
+
+    const body = multipart({ cpf: emp.cpf, pin: PIN, consentAccepted: 'true', consentTextVersion: 'v1' }, [photo('photos', 'a.jpg')]);
+    expect((await totem(apiKey, 'POST', '/facial/enrollments', { payload: body.payload, headers: body.headers, ip: '10.5.0.1' })).statusCode).toBe(201);
+    expect((await identity(apiKey, { cpf: emp.cpf, pin: PIN }, '10.5.0.1')).json().data.alreadyEnrolled).toBe(true);
+  });
+
+  it('mesmo 401 para PIN errado, outro estabelecimento e desligado; limite compartilhado com o cadastro; exige a chave', async () => {
+    const { apiKey } = await createDevice(rh, org.establishmentId, 'Identidade2');
+    const emp = await h.createEmployee(org, { pinHash });
+    const outEst = await h.createEmployee(org, { establishmentId: org.otherEstablishmentId, pinHash });
+    const gone = await h.createEmployee(org, { pinHash });
+    await h.client.query("UPDATE rh.colaboradores SET data_desligamento = '2025-01-02', motivo_desligamento = 'teste' WHERE id = $1", [gone.id]);
+    const ip = '10.5.0.9';
+    const attempts = [
+      { cpf: emp.cpf, pin: '000111' },
+      { cpf: outEst.cpf, pin: PIN },
+      { cpf: gone.cpf, pin: PIN },
+      { cpf: emp.cpf, pin: '000112' },
+      { cpf: emp.cpf, pin: '000113' },
+    ];
+    for (const a of attempts) {
+      const res = await identity(apiKey, a, ip);
+      expect(res.statusCode).toBe(401);
+      expect(res.json()).toEqual({ error: 'CPF ou PIN inválido', code: 'CPF_OU_PIN_INVALIDO' });
+    }
+    expect((await identity(apiKey, { cpf: emp.cpf, pin: PIN }, ip)).statusCode).toBe(429);
+    const body = multipart({ cpf: emp.cpf, pin: PIN, consentAccepted: 'true', consentTextVersion: 'v1' }, [photo('photos', 'a.jpg')]);
+    expect((await totem(apiKey, 'POST', '/facial/enrollments', { payload: body.payload, headers: body.headers, ip })).statusCode).toBe(429);
+    expect((await identity(undefined, { cpf: emp.cpf, pin: PIN }, '10.5.0.2')).json().code).toBe('CHAVE_APARELHO_INVALIDA');
+  });
+});
+
 describe('calibração', () => {
   async function started(name: string) {
     const d = await createDevice(rh, org.establishmentId, name);
@@ -335,6 +385,11 @@ describe('calibração', () => {
       distanceHistogram: [{ bucket: 0.8, genuine: 5, impostor: 0 }],
     });
     expect(sess.result.qualityScore).toBeGreaterThan(80);
+    expect(sess.result.recommendedProfile).toBe('conservative');
+    expect(sess.result.profiles).toEqual([
+      { profile: 'conservative', label: 'Conservador', recognitionThreshold: 1.04, genuineAcceptRate: 0.95, impostorRejectRate: 1, interpretation: 'Rígido' },
+      { profile: 'liberal', label: 'Liberal', recognitionThreshold: 2, genuineAcceptRate: 1, impostorRejectRate: 0.8, interpretation: 'Folgado' },
+    ]);
     const raw = await h.one<{ resultado: unknown }>('SELECT resultado FROM rh.sessoes_calibracao WHERE id = $1', [sessionId]);
     expect(JSON.stringify(raw.resultado).length).toBeLessThan(2000);
 
@@ -420,6 +475,7 @@ describe('regras puras da calibração', () => {
     expect(r.qualityScore).toBeLessThanOrEqual(60);
     expect(r.recommendations).toContain('Aviso');
     expect(r.recommendations.length).toBeGreaterThan(2);
+    expect(r).not.toHaveProperty('profiles');
   });
 
   it('escapeLike', () => {

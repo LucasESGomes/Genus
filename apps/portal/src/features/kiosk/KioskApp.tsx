@@ -5,28 +5,41 @@
  * Contrato: docs/totem-contrato.md.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { MotionConfig } from 'framer-motion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createKioskApi, isKeyRejected, keyPrefix, kioskKeyStore, type KioskApi, type KioskContext, type KioskKeyStore } from '@/lib/api/kiosk';
 import { useClock } from '@/lib/clock-context';
 import { CalibrationFlow } from './CalibrationFlow';
 import { COPY } from './copy';
+import { DeviceSheet } from './DeviceSheet';
 import { EnrollFlow } from './EnrollFlow';
 import { KeySetup } from './KeySetup';
-import { KioskFrame } from './KioskFrame';
 import { KioskHome } from './KioskHome';
 import { PunchFlow } from './PunchFlow';
 
 type Screen = 'booting' | 'setup' | 'home' | 'punch' | 'enroll' | 'calibration';
 
-export const CONTEXT_POLL_MS = 15_000;
+export const CONTEXT_POLL_MS = 5_000;
 const CONTEXT_KEY = ['kiosk', 'context'] as const;
 
-export function KioskApp({ api: injected, keyStore = kioskKeyStore }: { api?: KioskApi; keyStore?: KioskKeyStore }) {
+type Props = { api?: KioskApi; keyStore?: KioskKeyStore };
+
+export function KioskApp(props: Props) {
+  // "reducedMotion=user": quem pede menos movimento no aparelho não recebe deslocamentos nem escalas.
+  return (
+    <MotionConfig reducedMotion="user">
+      <KioskScreens {...props} />
+    </MotionConfig>
+  );
+}
+
+function KioskScreens({ api: injected, keyStore = kioskKeyStore }: Props) {
   const clock = useClock();
   const queryClient = useQueryClient();
   const [screen, setScreen] = useState<Screen>('booting');
   const [key, setKey] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [panel, setPanel] = useState(false);
   /** Sessões de ajuste que a pessoa dispensou ou já enviou: não reabrir até recarregar. */
   const [dismissed, setDismissed] = useState<readonly string[]>([]);
 
@@ -35,6 +48,7 @@ export function KioskApp({ api: injected, keyStore = kioskKeyStore }: { api?: Ki
     keyStore.clear();
     queryClient.removeQueries({ queryKey: CONTEXT_KEY });
     setKey(null);
+    setPanel(false);
     setNotice(COPY.setup.rejected);
     setScreen('setup');
   }, [keyStore, queryClient]);
@@ -79,6 +93,12 @@ export function KioskApp({ api: injected, keyStore = kioskKeyStore }: { api?: Ki
     },
     [ctx],
   );
+  // A sessão que o assistente abriu continua valendo mesmo depois que o envio muda o status dela no servidor.
+  const [session, setSession] = useState<string | null>(null);
+  useEffect(() => {
+    if (screen !== 'calibration') setSession(null);
+    else if (waiting) setSession(waiting);
+  }, [screen, waiting]);
 
   const connected = (context: KioskContext) => {
     setKey(keyStore.get());
@@ -91,29 +111,48 @@ export function KioskApp({ api: injected, keyStore = kioskKeyStore }: { api?: Ki
     keyStore.clear();
     queryClient.removeQueries({ queryKey: CONTEXT_KEY });
     setKey(null);
+    setPanel(false);
     setNotice(null);
     setDismissed([]);
     setScreen('setup');
   };
 
-  if (screen === 'booting') return <KioskFrame><span className="sr-only" role="status">Carregando…</span></KioskFrame>;
+  if (screen === 'booting') {
+    return (
+      <main className="min-h-dvh bg-white">
+        <span className="sr-only" role="status">Carregando…</span>
+      </main>
+    );
+  }
   if (screen === 'setup') return <KeySetup api={api} keyStore={keyStore} notice={notice} onConnected={connected} />;
   if (screen === 'punch') return <PunchFlow api={api} onDone={goHome} onKeyRejected={rejectKey} />;
   if (screen === 'enroll') return <EnrollFlow api={api} onDone={goHome} onKeyRejected={rejectKey} />;
-  if (screen === 'calibration' && waiting) {
-    return <CalibrationFlow api={api} sessionId={waiting} onSubmitted={() => dismiss(waiting)} onCancel={() => dismiss(waiting)} onKeyRejected={rejectKey} />;
+  const calibrating = session ?? waiting;
+  if (screen === 'calibration' && calibrating) {
+    return (
+      <CalibrationFlow
+        key={calibrating}
+        api={api}
+        sessionId={calibrating}
+        onSubmitted={() => dismiss(calibrating)}
+        onCancel={() => dismiss(calibrating)}
+        onKeyRejected={rejectKey}
+      />
+    );
   }
 
   const offline = ctx.isError && !isKeyRejected(ctx.error);
   return (
-    <KioskHome
-      context={ctx.data}
-      offline={offline}
-      keyPrefix={keyPrefix(key)}
-      onRetry={() => void ctx.refetch()}
-      onPunch={() => setScreen('punch')}
-      onEnroll={() => setScreen('enroll')}
-      onDisconnect={disconnect}
-    />
+    <>
+      <KioskHome
+        context={ctx.data}
+        offline={offline}
+        onRetry={() => void ctx.refetch()}
+        onPunch={() => setScreen('punch')}
+        onEnroll={() => setScreen('enroll')}
+        onPanel={() => setPanel(true)}
+      />
+      <DeviceSheet open={panel} onOpenChange={setPanel} context={ctx.data} prefix={keyPrefix(key)} onDisconnect={disconnect} />
+    </>
   );
 }

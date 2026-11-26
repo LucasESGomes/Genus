@@ -35,6 +35,9 @@ export const enrollmentFields = z.object({
   consentTextVersion: z.string().trim().min(1).max(40),
 });
 
+export const identityBody = enrollmentFields.pick({ cpf: true, pin: true });
+export const identityResponse = z.object({ data: z.object({ firstName: z.string(), alreadyEnrolled: z.boolean() }) });
+
 export const enrollmentResponse = z.object({
   data: z.object({ employeeId: z.number(), enrolledAt: z.string(), imagesProcessed: z.number(), modelVersion: z.string() }),
 });
@@ -74,6 +77,8 @@ export interface FacialEnrollmentDeps {
   pin: { current: PinPepper; all: readonly PinPepper[] };
 }
 
+const limitKey = (actor: EnrollmentActor, ip: string) => `${actor.tenantId}:${ip}`;
+
 const invalidCredentials = () => new HttpError(401, 'CPF_OU_PIN_INVALIDO', 'CPF ou PIN inválido');
 
 export class FacialEnrollmentService {
@@ -91,6 +96,27 @@ export class FacialEnrollmentService {
     return emp;
   }
 
+  /** Confere CPF + PIN com o mesmo limite de tentativas do cadastro. */
+  private async verifyCredentials(actor: EnrollmentActor, ip: string, cpf: string, pin: string) {
+    const key = limitKey(actor, ip);
+    this.limiter.assertAllowed(key);
+    // conta antes de conferir: pedidos em paralelo não furam o limite; o acerto zera
+    this.limiter.fail(key);
+    const emp = await this.employeeByCpf(actor, cpf);
+    // CPF inexistente, desligado ou fora do escopo e PIN errado dão a mesma resposta
+    const ok = emp ? await verifyPin(pin, emp.pinHash, this.d.pin.all).catch(() => false) : false;
+    if (!emp || !ok) throw invalidCredentials();
+    this.limiter.reset(key);
+    return emp;
+  }
+
+  /** Conferência antes das fotos: não grava consentimento nem nada. */
+  async identifyAs(actor: EnrollmentActor, ip: string, cpf: string, pin: string) {
+    const emp = await this.verifyCredentials(actor, ip, cpf, pin);
+    const { enrolled } = await this.enrollmentOf(emp);
+    return { firstName: emp.name.trim().split(/\s+/)[0] ?? '', alreadyEnrolled: enrolled };
+  }
+
   status(ctx: RequestContext, cpf: string) {
     return this.statusAs(actorFromContext(ctx), cpf);
   }
@@ -98,6 +124,10 @@ export class FacialEnrollmentService {
   async statusAs(actor: EnrollmentActor, cpf: string) {
     const emp = await this.employeeByCpf(actor, cpf);
     if (!emp) return { enrolled: false, enrolledAt: null };
+    return this.enrollmentOf(emp);
+  }
+
+  private async enrollmentOf(emp: { tenantId: number; id: number }) {
     const [row] = await this.d.db
       .select({ createdAt: facialEmbeddings.createdAt })
       .from(facialEmbeddings)
@@ -110,19 +140,9 @@ export class FacialEnrollmentService {
   }
 
   async enrollAs(actor: EnrollmentActor, req: FastifyRequest) {
-    const tenantId = actor.tenantId;
-    const limitKey = `${tenantId}:${req.ip}`;
-    this.limiter.assertAllowed(limitKey);
+    this.limiter.assertAllowed(limitKey(actor, req.ip));
     const { fields, images } = await parseEnrollment(req);
-
-    const emp = await this.employeeByCpf(actor, fields.cpf);
-    // CPF inexistente, desligado ou fora do escopo e PIN errado dão a mesma resposta
-    const ok = emp ? await verifyPin(fields.pin, emp.pinHash, this.d.pin.all).catch(() => false) : false;
-    if (!emp || !ok) {
-      this.limiter.fail(limitKey);
-      throw invalidCredentials();
-    }
-    this.limiter.reset(limitKey);
+    const emp = await this.verifyCredentials(actor, req.ip, fields.cpf, fields.pin);
 
     if (!this.d.engine) throw new HttpError(503, 'MOTOR_FACIAL_INDISPONIVEL', 'O reconhecimento facial está indisponível. Tente mais tarde');
     const consentId = await this.ensureConsent(actor, emp, fields, req.ip);

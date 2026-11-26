@@ -53,6 +53,8 @@ services:
     volumes:
       # Galeria de teste gerada no host (fora do Git). Só leitura.
       - ../../dev-data:/repo/dev-data:ro
+      # Imagens de tentativa de fraude (cifradas). O contêiner é read_only; a pasta já existe na imagem.
+      - collector-fraudes:/repo/apps/collector-api/data
     ports:
       - "127.0.0.1:${COLLECTOR_PORT:-3001}:3001"
     depends_on:
@@ -83,3 +85,6 @@ services:
     init: true
     stop_grace_period: 15s
     logging: *logging
+
+volumes:
+  collector-fraudes:

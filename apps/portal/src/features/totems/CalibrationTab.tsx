@@ -19,7 +19,7 @@ import { QueryView } from '@/components/ui/QueryView';
 import { Skeleton } from '@/components/ui/States';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { notify } from '@/components/ui/notify';
-import type { CalibrationSession, CalibrationSessionResult, CalibrationThresholds, Device, DeviceCalibrationSettings } from '@/lib/api/contracts';
+import type { CalibrationProfile, CalibrationProfileName, CalibrationSession, CalibrationSessionResult, CalibrationThresholds, Device, DeviceCalibrationSettings } from '@/lib/api/contracts';
 import { asApiError } from '@/lib/api/errors';
 import { formatInstant } from '@/lib/format';
 import { CALIBRATION_STATE } from '@/lib/labels';
@@ -65,7 +65,16 @@ export function CalibrationTab({ device }: { device: Device }) {
 
   const sources = (others.data ?? []).filter((d) => d.id !== id);
   const source = sources.find((d) => d.id === sourceId);
-  const proposed = session.data?.status === 'calculada' ? session.data.result?.proposed ?? null : null;
+  const computed = session.data?.status === 'calculada' ? session.data.result : null;
+  // Perfil escolhido pelo RH; sem escolha, vale o recomendado. Sem `profiles`, o proposto.
+  const [chosen, setChosen] = useState<CalibrationProfileName | null>(null);
+  const profile =
+    computed?.profiles?.find((p) => p.profile === chosen) ??
+    computed?.profiles?.find((p) => p.profile === computed.recommendedProfile) ??
+    null;
+  const proposed = computed
+    ? { ...computed.proposed, ...(profile ? { recognitionThreshold: profile.recognitionThreshold } : {}) }
+    : null;
 
   const flow = (s: CalibrationSession | null) => {
     if (s === null) {
@@ -82,7 +91,7 @@ export function CalibrationTab({ device }: { device: Device }) {
           <h2 className="m-0 text-base font-bold">{C.startTitle}</h2>
           <p className="m-0 max-w-[620px] text-sm text-muted">{C.startText}</p>
           <div className="flex flex-wrap gap-2">
-            <Button icon={<Play size={18} aria-hidden />} loading={start.isPending} onClick={() => void attempt(async () => { await start.mutateAsync(id); })}>{C.start}</Button>
+            <Button icon={<Play size={18} aria-hidden />} loading={start.isPending} onClick={() => void attempt(async () => { setChosen(null); await start.mutateAsync(id); })}>{C.start}</Button>
             <OpenTotemLink />
           </div>
           <p className="m-0 max-w-[620px] text-xs text-muted">{COPY.openTotem.hint}</p>
@@ -108,6 +117,9 @@ export function CalibrationTab({ device }: { device: Device }) {
       return (
         <Preview
           result={s.result}
+          selected={profile?.profile ?? null}
+          onSelect={setChosen}
+          thresholds={proposed ?? s.result.proposed}
           applying={apply.isPending}
           discarding={discard.isPending}
           onApply={(t) => void attempt(async () => { await apply.mutateAsync({ id, proposed: t }); notify.success(C.applied); })}
@@ -196,8 +208,12 @@ export function CalibrationTab({ device }: { device: Device }) {
   );
 }
 
-function Preview({ result, applying, discarding, onApply, onDiscard }: {
+function Preview({ result, selected, onSelect, thresholds, applying, discarding, onApply, onDiscard }: {
   result: CalibrationSessionResult;
+  selected: CalibrationProfileName | null;
+  onSelect: (profile: CalibrationProfileName) => void;
+  /** Valores que "Aplicar" envia: o perfil escolhido + a vivacidade proposta. */
+  thresholds: CalibrationThresholds;
   applying: boolean;
   discarding: boolean;
   onApply: (proposed: CalibrationThresholds) => void;
@@ -213,12 +229,48 @@ function Preview({ result, applying, discarding, onApply, onDiscard }: {
           <ul className="mt-1 mb-0 list-disc pl-5 text-sm text-ink-2">{result.recommendations.map((r) => <li key={r}>{r}</li>)}</ul>
         </div>
       )}
-      <CalibrationChart result={result} />
+      {result.profiles && result.profiles.length > 0 && (
+        <ProfileChoice profiles={result.profiles} recommended={result.recommendedProfile} selected={selected} onSelect={onSelect} />
+      )}
+      <CalibrationChart result={{ ...result, proposed: thresholds }} />
       <div className="flex flex-wrap gap-2">
-        <Button loading={applying} onClick={() => onApply(result.proposed)}>{C.apply}</Button>
+        <Button loading={applying} onClick={() => onApply(thresholds)}>{C.apply}</Button>
         <Button variant="secondary" loading={discarding} onClick={onDiscard}>{C.discardResult}</Button>
       </div>
     </div>
+  );
+}
+
+const percent = (ratio: number) => `${Math.round(ratio * 100)}%`;
+
+function ProfileChoice({ profiles, recommended, selected, onSelect }: {
+  profiles: CalibrationProfile[];
+  recommended: CalibrationProfileName | undefined;
+  selected: CalibrationProfileName | null;
+  onSelect: (profile: CalibrationProfileName) => void;
+}) {
+  const current = profiles.find((p) => p.profile === selected);
+  return (
+    <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
+      <legend className="mb-2 p-0 text-sm font-semibold">{C.profilesLabel}</legend>
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+        {profiles.map((p) => (
+          <label key={p.profile} className={`flex cursor-pointer flex-col gap-1.5 rounded-md border p-3.5 text-sm ${p.profile === selected ? 'border-brand bg-surface' : 'border-line'}`}>
+            <span className="flex flex-wrap items-center justify-between gap-2">
+              <span className="flex items-center gap-2 font-semibold">
+                <input type="radio" name="calibration-profile" value={p.profile} checked={p.profile === selected} onChange={() => onSelect(p.profile)} />
+                {p.label}
+              </span>
+              {p.profile === recommended && <StatusBadge label={C.recommended} tone="info" />}
+            </span>
+            <span className="text-xs font-semibold text-muted">{C.profilePriority[p.profile]}</span>
+            <span className="text-ink-2"><b className="tabular-nums">{percent(p.genuineAcceptRate)}</b> {C.genuineRate}</span>
+            <span className="text-ink-2"><b className="tabular-nums">{percent(1 - p.impostorRejectRate)}</b> {C.impostorRate}</span>
+          </label>
+        ))}
+      </div>
+      {current && <p className="m-0 max-w-[720px] text-sm text-ink-2">{current.interpretation}</p>}
+    </fieldset>
   );
 }
 

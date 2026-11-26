@@ -82,6 +82,18 @@ describe('cliente do totem', () => {
     expect((init?.body as FormData).get('cpf')).toBe('00000000101');
   });
 
+  it('identidade: JSON só no corpo; 429 leva a mensagem do servidor', async () => {
+    const ok = setup(() => json({ data: { firstName: 'Ana', alreadyEnrolled: false } }));
+    await expect(ok.api.verifyIdentity({ cpf: '00000000101', pin: '483920' })).resolves.toMatchObject({ firstName: 'Ana' });
+    const [url, init] = ok.fetcher.mock.calls[0] ?? [];
+    expect(url).toBe('/portal/totem/facial/identity');
+    expect(headersOf(init)['content-type']).toBe('application/json');
+    expect(JSON.parse(String(init?.body))).toEqual({ cpf: '00000000101', pin: '483920' });
+
+    const limited = setup(() => json({ error: 'Muitas tentativas. Aguarde 1 minuto.', code: 'MUITAS_TENTATIVAS' }, 429));
+    await expect(limited.api.verifyIdentity({ cpf: '00000000101', pin: '0000' })).rejects.toMatchObject({ status: 429, message: 'Muitas tentativas. Aguarde 1 minuto.' });
+  });
+
   it('calibração e job usam as rotas do contrato; jobId inválido nem chega à rede', async () => {
     const { api, fetcher } = setup(() => json({ data: { status: 'calculada' } }));
     await api.submitCalibration(new FormData());

@@ -47,6 +47,13 @@ export function sanitizeAppVersion(raw: string | string[] | undefined): string |
   return value && /^[\w.+\- ]{1,40}$/.test(value) ? value : null;
 }
 
+const deviceActor = (device: DeviceContext): EnrollmentActor => ({
+  tenantId: device.tenantId,
+  userId: null,
+  deviceId: device.deviceId,
+  establishmentScope: [device.establishmentId],
+});
+
 const sniff = (data: Buffer) => IMAGE_TYPES.find((t) => data.subarray(0, t.magic.length).equals(t.magic));
 
 interface ParsedCalibration {
@@ -130,9 +137,12 @@ export class TotemService {
     };
   }
 
+  identify(device: DeviceContext, ip: string, body: { cpf: string; pin: string }) {
+    return this.d.enrollment.identifyAs(deviceActor(device), ip, body.cpf, body.pin);
+  }
+
   async enroll(device: DeviceContext, req: FastifyRequest) {
-    const actor: EnrollmentActor = { tenantId: device.tenantId, userId: null, deviceId: device.deviceId, establishmentScope: [device.establishmentId] };
-    const done = await this.d.enrollment.enrollAs(actor, req);
+    const done = await this.d.enrollment.enrollAs(deviceActor(device), req);
     return { enrolledAt: done.enrolledAt, imagesProcessed: done.imagesProcessed };
   }
 

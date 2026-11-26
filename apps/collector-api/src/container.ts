@@ -22,6 +22,7 @@ import { FakeCandidateProvider } from './candidates/fake-candidate-provider';
 import type { AppDeps } from './app';
 import type { Env } from './config/env';
 import { HttpEngineClient } from './engine/http-engine-client';
+import { FsFraudFrameStore } from './modules/punches/fraud-frame-store';
 import { PunchRepository } from './modules/punches/repository';
 import { PunchService } from './modules/punches/service';
 import { PunchStatusService } from './modules/punches/status-service';
@@ -133,6 +134,7 @@ export function createContainer(
     clock,
     logger,
     queuePublisher,
+    fraudFrames: new FsFraudFrameStore(path.resolve(APP_ROOT, env.fraudFramesDir), env.masterKey),
   });
   const punchStatusService = new PunchStatusService({ repository, queuePublisher, logger });
 

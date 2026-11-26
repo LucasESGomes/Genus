@@ -1120,6 +1120,20 @@ export interface CalibrationThresholds {
   livenessThreshold: number;
 }
 
+export type CalibrationProfileName = 'conservative' | 'balanced' | 'liberal';
+
+/** Uma opção de limiar de reconhecimento calculada pela engine. */
+export interface CalibrationProfile {
+  profile: CalibrationProfileName;
+  label: string;
+  recognitionThreshold: number;
+  /** 0 a 1 */
+  genuineAcceptRate: number;
+  /** 0 a 1 */
+  impostorRejectRate: number;
+  interpretation: string;
+}
+
 /** Só números agregados: a api nunca devolve imagem nem embedding. */
 export interface CalibrationSessionResult {
   current: CalibrationThresholds;
@@ -1129,6 +1143,9 @@ export interface CalibrationSessionResult {
   recommendations: string[];
   /** Distâncias para o gráfico (genuíno x impostor), já agregadas em faixas. */
   distanceHistogram: { bucket: number; genuine: number; impostor: number }[];
+  /** Ausentes em sessões antigas. */
+  recommendedProfile?: CalibrationProfileName;
+  profiles?: CalibrationProfile[];
 }
 
 /**

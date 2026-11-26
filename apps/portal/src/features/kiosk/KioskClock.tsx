@@ -11,7 +11,7 @@ function parts(now: Date, tz: string) {
   return { hh: get('hour'), mm: get('minute'), ss: get('second'), date };
 }
 
-/** Relógio grande do totem. Hora só por `useClock()`; o intervalo de 1 s apenas relê o relógio. */
+/** Relógio gigante do totem. Hora só por `useClock()`; o intervalo de 1 s apenas relê o relógio. */
 export function KioskClock({ tz = DEFAULT_TZ }: { tz?: string }) {
   const clock = useClock();
   // Começa vazio: o servidor e o navegador não precisam concordar no segundo (evita erro de hidratação).
@@ -23,16 +23,20 @@ export function KioskClock({ tz = DEFAULT_TZ }: { tz?: string }) {
     return () => window.clearInterval(id);
   }, [clock]);
 
-  if (!now) return <div className="h-24" aria-hidden />;
+  if (!now) return <div className="h-36" aria-hidden />;
   const { hh, mm, ss, date } = parts(now, tz);
   return (
     <div className="text-center">
-      <p data-testid="kiosk-clock" aria-label={`${hh} horas e ${mm} minutos`} className="m-0 text-6xl font-bold leading-none tabular-nums tracking-tight">
+      <p
+        data-testid="kiosk-clock"
+        aria-label={`${hh} horas e ${mm} minutos`}
+        className="m-0 font-mono text-[clamp(4rem,16vw,9rem)] leading-none font-semibold tracking-tight text-ink tabular-nums"
+      >
         {hh}:{mm}
-        <span aria-hidden className="text-faint">:{ss}</span>
+        <span aria-hidden className="text-line-hover">:{ss}</span>
       </p>
       {/* Só a primeira letra: "Quarta-feira, 25 de novembro" (capitalize poria "De Novembro"). */}
-      <p className="m-0 mt-3 text-lg text-muted first-letter:uppercase">{date}</p>
+      <p className="m-0 mt-4 text-base text-muted first-letter:uppercase md:text-lg">{date}</p>
     </div>
   );
 }

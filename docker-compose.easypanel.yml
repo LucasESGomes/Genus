@@ -224,6 +224,9 @@ services:
       FAKE_CANDIDATES_ENABLED: "false"
       EXPOSE_TIMINGS: "false"
     expose: ["3001"]
+    # Imagens de tentativa de fraude (cifradas). O contêiner é read_only; sem o volume nada é guardado.
+    volumes:
+      - collector-fraudes:/repo/apps/collector-api/data
     depends_on:
       arp-migrate: { condition: service_completed_successfully }
       rh-migrate: { condition: service_completed_successfully }
@@ -329,3 +332,4 @@ volumes:
   engine-models:
   insightface:
   rh-anexos:
+  collector-fraudes:

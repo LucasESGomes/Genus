@@ -219,7 +219,10 @@ export async function startEngineStub(opts: EngineStubOptions): Promise<EngineSt
         best_distance_raw: 0.3, processing_ms: 49, timings_ms: timings,
       };
     }
-    return { status: b.status, processing_ms: 31, timings_ms: timings, liveness_combined_raw: null };
+    return {
+      status: b.status, processing_ms: 31, timings_ms: timings,
+      liveness_combined_raw: b.status === 'liveness_failed' ? 0.12 : null,
+    };
   });
 
   app.post('/embeddings/register', async (req, reply) => {

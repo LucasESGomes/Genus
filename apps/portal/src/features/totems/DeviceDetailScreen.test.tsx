@@ -94,7 +94,7 @@ describe('Totem: calibração', () => {
 
   it('não há captura no painel: nada de câmera nem teste de câmera', async () => {
     setup({}, { route });
-    await screen.findByRole('button', { name: 'Calibrar' });
+    await screen.findByRole('button', { name: 'Calibrar totem' });
     expect(screen.queryByText(/Testar câmera/)).toBeNull();
     expect(screen.queryByRole('button', { name: /Iniciar teste/ })).toBeNull();
   });
@@ -104,7 +104,7 @@ describe('Totem: calibração', () => {
     const startCalibration = vi.fn(async (id: string) => { calls.push('start'); return mockDevicesApi.startCalibration(id); });
     const applyCalibration = vi.fn(async (id: string, p: { recognitionThreshold: number; livenessThreshold: number }) => { calls.push('apply'); return mockDevicesApi.applyCalibration(id, p); });
     setup({ startCalibration, applyCalibration }, { route });
-    await userEvent.click(await screen.findByRole('button', { name: 'Calibrar' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Calibrar totem' }));
     expect(await screen.findByText('Aguardando o totem')).toBeInTheDocument();
     expect(screen.getByText(/abra o totem e siga os passos na tela/i)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /Abrir o totem/ })[0]).toHaveAttribute('href', '/totem');
@@ -131,11 +131,29 @@ describe('Totem: calibração', () => {
     await waitFor(() => expect(discardCalibration).toHaveBeenCalledWith('1'));
   });
 
+  it('perfis: recomendado pré-selecionado e aplicar envia o limiar do perfil escolhido', async () => {
+    const applyCalibration = vi.fn(async (id: string, p: { recognitionThreshold: number; livenessThreshold: number }) => mockDevicesApi.applyCalibration(id, p));
+    await mockDevicesApi.startCalibration('1');
+    completeMockCalibration('1');
+    setup({ applyCalibration }, { route });
+    expect(await screen.findByRole('radio', { name: /Balanceado/ })).toBeChecked();
+    await userEvent.click(screen.getByRole('radio', { name: /Conservador/ }));
+    expect(screen.getByText(/Mais rígido/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Aplicar a este totem' }));
+    await waitFor(() => expect(applyCalibration).toHaveBeenCalledWith('1', { recognitionThreshold: 0.85, livenessThreshold: 0.9 }));
+  });
+
+  it('o botão "Calibrar totem" aparece na página do totem e leva à calibração', async () => {
+    setup({}, { route: '/rh/totens/1' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Calibrar totem' }));
+    expect(await screen.findByText('Valores do reconhecimento')).toBeInTheDocument();
+  });
+
   it('totem inativo não inicia a calibração', async () => {
     const startCalibration = vi.fn();
     setup({ get: vi.fn(async () => ({ ...online, isActive: false, connection: 'inativo' as const })), startCalibration }, { route });
     expect(await screen.findByText('Ative o totem para poder calibrar.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Calibrar' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Calibrar totem' })).toBeNull();
     expect(startCalibration).not.toHaveBeenCalled();
   });
 
@@ -188,7 +206,7 @@ describe('Totem: calibração', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const calibrationSession = vi.fn(async () => null);
     setup({ calibrationSession }, { route });
-    await screen.findByRole('button', { name: 'Calibrar' });
+    await screen.findByRole('button', { name: 'Calibrar totem' });
     const n = calibrationSession.mock.calls.length;
     await act(async () => { await vi.advanceTimersByTimeAsync(8000); });
     expect(calibrationSession.mock.calls.length).toBe(n);

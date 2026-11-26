@@ -1,8 +1,9 @@
-import { screen } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildCalibrationForm, CalibrationFlow } from './CalibrationFlow';
+import { CAPTURE_INTERVAL_MS, COOLDOWN_TICKS } from './CaptureStage';
 import { makeApi, renderKiosk } from './test-utils';
 
 vi.mock('@/features/totems/camera/useTotemCamera', async () => {
@@ -11,78 +12,67 @@ vi.mock('@/features/totems/camera/useTotemCamera', async () => {
   return { useTotemCamera: () => handle, meanAbsDiff: () => 0 };
 });
 
-const click = (name: string) => userEvent.click(screen.getByRole('button', { name }));
+afterEach(() => vi.useRealTimers());
 
-async function takeShots(n: number) {
-  for (let i = 0; i < n; i++) await userEvent.click(await screen.findByRole('button', { name: 'Tirar foto' }));
+function setup(api = makeApi()) {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+  const props = { onSubmitted: vi.fn(), onCancel: vi.fn(), onKeyRejected: vi.fn() };
+  const view = renderKiosk(<CalibrationFlow api={api} sessionId="7001" {...props} />);
+  const click = (name: string) => user.click(screen.getByRole('button', { name }));
+  return { api, click, ...props, ...view };
+}
+
+/** Deixa a captura automática tirar `n` fotos seguidas. */
+async function shoot(n: number) {
+  for (let i = 0; i < n * (COOLDOWN_TICKS + 2); i++) await act(() => vi.advanceTimersByTimeAsync(CAPTURE_INTERVAL_MS));
+}
+
+async function collect(click: (name: string) => Promise<void>) {
+  await click('Já sei como funciona, pular');
+  await shoot(3);
+  expect(screen.getByRole('heading', { name: 'Pessoa 1 cadastrada' })).toBeInTheDocument();
+  await click('Chamar a próxima pessoa');
+  await shoot(3);
+  await click('Ir para o grupo 2');
+  await click('Chamar a primeira pessoa');
+  for (let i = 1; i <= 3; i++) {
+    await shoot(1);
+    expect(screen.getByRole('heading', { name: `Pessoa ${i} registrada` })).toBeInTheDocument();
+    await click(i < 3 ? 'Chamar a próxima pessoa' : 'Ir para o teste da foto');
+  }
+  await click('Estou com o celular pronto');
+  await shoot(1);
+  expect(screen.getByRole('heading', { name: '1 foto testada' })).toBeInTheDocument();
+  await click('Concluir a coleta');
 }
 
 describe('Assistente de ajuste do totem', () => {
-  it('percorre as quatro etapas, mostra o contador e envia o multipart do contrato', async () => {
-    const api = makeApi();
-    const onSubmitted = vi.fn();
-    const { container } = renderKiosk(<CalibrationFlow api={api} sessionId="7001" onSubmitted={onSubmitted} onCancel={vi.fn()} onKeyRejected={vi.fn()} />);
-
-    expect(screen.getByRole('heading', { name: 'Ajuste do totem' })).toBeInTheDocument();
+  it('explica as etapas, captura sozinho e envia o multipart do contrato', async () => {
+    const { api, click, onSubmitted, container } = setup();
+    expect(screen.getByRole('heading', { name: 'Chame 5 pessoas até aqui' })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
-    await click('Começar');
+    await click('Entendi, continuar');
+    expect(screen.getByRole('heading', { name: '2 pessoas, 3 fotos de cada' })).toBeInTheDocument();
+    expect(document.body.textContent ?? '').not.toMatch(/limiar|embedding|liveness|impostor|threshold/i);
+    await click('Voltar');
+    await collect(click);
 
-    expect(screen.getByRole('heading', { name: 'Pessoa 1: fique de frente' })).toBeInTheDocument();
-    expect(await axe(container)).toHaveNoViolations();
-    await click('Continuar');
-    expect(screen.getByText('1 de 3')).toBeInTheDocument();
-    expect(await axe(container)).toHaveNoViolations();
-    await userEvent.click(await screen.findByRole('button', { name: 'Tirar foto' }));
-    expect(screen.getByText('2 de 3')).toBeInTheDocument();
-    await takeShots(2);
-
-    expect(await screen.findByRole('heading', { name: 'Pessoa 2: agora outra pessoa' })).toBeInTheDocument();
-    await click('Continuar');
-    await takeShots(3);
-
-    expect(await screen.findByRole('heading', { name: 'Mais pessoas diferentes: cada uma olha uma vez' })).toBeInTheDocument();
-    await click('Continuar');
-    await takeShots(3);
-
-    expect(await screen.findByRole('heading', { name: 'Mostre uma foto de um rosto na tela de um celular' })).toBeInTheDocument();
-    await click('Continuar');
-    expect(screen.getByText('1 de 2')).toBeInTheDocument();
-    await takeShots(2);
-
-    // Revisão: só contagens.
-    expect(await screen.findByRole('heading', { name: 'Confira antes de enviar' })).toBeInTheDocument();
-    expect(screen.getByText('Pessoa 1: 3 fotos')).toBeInTheDocument();
-    expect(screen.getByText('Foto na tela do celular: 2 fotos')).toBeInTheDocument();
-    expect(await axe(container)).toHaveNoViolations();
-
-    await click('Enviar');
-    expect(await screen.findByRole('heading', { name: 'Pronto!' })).toBeInTheDocument();
-    expect(screen.getByText('O administrador vai revisar o resultado no painel.')).toBeInTheDocument();
-
+    expect(await screen.findByRole('heading', { name: 'Coleta concluída' })).toBeInTheDocument();
     const form = vi.mocked(api.submitCalibration).mock.calls[0]?.[0];
     expect(form?.get('sessionId')).toBe('7001');
     expect(form?.getAll('genuine').map((f) => (f as File).name)).toEqual(['p1_1.jpg', 'p1_2.jpg', 'p1_3.jpg', 'p2_1.jpg', 'p2_2.jpg', 'p2_3.jpg']);
     expect(form?.getAll('impostor')).toHaveLength(3);
-    expect(form?.getAll('attack')).toHaveLength(2);
+    expect(form?.getAll('attack')).toHaveLength(1);
 
     await click('Voltar ao início');
     expect(onSubmitted).toHaveBeenCalled();
   });
 
-  it('não usa termos técnicos na tela', async () => {
-    renderKiosk(<CalibrationFlow api={makeApi()} sessionId="7001" onSubmitted={vi.fn()} onCancel={vi.fn()} onKeyRejected={vi.fn()} />);
-    await click('Começar');
-    await click('Continuar');
-    expect(document.body.textContent ?? '').not.toMatch(/limiar|embedding|liveness|impostor|threshold/i);
-  });
-
   it('cancelar no meio descarta as fotos e avisa o app', async () => {
-    const api = makeApi();
-    const onCancel = vi.fn();
-    renderKiosk(<CalibrationFlow api={api} sessionId="7001" onSubmitted={vi.fn()} onCancel={onCancel} onKeyRejected={vi.fn()} />);
-    await click('Começar');
-    await click('Continuar');
-    await takeShots(1);
+    const { api, click, onCancel } = setup();
+    await click('Já sei como funciona, pular');
+    await shoot(1);
     await click('Cancelar');
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(api.submitCalibration).not.toHaveBeenCalled();
@@ -90,23 +80,17 @@ describe('Assistente de ajuste do totem', () => {
 
   it('falha no envio mantém as fotos e deixa tentar de novo', async () => {
     const submit = vi.fn().mockRejectedValueOnce(new Error('x')).mockResolvedValue({ status: 'calculada' });
-    const api = makeApi({ submitCalibration: submit });
-    renderKiosk(<CalibrationFlow api={api} sessionId="7001" onSubmitted={vi.fn()} onCancel={vi.fn()} onKeyRejected={vi.fn()} />);
-    await click('Começar');
-    for (const n of [3, 3, 3, 2]) {
-      await click('Continuar');
-      await takeShots(n);
-    }
-    await click('Enviar');
+    const { click } = setup(makeApi({ submitCalibration: submit }));
+    await collect(click);
     expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível enviar agora');
-    expect(screen.getByText('Pessoa 1: 3 fotos')).toBeInTheDocument();
-    await click('Enviar');
-    expect(await screen.findByRole('heading', { name: 'Pronto!' })).toBeInTheDocument();
+    await click('Enviar de novo');
+    expect(await screen.findByRole('heading', { name: 'Coleta concluída' })).toBeInTheDocument();
+    expect((submit.mock.calls[1]?.[0] as FormData).getAll('genuine')).toHaveLength(6);
   });
 
   it('buildCalibrationForm nomeia os arquivos como o contrato', () => {
     const b = () => new Blob(['x']);
-    const form = buildCalibrationForm('9', { p1: [b(), b()], p2: [b()], others: [b()], screen: [b()] });
+    const form = buildCalibrationForm('9', { people: [[b(), b()], [b()]], impostors: [b()], attacks: [b()] });
     expect(form.getAll('genuine').map((f) => (f as File).name)).toEqual(['p1_1.jpg', 'p1_2.jpg', 'p2_1.jpg']);
   });
 });

@@ -1,0 +1,17 @@
+$kind: http-request
+description: "Confere CPF e PIN antes das fotos. CPF ou PIN errado, colaborador desligado ou de outro estabelecimento: a mesma resposta 401. Conta para o limite de tentativas do cadastro (5 em 15 min)."
+url: "{{portalUrl}}/portal/totem/facial/identity"
+method: POST
+headers:
+  Content-Type: application/json
+  X-Device-Key: "{{deviceKey}}"
+body:
+  type: json
+  content: '{"cpf": "00000000000", "pin": "000000"}'
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Status 401 (ou 429 após muitas tentativas)', () => pm.expect(pm.response.code).to.be.oneOf([401, 429]));
+      pm.test('Código genérico', () => pm.expect(pm.response.json().code).to.be.oneOf(['CPF_OU_PIN_INVALIDO', 'MUITAS_TENTATIVAS']));
+    language: text/javascript
+order: 4000

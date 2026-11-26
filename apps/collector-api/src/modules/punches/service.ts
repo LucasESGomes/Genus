@@ -19,6 +19,7 @@ import {
   type QueuePublisher,
 } from '@genus/shared';
 import { punchJobId } from '@genus/queue';
+import type { FraudFrameStore } from './fraud-frame-store';
 import type { PunchRepository } from './repository';
 import { resolveMarkedAt } from './rules/clock-divergence';
 
@@ -46,6 +47,8 @@ export interface PunchServiceDeps {
   logger: Logger;
   /** Publica em `punches` depois do commit. Falha nunca muda a resposta. */
   queuePublisher: QueuePublisher;
+  /** Guarda a imagem de `liveness_failed`. Falha nunca muda a resposta. */
+  fraudFrames: FraudFrameStore;
 }
 
 const clamp01 = (value: number | null): number | null =>
@@ -124,6 +127,9 @@ export class PunchService {
       timings.engineStages = recognized.timing.stages;
 
       if (recognized.kind === 'fallback') {
+        if (recognized.reason === 'liveness_failed') {
+          await this.storeFraudFrame(ctx, input, publicId, recognized.livenessScore ?? null);
+        }
         return finish(this.fallbackResult(recognized.reason), { receiptId: null, replayed: false });
       }
 
@@ -237,6 +243,42 @@ export class PunchService {
           err: { name: err instanceof Error ? err.name : 'unknown', code: typeof code === 'string' ? code : null },
         },
         'fila: falha ao publicar a batida; o resgate cobre',
+      );
+    }
+  }
+
+  /**
+   * Imagem da tentativa de fraude. Nunca bloqueia (Portaria 671): falha só vai
+   * ao log, com nome/código do erro (sem imagem, caminho ou dado pessoal).
+   */
+  private async storeFraudFrame(
+    ctx: DeviceContext,
+    input: PunchInput,
+    traceId: string,
+    livenessScore: number | null,
+  ): Promise<void> {
+    try {
+      await this.deps.fraudFrames.save({
+        tenantId: ctx.tenantId,
+        establishmentId: ctx.establishmentId,
+        deviceId: ctx.deviceId,
+        deviceSequence: input.deviceSequence,
+        capturedAt: input.capturedAt,
+        receivedAt: this.deps.clock.now(),
+        traceId,
+        livenessScore,
+        image: input.image,
+        imageMime: input.imageMime,
+      });
+    } catch (err) {
+      const code = (err as { code?: unknown } | null)?.code;
+      this.deps.logger.error(
+        {
+          event: 'fraud_frame_store_failed',
+          traceId,
+          err: { name: err instanceof Error ? err.name : 'unknown', code: typeof code === 'string' ? code : null },
+        },
+        'fraude: falha ao guardar a imagem; a resposta segue igual',
       );
     }
   }

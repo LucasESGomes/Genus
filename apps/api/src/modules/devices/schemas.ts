@@ -64,6 +64,8 @@ export const calibrationSettingsDto = z.object({
 export type CalibrationSettingsDto = z.infer<typeof calibrationSettingsDto>;
 export const calibrationSettingsResponse = z.object({ data: calibrationSettingsDto });
 
+const calibrationProfileName = z.enum(['conservative', 'balanced', 'liberal']);
+
 export const calibrationSessionDto = z.object({
   id: z.number(),
   status: z.enum(['aguardando', 'calculada', 'aplicada', 'descartada', 'falhou']),
@@ -76,6 +78,19 @@ export const calibrationSessionDto = z.object({
       qualityScore: z.number(),
       recommendations: z.array(z.string()),
       distanceHistogram: z.array(z.object({ bucket: z.number(), genuine: z.number(), impostor: z.number() })),
+      recommendedProfile: calibrationProfileName.optional(),
+      profiles: z
+        .array(
+          z.object({
+            profile: calibrationProfileName,
+            label: z.string(),
+            recognitionThreshold: z.number(),
+            genuineAcceptRate: z.number(),
+            impostorRejectRate: z.number(),
+            interpretation: z.string(),
+          }),
+        )
+        .optional(),
     })
     .nullable(),
   /** Só quando `status = 'falhou'`: motivo em pt-BR. */
